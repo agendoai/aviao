@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,7 +18,7 @@ const BookingSystem: React.FC = () => {
   const { profile } = useAuth();
   const { toast } = useToast();
   
-  const [aircraft, setAircraft] = useState<Aircraft[]>([]);
+  const [aircraftList, setAircraftList] = useState<Aircraft[]>([]);
   const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
   
@@ -64,7 +63,7 @@ const BookingSystem: React.FC = () => {
       .eq('status', 'available');
     
     if (data && !error) {
-      setAircraft(data);
+      setAircraftList(data);
     }
   };
 
@@ -102,8 +101,8 @@ const BookingSystem: React.FC = () => {
   };
 
   const handleAircraftChange = (aircraftId: string) => {
-    const aircraft = aircraft.find(a => a.id === aircraftId);
-    setSelectedAircraft(aircraft || null);
+    const selectedAircraftItem = aircraftList.find(a => a.id === aircraftId);
+    setSelectedAircraft(selectedAircraftItem || null);
     setFormData({ ...formData, aircraft_id: aircraftId });
   };
 
@@ -239,7 +238,7 @@ const BookingSystem: React.FC = () => {
                     <SelectValue placeholder="Selecione a aeronave" />
                   </SelectTrigger>
                   <SelectContent>
-                    {aircraft.map((plane) => (
+                    {aircraftList.map((plane) => (
                       <SelectItem key={plane.id} value={plane.id}>
                         {plane.name} - {plane.model} (até {plane.max_passengers} passageiros)
                       </SelectItem>
