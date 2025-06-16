@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -7,45 +8,54 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { CalendarDays, MapPin, Users, Clock, Calculator, CreditCard } from 'lucide-react';
+import { CalendarDays, Plane, Clock, MapPin, Users, Calculator } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Aircraft = Tables<'aircraft'>;
-
-interface FlightCost {
-  flightHours: number;
-  airportFees: number;
-  overnightStays: number;
-  overnightFee: number;
-  total: number;
-}
+type Booking = Tables<'bookings'>;
 
 const BookingSystem: React.FC = () => {
-  const { profile, updateProfile } = useAuth();
+  const { profile } = useAuth();
   const { toast } = useToast();
   
   const [aircraft, setAircraft] = useState<Aircraft[]>([]);
+  const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null);
+  const [bookings, setBookings] = useState<Booking[]>([]);
+  
   const [formData, setFormData] = useState({
     aircraft_id: '',
-    departureDate: '',
-    departureTime: '',
-    returnDate: '',
-    returnTime: '',
+    departure_date: '',
+    departure_time: '',
+    return_date: '',
+    return_time: '',
     origin: '',
     destination: '',
     passengers: 1,
     stops: '',
-    notes: ''
+    notes: '',
+    flight_hours: 0,
+    airport_fees: 0,
+    overnight_stays: 0
   });
 
-  const [flightCost, setFlightCost] = useState<FlightCost | null>(null);
-  const [isCalculating, setIsCalculating] = useState(false);
-  const [showPayment, setShowPayment] = useState(false);
+  const [costBreakdown, setCostBreakdown] = useState({
+    hourly_cost: 0,
+    airport_fees: 0,
+    overnight_fee: 0,
+    total_cost: 0
+  });
 
   useEffect(() => {
-    fetchAircraft();
-  }, []);
+    if (profile) {
+      fetchAircraft();
+      fetchUserBookings();
+    }
+  }, [profile]);
+
+  useEffect(() => {
+    calculateCosts();
+  }, [formData, selectedAircraft]);
 
   const fetchAircraft = async () => {
     const { data, error } = await supabase
@@ -58,421 +68,433 @@ const BookingSystem: React.FC = () => {
     }
   };
 
-  const calculateCost = async () => {
-    setIsCalculating(true);
+  const fetchUserBookings = async () => {
+    if (!profile) return;
     
-    // Simulate cost calculation with more realistic logic
-    await new Promise(resolve => setTimeout(resolve, 1500));
+    const { data, error } = await supabase
+      .from('bookings')
+      .select('*, aircraft(*)')
+      .eq('user_id', profile.id)
+      .order('created_at', { ascending: false });
     
-    // Calculate flight time based on distance estimation
-    const mockFlightHours = Math.random() * 6 + 1; // 1-7 hours
-    const baseAirportFees = 800 + (Math.random() * 1200); // R$ 800-2000
-    
-    // Calculate overnight stays
-    const departureDate = new Date(formData.departureDate);
-    const returnDate = new Date(formData.returnDate);
-    const daysDiff = Math.ceil((returnDate.getTime() - departureDate.getTime()) / (1000 * 3600 * 24));
-    const overnightStays = Math.max(0, daysDiff - 1);
-    const overnightFee = overnightStays * 9500;
-    
-    // Get selected aircraft hourly rate
-    const selectedAircraft = aircraft.find(a => a.id === formData.aircraft_id);
-    const hourlyRate = selectedAircraft?.hourly_rate || 2800;
-    
-    const cost: FlightCost = {
-      flightHours: mockFlightHours,
-      airportFees: baseAirportFees,
-      overnightStays,
-      overnightFee,
-      total: (mockFlightHours * hourlyRate) + baseAirportFees + overnightFee
-    };
-    
-    setFlightCost(cost);
-    setIsCalculating(false);
+    if (data && !error) {
+      setBookings(data);
+    }
   };
 
-  const handleReservation = async () => {
-    if (!profile || !flightCost) return;
+  const calculateCosts = () => {
+    if (!selectedAircraft || !formData.flight_hours) {
+      setCostBreakdown({ hourly_cost: 0, airport_fees: 0, overnight_fee: 0, total_cost: 0 });
+      return;
+    }
+
+    const hourly_cost = selectedAircraft.hourly_rate * formData.flight_hours;
+    const overnight_fee = formData.overnight_stays * 1500; // R$ 1.500 por pernoite
+    const airport_fees = formData.airport_fees || 0;
+    const total_cost = hourly_cost + overnight_fee + airport_fees;
+
+    setCostBreakdown({
+      hourly_cost,
+      airport_fees,
+      overnight_fee,
+      total_cost
+    });
+  };
+
+  const handleAircraftChange = (aircraftId: string) => {
+    const aircraft = aircraft.find(a => a.id === aircraftId);
+    setSelectedAircraft(aircraft || null);
+    setFormData({ ...formData, aircraft_id: aircraftId });
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
     
-    if (profile.balance < flightCost.total) {
+    if (!profile || !selectedAircraft) {
       toast({
-        title: "Saldo Insuficiente",
-        description: "Você precisa adicionar créditos para completar esta reserva.",
+        title: "Erro",
+        description: "Selecione uma aeronave válida.",
         variant: "destructive"
       });
       return;
     }
 
-    setShowPayment(true);
-  };
-
-  const confirmPayment = async () => {
-    if (!profile || !flightCost) return;
-    
-    try {
-      // Create booking
-      const bookingData = {
-        user_id: profile.id,
-        aircraft_id: formData.aircraft_id,
-        departure_date: formData.departureDate,
-        departure_time: formData.departureTime,
-        return_date: formData.returnDate,
-        return_time: formData.returnTime,
-        origin: formData.origin,
-        destination: formData.destination,
-        passengers: formData.passengers,
-        stops: formData.stops || null,
-        notes: formData.notes || null,
-        flight_hours: flightCost.flightHours,
-        airport_fees: flightCost.airportFees,
-        overnight_stays: flightCost.overnightStays,
-        overnight_fee: flightCost.overnightFee,
-        total_cost: flightCost.total,
-        status: profile.priority_position === 1 ? 'confirmed' : 'pending',
-        priority_expires_at: profile.priority_position === 1 ? null : 
-          new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString() // 12 hours from now
-      };
-
-      const { data: booking, error: bookingError } = await supabase
-        .from('bookings')
-        .insert(bookingData)
-        .select()
-        .single();
-
-      if (bookingError) throw bookingError;
-
-      // Create transaction
-      const { error: transactionError } = await supabase
-        .from('transactions')
-        .insert({
-          user_id: profile.id,
-          booking_id: booking.id,
-          amount: flightCost.total,
-          description: `Reserva de voo: ${formData.origin} → ${formData.destination}`,
-          type: 'debit'
-        });
-
-      if (transactionError) throw transactionError;
-
-      // Update user balance
-      await updateProfile({ balance: profile.balance - flightCost.total });
-      
+    if (costBreakdown.total_cost > profile.balance) {
       toast({
-        title: profile.priority_position === 1 ? "Reserva Confirmada!" : "Reserva Pendente",
-        description: profile.priority_position === 1 
-          ? "Sua reserva foi confirmada imediatamente." 
-          : "Sua reserva está pendente por 12 horas para validação de prioridade.",
+        title: "Saldo Insuficiente",
+        description: `Seu saldo atual é R$ ${profile.balance.toLocaleString('pt-BR')}. Esta reserva custa R$ ${costBreakdown.total_cost.toLocaleString('pt-BR')}.`,
+        variant: "destructive"
       });
-      
+      return;
+    }
+
+    // Calcular data de expiração da prioridade (24h)
+    const priorityExpiresAt = new Date();
+    priorityExpiresAt.setHours(priorityExpiresAt.getHours() + 24);
+
+    const bookingData = {
+      user_id: profile.id,
+      aircraft_id: formData.aircraft_id,
+      departure_date: formData.departure_date,
+      departure_time: formData.departure_time,
+      return_date: formData.return_date,
+      return_time: formData.return_time,
+      origin: formData.origin,
+      destination: formData.destination,
+      passengers: formData.passengers,
+      stops: formData.stops || null,
+      notes: formData.notes || null,
+      flight_hours: formData.flight_hours,
+      airport_fees: formData.airport_fees,
+      overnight_stays: formData.overnight_stays,
+      overnight_fee: costBreakdown.overnight_fee,
+      total_cost: costBreakdown.total_cost,
+      status: 'pending' as const,
+      priority_expires_at: priorityExpiresAt.toISOString()
+    };
+
+    try {
+      const { error } = await supabase
+        .from('bookings')
+        .insert([bookingData]);
+
+      if (error) throw error;
+
+      // Criar transação de débito
+      await supabase
+        .from('transactions')
+        .insert([{
+          user_id: profile.id,
+          amount: costBreakdown.total_cost,
+          description: `Reserva ${formData.origin} → ${formData.destination}`,
+          type: 'debit'
+        }]);
+
+      toast({
+        title: "Reserva Criada!",
+        description: `Sua reserva foi criada com sucesso. Prioridade válida por 24h.`,
+      });
+
       // Reset form
-      setShowPayment(false);
-      setFlightCost(null);
       setFormData({
         aircraft_id: '',
-        departureDate: '',
-        departureTime: '',
-        returnDate: '',
-        returnTime: '',
+        departure_date: '',
+        departure_time: '',
+        return_date: '',
+        return_time: '',
         origin: '',
         destination: '',
         passengers: 1,
         stops: '',
-        notes: ''
+        notes: '',
+        flight_hours: 0,
+        airport_fees: 0,
+        overnight_stays: 0
       });
+      setSelectedAircraft(null);
       
-    } catch (error: any) {
+      fetchUserBookings();
+    } catch (error) {
+      console.error('Erro ao criar reserva:', error);
       toast({
-        title: "Erro ao processar reserva",
-        description: error.message,
+        title: "Erro",
+        description: "Erro ao criar reserva. Tente novamente.",
         variant: "destructive"
       });
     }
   };
 
-  const selectedAircraft = aircraft.find(a => a.id === formData.aircraft_id);
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'confirmed': return 'text-green-600 bg-green-50';
+      case 'pending': return 'text-yellow-600 bg-yellow-50';
+      case 'cancelled': return 'text-red-600 bg-red-50';
+      case 'completed': return 'text-blue-600 bg-blue-50';
+      default: return 'text-gray-600 bg-gray-50';
+    }
+  };
+
+  if (!profile) return null;
 
   return (
     <div className="space-y-6">
+      {/* Nova Reserva */}
       <Card className="aviation-card">
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <CalendarDays className="h-5 w-5" />
-            <span>Nova Reserva de Voo</span>
+            <span>Nova Reserva</span>
           </CardTitle>
           <CardDescription>
-            Planeje sua missão e calcule os custos automaticamente
+            Sua posição atual: #{profile.priority_position} | Saldo: R$ {profile.balance.toLocaleString('pt-BR')}
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="aircraft">Aeronave</Label>
-              <Select value={formData.aircraft_id} onValueChange={(value) => setFormData({...formData, aircraft_id: value})}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Selecionar aeronave" />
-                </SelectTrigger>
-                <SelectContent>
-                  {aircraft.map((plane) => (
-                    <SelectItem key={plane.id} value={plane.id}>
-                      {plane.name} ({plane.registration})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+        <CardContent>
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="aircraft">Aeronave</Label>
+                <Select value={formData.aircraft_id} onValueChange={handleAircraftChange}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Selecione a aeronave" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {aircraft.map((plane) => (
+                      <SelectItem key={plane.id} value={plane.id}>
+                        {plane.name} - {plane.model} (até {plane.max_passengers} passageiros)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="passengers">Passageiros</Label>
+                <Input
+                  id="passengers"
+                  type="number"
+                  min="1"
+                  max={selectedAircraft?.max_passengers || 8}
+                  value={formData.passengers}
+                  onChange={(e) => setFormData({...formData, passengers: parseInt(e.target.value) || 1})}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="origin">Origem</Label>
+                <Input
+                  id="origin"
+                  value={formData.origin}
+                  onChange={(e) => setFormData({...formData, origin: e.target.value})}
+                  placeholder="Cidade/Aeroporto de origem"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="destination">Destino</Label>
+                <Input
+                  id="destination"
+                  value={formData.destination}
+                  onChange={(e) => setFormData({...formData, destination: e.target.value})}
+                  placeholder="Cidade/Aeroporto de destino"
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="departure_date">Data de Partida</Label>
+                <Input
+                  id="departure_date"
+                  type="date"
+                  value={formData.departure_date}
+                  onChange={(e) => setFormData({...formData, departure_date: e.target.value})}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="departure_time">Horário de Partida</Label>
+                <Input
+                  id="departure_time"
+                  type="time"
+                  value={formData.departure_time}
+                  onChange={(e) => setFormData({...formData, departure_time: e.target.value})}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="return_date">Data de Retorno</Label>
+                <Input
+                  id="return_date"
+                  type="date"
+                  value={formData.return_date}
+                  onChange={(e) => setFormData({...formData, return_date: e.target.value})}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="return_time">Horário de Retorno</Label>
+                <Input
+                  id="return_time"
+                  type="time"
+                  value={formData.return_time}
+                  onChange={(e) => setFormData({...formData, return_time: e.target.value})}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="flight_hours">Horas de Voo</Label>
+                <Input
+                  id="flight_hours"
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  value={formData.flight_hours}
+                  onChange={(e) => setFormData({...formData, flight_hours: parseFloat(e.target.value) || 0})}
+                  required
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="airport_fees">Taxas Aeroportuárias (R$)</Label>
+                <Input
+                  id="airport_fees"
+                  type="number"
+                  min="0"
+                  value={formData.airport_fees}
+                  onChange={(e) => setFormData({...formData, airport_fees: parseFloat(e.target.value) || 0})}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="overnight_stays">Pernoites</Label>
+                <Input
+                  id="overnight_stays"
+                  type="number"
+                  min="0"
+                  value={formData.overnight_stays}
+                  onChange={(e) => setFormData({...formData, overnight_stays: parseInt(e.target.value) || 0})}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="stops">Escalas (opcional)</Label>
+                <Input
+                  id="stops"
+                  value={formData.stops}
+                  onChange={(e) => setFormData({...formData, stops: e.target.value})}
+                  placeholder="Cidades de escala separadas por vírgula"
+                />
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="passengers">Passageiros</Label>
-              <Select 
-                value={formData.passengers.toString()} 
-                onValueChange={(value) => setFormData({...formData, passengers: parseInt(value)})}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Array.from({ length: selectedAircraft?.max_passengers || 8 }, (_, i) => i + 1).map(num => (
-                    <SelectItem key={num} value={num.toString()}>
-                      {num} passageiro{num > 1 ? 's' : ''}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="origin">Origem</Label>
-              <Input
-                id="origin"
-                placeholder="Ex: SBGR - Guarulhos"
-                value={formData.origin}
-                onChange={(e) => setFormData({...formData, origin: e.target.value})}
+              <Label htmlFor="notes">Observações</Label>
+              <Textarea
+                id="notes"
+                value={formData.notes}
+                onChange={(e) => setFormData({...formData, notes: e.target.value})}
+                placeholder="Observações adicionais sobre o voo"
+                rows={3}
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="destination">Destino</Label>
-              <Input
-                id="destination"
-                placeholder="Ex: SBGL - Galeão"
-                value={formData.destination}
-                onChange={(e) => setFormData({...formData, destination: e.target.value})}
-              />
-            </div>
-          </div>
+            {/* Breakdown de Custos */}
+            {selectedAircraft && formData.flight_hours > 0 && (
+              <Card className="bg-blue-50 border-blue-200">
+                <CardHeader>
+                  <CardTitle className="text-lg flex items-center space-x-2">
+                    <Calculator className="h-5 w-5" />
+                    <span>Estimativa de Custos</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <div className="flex justify-between">
+                    <span>Horas de voo ({formData.flight_hours}h × R$ {selectedAircraft.hourly_rate.toLocaleString('pt-BR')}):</span>
+                    <span className="font-medium">R$ {costBreakdown.hourly_cost.toLocaleString('pt-BR')}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Taxas aeroportuárias:</span>
+                    <span className="font-medium">R$ {costBreakdown.airport_fees.toLocaleString('pt-BR')}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Pernoites ({formData.overnight_stays} × R$ 1.500):</span>
+                    <span className="font-medium">R$ {costBreakdown.overnight_fee.toLocaleString('pt-BR')}</span>
+                  </div>
+                  <div className="border-t pt-2 flex justify-between text-lg font-bold">
+                    <span>Total:</span>
+                    <span className={costBreakdown.total_cost > profile.balance ? 'text-red-600' : 'text-green-600'}>
+                      R$ {costBreakdown.total_cost.toLocaleString('pt-BR')}
+                    </span>
+                  </div>
+                  {costBreakdown.total_cost > profile.balance && (
+                    <div className="text-red-600 text-sm mt-2">
+                      Saldo insuficiente. Adicione R$ {(costBreakdown.total_cost - profile.balance).toLocaleString('pt-BR')} à sua conta.
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
 
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="departureDate">Data de Partida</Label>
-                <Input
-                  id="departureDate"
-                  type="date"
-                  value={formData.departureDate}
-                  onChange={(e) => setFormData({...formData, departureDate: e.target.value})}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="departureTime">Hora de Partida</Label>
-                <Input
-                  id="departureTime"
-                  type="time"
-                  value={formData.departureTime}
-                  onChange={(e) => setFormData({...formData, departureTime: e.target.value})}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-4">
-              <div className="space-y-2">
-                <Label htmlFor="returnDate">Data de Retorno</Label>
-                <Input
-                  id="returnDate"
-                  type="date"
-                  value={formData.returnDate}
-                  onChange={(e) => setFormData({...formData, returnDate: e.target.value})}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="returnTime">Hora Máxima de Retorno</Label>
-                <Input
-                  id="returnTime"
-                  type="time"
-                  value={formData.returnTime}
-                  onChange={(e) => setFormData({...formData, returnTime: e.target.value})}
-                />
-              </div>
-            </div>
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="stops">Paradas Intermediárias (opcional)</Label>
-            <Input
-              id="stops"
-              placeholder="Ex: SBPA - Porto Alegre"
-              value={formData.stops}
-              onChange={(e) => setFormData({...formData, stops: e.target.value})}
-            />
-          </div>
-
-          <div className="space-y-2">
-            <Label htmlFor="notes">Observações</Label>
-            <Textarea
-              id="notes"
-              placeholder="Informações adicionais sobre o voo..."
-              value={formData.notes}
-              onChange={(e) => setFormData({...formData, notes: e.target.value})}
-            />
-          </div>
-
-          <Button 
-            onClick={calculateCost}
-            disabled={isCalculating || !formData.aircraft_id || !formData.origin || !formData.destination}
-            className="w-full bg-aviation-gradient hover:opacity-90 text-white"
-          >
-            <Calculator className="h-4 w-4 mr-2" />
-            {isCalculating ? 'Calculando...' : 'Calcular Custo da Missão'}
-          </Button>
+            <Button 
+              type="submit" 
+              className="w-full bg-aviation-gradient hover:opacity-90 text-white"
+              disabled={!selectedAircraft || formData.flight_hours <= 0 || costBreakdown.total_cost > profile.balance}
+            >
+              <Plane className="h-4 w-4 mr-2" />
+              Criar Reserva
+            </Button>
+          </form>
         </CardContent>
       </Card>
 
-      {flightCost && (
-        <Card className="aviation-card">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Calculator className="h-5 w-5" />
-              <span>Detalhamento de Custos</span>
-            </CardTitle>
-            <CardDescription>
-              Cálculo automático baseado na missão planejada
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <div className="flex justify-between">
-                  <span>Horas de voo:</span>
-                  <span>{flightCost.flightHours.toFixed(1)}h</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Custo por hora (R$ {selectedAircraft?.hourly_rate || 2800}):</span>
-                  <span>R$ {(flightCost.flightHours * (selectedAircraft?.hourly_rate || 2800)).toLocaleString('pt-BR')}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span>Taxas aeroportuárias:</span>
-                  <span>R$ {flightCost.airportFees.toLocaleString('pt-BR')}</span>
-                </div>
-                {flightCost.overnightStays > 0 && (
-                  <div className="flex justify-between">
-                    <span>Pernoites ({flightCost.overnightStays}x R$ 9.500):</span>
-                    <span>R$ {flightCost.overnightFee.toLocaleString('pt-BR')}</span>
+      {/* Minhas Reservas */}
+      <Card className="aviation-card">
+        <CardHeader>
+          <CardTitle>Minhas Reservas</CardTitle>
+          <CardDescription>Histórico de reservas e status atual</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {bookings.length === 0 ? (
+            <div className="text-center py-8 text-gray-500">
+              <Plane className="h-12 w-12 mx-auto mb-4 opacity-50" />
+              <p>Você ainda não tem reservas.</p>
+            </div>
+          ) : (
+            <div className="space-y-4">
+              {bookings.map((booking) => (
+                <div key={booking.id} className="border rounded-lg p-4 bg-gray-50">
+                  <div className="flex justify-between items-start mb-3">
+                    <div>
+                      <h4 className="font-semibold text-lg">
+                        {booking.origin} → {booking.destination}
+                      </h4>
+                      <p className="text-gray-600">
+                        {new Date(booking.departure_date).toLocaleDateString('pt-BR')} às {booking.departure_time}
+                      </p>
+                    </div>
+                    <span className={`px-3 py-1 rounded-full text-sm font-medium ${getStatusColor(booking.status)}`}>
+                      {booking.status === 'pending' ? 'Pendente' :
+                       booking.status === 'confirmed' ? 'Confirmado' :
+                       booking.status === 'cancelled' ? 'Cancelado' : 'Concluído'}
+                    </span>
                   </div>
-                )}
-              </div>
-              
-              <div className="bg-gray-50 p-4 rounded-lg">
-                <div className="text-center">
-                  <p className="text-sm text-gray-600">Valor Total</p>
-                  <p className="text-2xl font-bold text-aviation-blue">
-                    R$ {flightCost.total.toLocaleString('pt-BR')}
-                  </p>
-                  <p className="text-xs text-gray-500 mt-2">
-                    Seu saldo: R$ {profile?.balance.toLocaleString('pt-BR')}
-                  </p>
+                  
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+                    <div>
+                      <span className="text-gray-500">Passageiros:</span>
+                      <p className="font-medium">{booking.passengers}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Horas de voo:</span>
+                      <p className="font-medium">{booking.flight_hours}h</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Custo total:</span>
+                      <p className="font-medium">R$ {booking.total_cost.toLocaleString('pt-BR')}</p>
+                    </div>
+                    <div>
+                      <span className="text-gray-500">Criado em:</span>
+                      <p className="font-medium">{new Date(booking.created_at).toLocaleDateString('pt-BR')}</p>
+                    </div>
+                  </div>
+                  
+                  {booking.notes && (
+                    <div className="mt-3">
+                      <span className="text-gray-500 text-sm">Observações:</span>
+                      <p className="text-sm">{booking.notes}</p>
+                    </div>
+                  )}
                 </div>
-              </div>
+              ))}
             </div>
-
-            <div className="pt-4 border-t">
-              <div className="flex items-center space-x-2 mb-3">
-                <Clock className="h-4 w-4 text-blue-600" />
-                <span className="font-medium">Status da Prioridade</span>
-              </div>
-              <div className={`p-3 rounded-lg ${
-                profile?.priority_position === 1 
-                  ? 'bg-green-100 border border-green-300' 
-                  : 'bg-yellow-100 border border-yellow-300'
-              }`}>
-                {profile?.priority_position === 1 ? (
-                  <p className="text-green-800 text-sm">
-                    ✅ Você está em 1º lugar! Sua reserva será confirmada imediatamente após o pagamento.
-                  </p>
-                ) : (
-                  <p className="text-yellow-800 text-sm">
-                    ⏰ Você está na posição #{profile?.priority_position}. Sua reserva ficará pendente por 12 horas para validação de prioridade.
-                  </p>
-                )}
-              </div>
-            </div>
-
-            <Button 
-              onClick={handleReservation}
-              className="w-full bg-aviation-gradient hover:opacity-90 text-white"
-              disabled={!profile || profile.balance < flightCost.total}
-            >
-              <CreditCard className="h-4 w-4 mr-2" />
-              Efetuar Reserva
-            </Button>
-          </CardContent>
-        </Card>
-      )}
-
-      {showPayment && flightCost && (
-        <Card className="aviation-card">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <CreditCard className="h-5 w-5" />
-              <span>Confirmação de Pagamento</span>
-            </CardTitle>
-            <CardDescription>
-              Confirme os detalhes da sua reserva
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h4 className="font-medium mb-2">Resumo da Missão</h4>
-              <div className="space-y-1 text-sm">
-                <p><strong>Rota:</strong> {formData.origin} → {formData.destination}</p>
-                <p><strong>Data:</strong> {formData.departureDate} às {formData.departureTime}</p>
-                <p><strong>Retorno:</strong> {formData.returnDate} até {formData.returnTime}</p>
-                <p><strong>Aeronave:</strong> {selectedAircraft?.name}</p>
-                <p><strong>Passageiros:</strong> {formData.passengers}</p>
-              </div>
-            </div>
-            
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <div className="flex justify-between items-center">
-                <span className="font-medium">Valor Total:</span>
-                <span className="text-xl font-bold text-aviation-blue">
-                  R$ {flightCost.total.toLocaleString('pt-BR')}
-                </span>
-              </div>
-              <div className="flex justify-between items-center mt-2 text-sm">
-                <span>Saldo após pagamento:</span>
-                <span>R$ {(profile!.balance - flightCost.total).toLocaleString('pt-BR')}</span>
-              </div>
-            </div>
-
-            <div className="flex space-x-3">
-              <Button 
-                variant="outline" 
-                onClick={() => setShowPayment(false)}
-                className="flex-1"
-              >
-                Cancelar
-              </Button>
-              <Button 
-                onClick={confirmPayment}
-                className="flex-1 bg-aviation-gradient hover:opacity-90 text-white"
-              >
-                Confirmar Pagamento
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
+          )}
+        </CardContent>
+      </Card>
     </div>
   );
 };
