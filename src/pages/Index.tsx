@@ -10,7 +10,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CalendarDays, BarChart3, Settings, Home } from 'lucide-react';
 
 const Index = () => {
-  const { user, isLoading } = useAuth();
+  const { profile, isLoading } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
 
   if (isLoading) {
@@ -28,7 +28,7 @@ const Index = () => {
     );
   }
 
-  if (!user) {
+  if (!profile) {
     return <LoginForm />;
   }
 
@@ -61,7 +61,7 @@ const Index = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">
-                  Bem-vindo, {user.name}
+                  Bem-vindo, {profile.name}
                 </h1>
                 <p className="text-gray-600">
                   Gerencie suas reservas e acompanhe sua posição de prioridade

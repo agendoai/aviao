@@ -1,6 +1,6 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { CalendarDays, MapPin, Users, Clock, Calculator, CreditCard } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
+import type { Tables } from '@/integrations/supabase/types';
+
+type Aircraft = Tables<'aircraft'>;
 
 interface FlightCost {
   flightHours: number;
@@ -19,11 +22,12 @@ interface FlightCost {
 }
 
 const BookingSystem: React.FC = () => {
-  const { user, updateUser } = useAuth();
+  const { profile, updateProfile } = useAuth();
   const { toast } = useToast();
   
+  const [aircraft, setAircraft] = useState<Aircraft[]>([]);
   const [formData, setFormData] = useState({
-    aircraft: '',
+    aircraft_id: '',
     departureDate: '',
     departureTime: '',
     returnDate: '',
@@ -39,24 +43,48 @@ const BookingSystem: React.FC = () => {
   const [isCalculating, setIsCalculating] = useState(false);
   const [showPayment, setShowPayment] = useState(false);
 
+  useEffect(() => {
+    fetchAircraft();
+  }, []);
+
+  const fetchAircraft = async () => {
+    const { data, error } = await supabase
+      .from('aircraft')
+      .select('*')
+      .eq('status', 'available');
+    
+    if (data && !error) {
+      setAircraft(data);
+    }
+  };
+
   const calculateCost = async () => {
     setIsCalculating(true);
     
-    // Simulate cost calculation
+    // Simulate cost calculation with more realistic logic
     await new Promise(resolve => setTimeout(resolve, 1500));
     
-    // Mock calculation based on distance and time
-    const mockFlightHours = Math.random() * 8 + 2; // 2-10 hours
-    const mockAirportFees = Math.random() * 2000 + 500; // R$ 500-2500
-    const overnightStays = formData.returnDate !== formData.departureDate ? 1 : 0;
+    // Calculate flight time based on distance estimation
+    const mockFlightHours = Math.random() * 6 + 1; // 1-7 hours
+    const baseAirportFees = 800 + (Math.random() * 1200); // R$ 800-2000
+    
+    // Calculate overnight stays
+    const departureDate = new Date(formData.departureDate);
+    const returnDate = new Date(formData.returnDate);
+    const daysDiff = Math.ceil((returnDate.getTime() - departureDate.getTime()) / (1000 * 3600 * 24));
+    const overnightStays = Math.max(0, daysDiff - 1);
     const overnightFee = overnightStays * 9500;
+    
+    // Get selected aircraft hourly rate
+    const selectedAircraft = aircraft.find(a => a.id === formData.aircraft_id);
+    const hourlyRate = selectedAircraft?.hourly_rate || 2800;
     
     const cost: FlightCost = {
       flightHours: mockFlightHours,
-      airportFees: mockAirportFees,
+      airportFees: baseAirportFees,
       overnightStays,
       overnightFee,
-      total: (mockFlightHours * 2800) + mockAirportFees + overnightFee
+      total: (mockFlightHours * hourlyRate) + baseAirportFees + overnightFee
     };
     
     setFlightCost(cost);
@@ -64,9 +92,9 @@ const BookingSystem: React.FC = () => {
   };
 
   const handleReservation = async () => {
-    if (!user || !flightCost) return;
+    if (!profile || !flightCost) return;
     
-    if (user.balance < flightCost.total) {
+    if (profile.balance < flightCost.total) {
       toast({
         title: "Saldo Insuficiente",
         description: "Você precisa adicionar créditos para completar esta reserva.",
@@ -79,36 +107,89 @@ const BookingSystem: React.FC = () => {
   };
 
   const confirmPayment = async () => {
-    if (!user || !flightCost) return;
+    if (!profile || !flightCost) return;
     
-    // Simulate payment processing
-    await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    // Update user balance
-    updateUser({ balance: user.balance - flightCost.total });
-    
-    toast({
-      title: user.priorityPosition === 1 ? "Reserva Confirmada!" : "Reserva Pendente",
-      description: user.priorityPosition === 1 
-        ? "Sua reserva foi confirmada imediatamente." 
-        : "Sua reserva está pendente por 12 horas para validação de prioridade.",
-    });
-    
-    setShowPayment(false);
-    setFlightCost(null);
-    setFormData({
-      aircraft: '',
-      departureDate: '',
-      departureTime: '',
-      returnDate: '',
-      returnTime: '',
-      origin: '',
-      destination: '',
-      passengers: 1,
-      stops: '',
-      notes: ''
-    });
+    try {
+      // Create booking
+      const bookingData = {
+        user_id: profile.id,
+        aircraft_id: formData.aircraft_id,
+        departure_date: formData.departureDate,
+        departure_time: formData.departureTime,
+        return_date: formData.returnDate,
+        return_time: formData.returnTime,
+        origin: formData.origin,
+        destination: formData.destination,
+        passengers: formData.passengers,
+        stops: formData.stops || null,
+        notes: formData.notes || null,
+        flight_hours: flightCost.flightHours,
+        airport_fees: flightCost.airportFees,
+        overnight_stays: flightCost.overnightStays,
+        overnight_fee: flightCost.overnightFee,
+        total_cost: flightCost.total,
+        status: profile.priority_position === 1 ? 'confirmed' : 'pending',
+        priority_expires_at: profile.priority_position === 1 ? null : 
+          new Date(Date.now() + 12 * 60 * 60 * 1000).toISOString() // 12 hours from now
+      };
+
+      const { data: booking, error: bookingError } = await supabase
+        .from('bookings')
+        .insert(bookingData)
+        .select()
+        .single();
+
+      if (bookingError) throw bookingError;
+
+      // Create transaction
+      const { error: transactionError } = await supabase
+        .from('transactions')
+        .insert({
+          user_id: profile.id,
+          booking_id: booking.id,
+          amount: flightCost.total,
+          description: `Reserva de voo: ${formData.origin} → ${formData.destination}`,
+          type: 'debit'
+        });
+
+      if (transactionError) throw transactionError;
+
+      // Update user balance
+      await updateProfile({ balance: profile.balance - flightCost.total });
+      
+      toast({
+        title: profile.priority_position === 1 ? "Reserva Confirmada!" : "Reserva Pendente",
+        description: profile.priority_position === 1 
+          ? "Sua reserva foi confirmada imediatamente." 
+          : "Sua reserva está pendente por 12 horas para validação de prioridade.",
+      });
+      
+      // Reset form
+      setShowPayment(false);
+      setFlightCost(null);
+      setFormData({
+        aircraft_id: '',
+        departureDate: '',
+        departureTime: '',
+        returnDate: '',
+        returnTime: '',
+        origin: '',
+        destination: '',
+        passengers: 1,
+        stops: '',
+        notes: ''
+      });
+      
+    } catch (error: any) {
+      toast({
+        title: "Erro ao processar reserva",
+        description: error.message,
+        variant: "destructive"
+      });
+    }
   };
+
+  const selectedAircraft = aircraft.find(a => a.id === formData.aircraft_id);
 
   return (
     <div className="space-y-6">
@@ -126,27 +207,34 @@ const BookingSystem: React.FC = () => {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="aircraft">Aeronave</Label>
-              <Select value={formData.aircraft} onValueChange={(value) => setFormData({...formData, aircraft: value})}>
+              <Select value={formData.aircraft_id} onValueChange={(value) => setFormData({...formData, aircraft_id: value})}>
                 <SelectTrigger>
                   <SelectValue placeholder="Selecionar aeronave" />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="citation-cj3">Citation CJ3+ (PR-ECA)</SelectItem>
-                  <SelectItem value="phenom-300">Phenom 300 (PR-ECB)</SelectItem>
-                  <SelectItem value="king-air">King Air 350 (PR-ECC)</SelectItem>
+                  {aircraft.map((plane) => (
+                    <SelectItem key={plane.id} value={plane.id}>
+                      {plane.name} ({plane.registration})
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>
 
             <div className="space-y-2">
               <Label htmlFor="passengers">Passageiros</Label>
-              <Select value={formData.passengers.toString()} onValueChange={(value) => setFormData({...formData, passengers: parseInt(value)})}>
+              <Select 
+                value={formData.passengers.toString()} 
+                onValueChange={(value) => setFormData({...formData, passengers: parseInt(value)})}
+              >
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  {[1,2,3,4,5,6,7,8].map(num => (
-                    <SelectItem key={num} value={num.toString()}>{num} passageiro{num > 1 ? 's' : ''}</SelectItem>
+                  {Array.from({ length: selectedAircraft?.max_passengers || 8 }, (_, i) => i + 1).map(num => (
+                    <SelectItem key={num} value={num.toString()}>
+                      {num} passageiro{num > 1 ? 's' : ''}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -241,7 +329,7 @@ const BookingSystem: React.FC = () => {
 
           <Button 
             onClick={calculateCost}
-            disabled={isCalculating || !formData.aircraft || !formData.origin || !formData.destination}
+            disabled={isCalculating || !formData.aircraft_id || !formData.origin || !formData.destination}
             className="w-full bg-aviation-gradient hover:opacity-90 text-white"
           >
             <Calculator className="h-4 w-4 mr-2" />
@@ -269,8 +357,8 @@ const BookingSystem: React.FC = () => {
                   <span>{flightCost.flightHours.toFixed(1)}h</span>
                 </div>
                 <div className="flex justify-between">
-                  <span>Custo por hora (R$ 2.800):</span>
-                  <span>R$ {(flightCost.flightHours * 2800).toLocaleString('pt-BR')}</span>
+                  <span>Custo por hora (R$ {selectedAircraft?.hourly_rate || 2800}):</span>
+                  <span>R$ {(flightCost.flightHours * (selectedAircraft?.hourly_rate || 2800)).toLocaleString('pt-BR')}</span>
                 </div>
                 <div className="flex justify-between">
                   <span>Taxas aeroportuárias:</span>
@@ -291,7 +379,7 @@ const BookingSystem: React.FC = () => {
                     R$ {flightCost.total.toLocaleString('pt-BR')}
                   </p>
                   <p className="text-xs text-gray-500 mt-2">
-                    Seu saldo: R$ {user?.balance.toLocaleString('pt-BR')}
+                    Seu saldo: R$ {profile?.balance.toLocaleString('pt-BR')}
                   </p>
                 </div>
               </div>
@@ -303,17 +391,17 @@ const BookingSystem: React.FC = () => {
                 <span className="font-medium">Status da Prioridade</span>
               </div>
               <div className={`p-3 rounded-lg ${
-                user?.priorityPosition === 1 
+                profile?.priority_position === 1 
                   ? 'bg-green-100 border border-green-300' 
                   : 'bg-yellow-100 border border-yellow-300'
               }`}>
-                {user?.priorityPosition === 1 ? (
+                {profile?.priority_position === 1 ? (
                   <p className="text-green-800 text-sm">
                     ✅ Você está em 1º lugar! Sua reserva será confirmada imediatamente após o pagamento.
                   </p>
                 ) : (
                   <p className="text-yellow-800 text-sm">
-                    ⏰ Você está na posição #{user?.priorityPosition}. Sua reserva ficará pendente por 12 horas para validação de prioridade.
+                    ⏰ Você está na posição #{profile?.priority_position}. Sua reserva ficará pendente por 12 horas para validação de prioridade.
                   </p>
                 )}
               </div>
@@ -322,7 +410,7 @@ const BookingSystem: React.FC = () => {
             <Button 
               onClick={handleReservation}
               className="w-full bg-aviation-gradient hover:opacity-90 text-white"
-              disabled={!user || user.balance < flightCost.total}
+              disabled={!profile || profile.balance < flightCost.total}
             >
               <CreditCard className="h-4 w-4 mr-2" />
               Efetuar Reserva
@@ -349,7 +437,7 @@ const BookingSystem: React.FC = () => {
                 <p><strong>Rota:</strong> {formData.origin} → {formData.destination}</p>
                 <p><strong>Data:</strong> {formData.departureDate} às {formData.departureTime}</p>
                 <p><strong>Retorno:</strong> {formData.returnDate} até {formData.returnTime}</p>
-                <p><strong>Aeronave:</strong> {formData.aircraft}</p>
+                <p><strong>Aeronave:</strong> {selectedAircraft?.name}</p>
                 <p><strong>Passageiros:</strong> {formData.passengers}</p>
               </div>
             </div>
@@ -363,7 +451,7 @@ const BookingSystem: React.FC = () => {
               </div>
               <div className="flex justify-between items-center mt-2 text-sm">
                 <span>Saldo após pagamento:</span>
-                <span>R$ {(user!.balance - flightCost.total).toLocaleString('pt-BR')}</span>
+                <span>R$ {(profile!.balance - flightCost.total).toLocaleString('pt-BR')}</span>
               </div>
             </div>
 

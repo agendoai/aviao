@@ -9,16 +9,225 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
-      [_ in never]: never
+      aircraft: {
+        Row: {
+          created_at: string
+          hourly_rate: number
+          id: string
+          max_passengers: number
+          model: string
+          name: string
+          registration: string
+          status: Database["public"]["Enums"]["aircraft_status"]
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          hourly_rate?: number
+          id?: string
+          max_passengers?: number
+          model: string
+          name: string
+          registration: string
+          status?: Database["public"]["Enums"]["aircraft_status"]
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          hourly_rate?: number
+          id?: string
+          max_passengers?: number
+          model?: string
+          name?: string
+          registration?: string
+          status?: Database["public"]["Enums"]["aircraft_status"]
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      bookings: {
+        Row: {
+          aircraft_id: string
+          airport_fees: number
+          created_at: string
+          departure_date: string
+          departure_time: string
+          destination: string
+          flight_hours: number
+          id: string
+          notes: string | null
+          origin: string
+          overnight_fee: number
+          overnight_stays: number
+          passengers: number
+          priority_expires_at: string | null
+          return_date: string
+          return_time: string
+          status: Database["public"]["Enums"]["booking_status"]
+          stops: string | null
+          total_cost: number
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          aircraft_id: string
+          airport_fees: number
+          created_at?: string
+          departure_date: string
+          departure_time: string
+          destination: string
+          flight_hours: number
+          id?: string
+          notes?: string | null
+          origin: string
+          overnight_fee?: number
+          overnight_stays?: number
+          passengers?: number
+          priority_expires_at?: string | null
+          return_date: string
+          return_time: string
+          status?: Database["public"]["Enums"]["booking_status"]
+          stops?: string | null
+          total_cost: number
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          aircraft_id?: string
+          airport_fees?: number
+          created_at?: string
+          departure_date?: string
+          departure_time?: string
+          destination?: string
+          flight_hours?: number
+          id?: string
+          notes?: string | null
+          origin?: string
+          overnight_fee?: number
+          overnight_stays?: number
+          passengers?: number
+          priority_expires_at?: string | null
+          return_date?: string
+          return_time?: string
+          status?: Database["public"]["Enums"]["booking_status"]
+          stops?: string | null
+          total_cost?: number
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_aircraft_id_fkey"
+            columns: ["aircraft_id"]
+            isOneToOne: false
+            referencedRelation: "aircraft"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      profiles: {
+        Row: {
+          balance: number
+          created_at: string
+          email: string
+          id: string
+          membership_tier: Database["public"]["Enums"]["membership_tier"]
+          monthly_fee_status: Database["public"]["Enums"]["monthly_fee_status"]
+          name: string
+          priority_position: number
+          updated_at: string
+        }
+        Insert: {
+          balance?: number
+          created_at?: string
+          email: string
+          id: string
+          membership_tier?: Database["public"]["Enums"]["membership_tier"]
+          monthly_fee_status?: Database["public"]["Enums"]["monthly_fee_status"]
+          name: string
+          priority_position: number
+          updated_at?: string
+        }
+        Update: {
+          balance?: number
+          created_at?: string
+          email?: string
+          id?: string
+          membership_tier?: Database["public"]["Enums"]["membership_tier"]
+          monthly_fee_status?: Database["public"]["Enums"]["monthly_fee_status"]
+          name?: string
+          priority_position?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      transactions: {
+        Row: {
+          amount: number
+          booking_id: string | null
+          created_at: string
+          description: string
+          id: string
+          type: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          booking_id?: string | null
+          created_at?: string
+          description: string
+          id?: string
+          type: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          booking_id?: string | null
+          created_at?: string
+          description?: string
+          id?: string
+          type?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "transactions_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "transactions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      rotate_priorities: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
     }
     Enums: {
-      [_ in never]: never
+      aircraft_status: "available" | "in_flight" | "maintenance"
+      booking_status: "pending" | "confirmed" | "cancelled" | "completed"
+      membership_tier: "basic" | "premium" | "vip"
+      monthly_fee_status: "paid" | "pending" | "overdue"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -133,6 +342,11 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      aircraft_status: ["available", "in_flight", "maintenance"],
+      booking_status: ["pending", "confirmed", "cancelled", "completed"],
+      membership_tier: ["basic", "premium", "vip"],
+      monthly_fee_status: ["paid", "pending", "overdue"],
+    },
   },
 } as const

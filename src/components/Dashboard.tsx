@@ -1,18 +1,73 @@
 
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { useAuth } from './AuthContext';
+import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { CalendarDays, Plane, CreditCard, Users, TrendingUp, Clock } from 'lucide-react';
+import type { Tables } from '@/integrations/supabase/types';
+
+type Transaction = Tables<'transactions'>;
+type Booking = Tables<'bookings'>;
 
 const Dashboard: React.FC = () => {
-  const { user } = useAuth();
+  const { profile } = useAuth();
+  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
+  const [recentBookings, setRecentBookings] = useState<Booking[]>([]);
+  const [topProfiles, setTopProfiles] = useState<Tables<'profiles'>[]>([]);
 
-  if (!user) return null;
+  useEffect(() => {
+    if (profile) {
+      fetchRecentActivity();
+      fetchTopProfiles();
+    }
+  }, [profile]);
 
-  const priorityProgress = ((21 - user.priorityPosition) / 20) * 100;
-  const balanceStatus = user.balance >= 10000 ? 'high' : user.balance >= 5000 ? 'medium' : 'low';
+  const fetchRecentActivity = async () => {
+    if (!profile) return;
+
+    // Fetch recent transactions
+    const { data: transactions } = await supabase
+      .from('transactions')
+      .select('*')
+      .eq('user_id', profile.id)
+      .order('created_at', { ascending: false })
+      .limit(5);
+
+    if (transactions) {
+      setRecentTransactions(transactions);
+    }
+
+    // Fetch recent bookings
+    const { data: bookings } = await supabase
+      .from('bookings')
+      .select('*')
+      .eq('user_id', profile.id)
+      .order('created_at', { ascending: false })
+      .limit(3);
+
+    if (bookings) {
+      setRecentBookings(bookings);
+    }
+  };
+
+  const fetchTopProfiles = async () => {
+    const { data } = await supabase
+      .from('profiles')
+      .select('*')
+      .order('priority_position', { ascending: true })
+      .limit(5);
+
+    if (data) {
+      setTopProfiles(data);
+    }
+  };
+
+  if (!profile) return null;
+
+  const priorityProgress = ((21 - profile.priority_position) / 20) * 100;
+  const balanceStatus = profile.balance >= 10000 ? 'high' : profile.balance >= 5000 ? 'medium' : 'low';
 
   return (
     <div className="space-y-6">
@@ -24,7 +79,7 @@ const Dashboard: React.FC = () => {
             <TrendingUp className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">#{user.priorityPosition}</div>
+            <div className="text-2xl font-bold">#{profile.priority_position}</div>
             <Progress value={priorityProgress} className="mt-2" />
             <p className="text-xs text-muted-foreground mt-2">
               Rotação diária às 00:00
@@ -39,7 +94,7 @@ const Dashboard: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="text-2xl font-bold">
-              R$ {user.balance.toLocaleString('pt-BR')}
+              R$ {profile.balance.toLocaleString('pt-BR')}
             </div>
             <div className={`text-xs mt-2 ${
               balanceStatus === 'high' ? 'text-green-600' : 
@@ -57,9 +112,17 @@ const Dashboard: React.FC = () => {
             <Plane className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">25 JUN</div>
+            <div className="text-2xl font-bold">
+              {recentBookings.length > 0 ? 
+                new Date(recentBookings[0].departure_date).toLocaleDateString('pt-BR', { day: '2-digit', month: 'short' }).toUpperCase() : 
+                '--'
+              }
+            </div>
             <p className="text-xs text-muted-foreground mt-2">
-              São Paulo → Rio de Janeiro
+              {recentBookings.length > 0 ? 
+                `${recentBookings[0].origin} → ${recentBookings[0].destination}` : 
+                'Nenhum voo agendado'
+              }
             </p>
           </CardContent>
         </Card>
@@ -71,20 +134,20 @@ const Dashboard: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className={`text-2xl font-bold ${
-              user.monthlyFeeStatus === 'paid' ? 'text-green-600' : 
-              user.monthlyFeeStatus === 'pending' ? 'text-yellow-600' : 'text-red-600'
+              profile.monthly_fee_status === 'paid' ? 'text-green-600' : 
+              profile.monthly_fee_status === 'pending' ? 'text-yellow-600' : 'text-red-600'
             }`}>
-              {user.monthlyFeeStatus === 'paid' ? 'PAGO' : 
-               user.monthlyFeeStatus === 'pending' ? 'PENDENTE' : 'EM ATRASO'}
+              {profile.monthly_fee_status === 'paid' ? 'PAGO' : 
+               profile.monthly_fee_status === 'pending' ? 'PENDENTE' : 'EM ATRASO'}
             </div>
             <p className="text-xs text-muted-foreground mt-2">
-              Vencimento: 05/JUL
+              Tier: {profile.membership_tier.toUpperCase()}
             </p>
           </CardContent>
         </Card>
       </div>
 
-      {/* Quick Actions */}
+      {/* Quick Actions and Priority List */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card className="aviation-card">
           <CardHeader>
@@ -124,16 +187,16 @@ const Dashboard: React.FC = () => {
           </CardHeader>
           <CardContent>
             <div className="space-y-2">
-              {[1, 2, 3, 4, 5].map((position) => (
+              {topProfiles.map((member) => (
                 <div 
-                  key={position}
+                  key={member.id}
                   className={`flex items-center justify-between p-2 rounded-lg ${
-                    position === user.priorityPosition ? 'bg-aviation-gold/20 border border-aviation-gold' : 'bg-gray-50'
+                    member.id === profile.id ? 'bg-aviation-gold/20 border border-aviation-gold' : 'bg-gray-50'
                   }`}
                 >
-                  <span className="font-medium">#{position}</span>
+                  <span className="font-medium">#{member.priority_position}</span>
                   <span className="text-sm">
-                    {position === user.priorityPosition ? user.name : `Membro ${position}`}
+                    {member.id === profile.id ? 'Você' : member.name}
                   </span>
                 </div>
               ))}
@@ -153,27 +216,50 @@ const Dashboard: React.FC = () => {
         </CardHeader>
         <CardContent>
           <div className="space-y-4">
-            <div className="flex items-center space-x-4 p-3 bg-gray-50 rounded-lg">
-              <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
-                <Plane className="h-5 w-5 text-green-600" />
-              </div>
-              <div className="flex-1">
-                <p className="font-medium">Voo Confirmado</p>
-                <p className="text-sm text-gray-600">GRU → SDU | 25 JUN 2024</p>
-              </div>
-              <div className="text-sm font-medium text-green-600">-R$ 8.500</div>
-            </div>
-            
-            <div className="flex items-center space-x-4 p-3 bg-gray-50 rounded-lg">
-              <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                <CreditCard className="h-5 w-5 text-blue-600" />
-              </div>
-              <div className="flex-1">
-                <p className="font-medium">Crédito Adicionado</p>
-                <p className="text-sm text-gray-600">Pagamento via PIX</p>
-              </div>
-              <div className="text-sm font-medium text-green-600">+R$ 15.000</div>
-            </div>
+            {recentTransactions.length === 0 && recentBookings.length === 0 ? (
+              <p className="text-gray-500 text-center py-4">Nenhuma atividade recente</p>
+            ) : (
+              <>
+                {recentBookings.slice(0, 2).map((booking) => (
+                  <div key={booking.id} className="flex items-center space-x-4 p-3 bg-gray-50 rounded-lg">
+                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                      <Plane className="h-5 w-5 text-green-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium">
+                        {booking.status === 'confirmed' ? 'Voo Confirmado' : 
+                         booking.status === 'pending' ? 'Voo Pendente' : 'Voo ' + booking.status}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {booking.origin} → {booking.destination} | {new Date(booking.departure_date).toLocaleDateString('pt-BR')}
+                      </p>
+                    </div>
+                    <div className="text-sm font-medium text-red-600">
+                      -R$ {booking.total_cost.toLocaleString('pt-BR')}
+                    </div>
+                  </div>
+                ))}
+                
+                {recentTransactions.slice(0, 2).map((transaction) => (
+                  <div key={transaction.id} className="flex items-center space-x-4 p-3 bg-gray-50 rounded-lg">
+                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
+                      <CreditCard className="h-5 w-5 text-blue-600" />
+                    </div>
+                    <div className="flex-1">
+                      <p className="font-medium">{transaction.description}</p>
+                      <p className="text-sm text-gray-600">
+                        {new Date(transaction.created_at).toLocaleDateString('pt-BR')}
+                      </p>
+                    </div>
+                    <div className={`text-sm font-medium ${
+                      transaction.type === 'credit' ? 'text-green-600' : 'text-red-600'
+                    }`}>
+                      {transaction.type === 'credit' ? '+' : '-'}R$ {transaction.amount.toLocaleString('pt-BR')}
+                    </div>
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         </CardContent>
       </Card>
