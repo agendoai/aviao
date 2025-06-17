@@ -11,6 +11,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { CalendarDays, Plane, Clock, MapPin, Users, Calculator } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
+import type { BookingResponse } from '@/types/supabase-extended';
 
 type Aircraft = Tables<'aircraft'>;
 type Booking = Tables<'bookings'>;
@@ -199,10 +200,12 @@ const BookingSystem: React.FC = () => {
 
       if (error) throw error;
 
-      if (data?.error) {
+      // Type assertion for the response
+      const response = data as BookingResponse;
+      if (response?.error) {
         toast({
           title: "Erro",
-          description: data.error,
+          description: response.error,
           variant: "destructive"
         });
         return;

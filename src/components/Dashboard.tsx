@@ -8,6 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { CalendarDays, Plane, CreditCard, Users, TrendingUp, Clock } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
+import type { ProfileWithRole } from '@/types/supabase-extended';
 
 type Transaction = Tables<'transactions'>;
 type Booking = Tables<'bookings'>;
@@ -17,7 +18,7 @@ const Dashboard: React.FC = () => {
   const { toast } = useToast();
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [recentBookings, setRecentBookings] = useState<Booking[]>([]);
-  const [topProfiles, setTopProfiles] = useState<Tables<'profiles'>[]>([]);
+  const [topProfiles, setTopProfiles] = useState<ProfileWithRole[]>([]);
 
   useEffect(() => {
     if (profile) {
@@ -74,7 +75,8 @@ const Dashboard: React.FC = () => {
 
       if (error) throw error;
       if (data) {
-        setTopProfiles(data);
+        // Type assertion since we know the data includes the role field
+        setTopProfiles(data as ProfileWithRole[]);
       }
     } catch (error) {
       toast({
@@ -89,6 +91,9 @@ const Dashboard: React.FC = () => {
 
   const priorityProgress = ((21 - profile.priority_position) / 20) * 100;
   const balanceStatus = profile.balance >= 10000 ? 'high' : profile.balance >= 5000 ? 'medium' : 'low';
+  
+  // Type assertion for profile with role
+  const profileWithRole = profile as ProfileWithRole;
 
   return (
     <div className="space-y-6">
@@ -163,7 +168,7 @@ const Dashboard: React.FC = () => {
             </div>
             <p className="text-xs text-muted-foreground mt-2">
               Tier: {profile.membership_tier.toUpperCase()}
-              {profile.role !== 'client' && ` • ${profile.role.charAt(0).toUpperCase() + profile.role.slice(1)}`}
+              {profileWithRole.role && profileWithRole.role !== 'client' && ` • ${profileWithRole.role.charAt(0).toUpperCase() + profileWithRole.role.slice(1)}`}
             </p>
           </CardContent>
         </Card>
