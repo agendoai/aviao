@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { useAuth } from './AuthContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,6 +22,7 @@ const BookingSystem: React.FC = () => {
   const [aircraftList, setAircraftList] = useState<Aircraft[]>([]);
   const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   
   const [formData, setFormData] = useState({
     aircraft_id: '',
@@ -57,27 +59,45 @@ const BookingSystem: React.FC = () => {
   }, [formData, selectedAircraft]);
 
   const fetchAircraft = async () => {
-    const { data, error } = await supabase
-      .from('aircraft')
-      .select('*')
-      .eq('status', 'available');
-    
-    if (data && !error) {
-      setAircraftList(data);
+    try {
+      const { data, error } = await supabase
+        .from('aircraft')
+        .select('*')
+        .eq('status', 'available');
+      
+      if (error) throw error;
+      if (data) {
+        setAircraftList(data);
+      }
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao carregar aeronaves.",
+        variant: "destructive"
+      });
     }
   };
 
   const fetchUserBookings = async () => {
     if (!profile) return;
     
-    const { data, error } = await supabase
-      .from('bookings')
-      .select('*, aircraft(*)')
-      .eq('user_id', profile.id)
-      .order('created_at', { ascending: false });
-    
-    if (data && !error) {
-      setBookings(data);
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('*, aircraft(*)')
+        .eq('user_id', profile.id)
+        .order('created_at', { ascending: false });
+      
+      if (error) throw error;
+      if (data) {
+        setBookings(data);
+      }
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao carregar reservas.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -88,7 +108,7 @@ const BookingSystem: React.FC = () => {
     }
 
     const hourly_cost = selectedAircraft.hourly_rate * formData.flight_hours;
-    const overnight_fee = formData.overnight_stays * 1500; // R$ 1.500 por pernoite
+    const overnight_fee = formData.overnight_stays * 1500;
     const airport_fees = formData.airport_fees || 0;
     const total_cost = hourly_cost + overnight_fee + airport_fees;
 
@@ -100,6 +120,26 @@ const BookingSystem: React.FC = () => {
     });
   };
 
+  const sanitizeInput = (input: string): string => {
+    return input.trim().replace(/[<>]/g, '');
+  };
+
+  const validateForm = (): string | null => {
+    if (!selectedAircraft) return "Selecione uma aeronave";
+    if (!formData.departure_date) return "Data de partida é obrigatória";
+    if (!formData.departure_time) return "Horário de partida é obrigatório";
+    if (!formData.return_date) return "Data de retorno é obrigatória";
+    if (!formData.return_time) return "Horário de retorno é obrigatório";
+    if (!sanitizeInput(formData.origin)) return "Origem é obrigatória";
+    if (!sanitizeInput(formData.destination)) return "Destino é obrigatório";
+    if (formData.flight_hours <= 0) return "Horas de voo devem ser maior que 0";
+    if (formData.passengers <= 0) return "Número de passageiros deve ser maior que 0";
+    if (formData.passengers > selectedAircraft.max_passengers) {
+      return `Máximo de ${selectedAircraft.max_passengers} passageiros para esta aeronave`;
+    }
+    return null;
+  };
+
   const handleAircraftChange = (aircraftId: string) => {
     const selectedAircraftItem = aircraftList.find(a => a.id === aircraftId);
     setSelectedAircraft(selectedAircraftItem || null);
@@ -109,10 +149,20 @@ const BookingSystem: React.FC = () => {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
-    if (!profile || !selectedAircraft) {
+    if (!profile) {
       toast({
         title: "Erro",
-        description: "Selecione uma aeronave válida.",
+        description: "Usuário não autenticado.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    const validationError = validateForm();
+    if (validationError) {
+      toast({
+        title: "Erro de Validação",
+        description: validationError,
         variant: "destructive"
       });
       return;
@@ -127,51 +177,40 @@ const BookingSystem: React.FC = () => {
       return;
     }
 
-    // Calcular data de expiração da prioridade (24h)
-    const priorityExpiresAt = new Date();
-    priorityExpiresAt.setHours(priorityExpiresAt.getHours() + 24);
-
-    const bookingData = {
-      user_id: profile.id,
-      aircraft_id: formData.aircraft_id,
-      departure_date: formData.departure_date,
-      departure_time: formData.departure_time,
-      return_date: formData.return_date,
-      return_time: formData.return_time,
-      origin: formData.origin,
-      destination: formData.destination,
-      passengers: formData.passengers,
-      stops: formData.stops || null,
-      notes: formData.notes || null,
-      flight_hours: formData.flight_hours,
-      airport_fees: formData.airport_fees,
-      overnight_stays: formData.overnight_stays,
-      overnight_fee: costBreakdown.overnight_fee,
-      total_cost: costBreakdown.total_cost,
-      status: 'pending' as const,
-      priority_expires_at: priorityExpiresAt.toISOString()
-    };
+    setIsSubmitting(true);
 
     try {
-      const { error } = await supabase
-        .from('bookings')
-        .insert([bookingData]);
+      // Use the secure booking function
+      const { data, error } = await supabase.rpc('create_booking_secure', {
+        p_aircraft_id: formData.aircraft_id,
+        p_departure_date: formData.departure_date,
+        p_departure_time: formData.departure_time,
+        p_return_date: formData.return_date,
+        p_return_time: formData.return_time,
+        p_origin: sanitizeInput(formData.origin),
+        p_destination: sanitizeInput(formData.destination),
+        p_passengers: formData.passengers,
+        p_flight_hours: formData.flight_hours,
+        p_airport_fees: formData.airport_fees,
+        p_overnight_stays: formData.overnight_stays,
+        p_stops: formData.stops ? sanitizeInput(formData.stops) : null,
+        p_notes: formData.notes ? sanitizeInput(formData.notes) : null
+      });
 
       if (error) throw error;
 
-      // Criar transação de débito
-      await supabase
-        .from('transactions')
-        .insert([{
-          user_id: profile.id,
-          amount: costBreakdown.total_cost,
-          description: `Reserva ${formData.origin} → ${formData.destination}`,
-          type: 'debit'
-        }]);
+      if (data?.error) {
+        toast({
+          title: "Erro",
+          description: data.error,
+          variant: "destructive"
+        });
+        return;
+      }
 
       toast({
         title: "Reserva Criada!",
-        description: `Sua reserva foi criada com sucesso. Prioridade válida por 24h.`,
+        description: "Sua reserva foi criada com sucesso. Prioridade válida por 24h.",
       });
 
       // Reset form
@@ -192,14 +231,15 @@ const BookingSystem: React.FC = () => {
       });
       setSelectedAircraft(null);
       
-      fetchUserBookings();
+      await fetchUserBookings();
     } catch (error) {
-      console.error('Erro ao criar reserva:', error);
       toast({
         title: "Erro",
         description: "Erro ao criar reserva. Tente novamente.",
         variant: "destructive"
       });
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -266,6 +306,7 @@ const BookingSystem: React.FC = () => {
                   value={formData.origin}
                   onChange={(e) => setFormData({...formData, origin: e.target.value})}
                   placeholder="Cidade/Aeroporto de origem"
+                  maxLength={100}
                   required
                 />
               </div>
@@ -277,6 +318,7 @@ const BookingSystem: React.FC = () => {
                   value={formData.destination}
                   onChange={(e) => setFormData({...formData, destination: e.target.value})}
                   placeholder="Cidade/Aeroporto de destino"
+                  maxLength={100}
                   required
                 />
               </div>
@@ -286,6 +328,7 @@ const BookingSystem: React.FC = () => {
                 <Input
                   id="departure_date"
                   type="date"
+                  min={new Date().toISOString().split('T')[0]}
                   value={formData.departure_date}
                   onChange={(e) => setFormData({...formData, departure_date: e.target.value})}
                   required
@@ -308,6 +351,7 @@ const BookingSystem: React.FC = () => {
                 <Input
                   id="return_date"
                   type="date"
+                  min={formData.departure_date || new Date().toISOString().split('T')[0]}
                   value={formData.return_date}
                   onChange={(e) => setFormData({...formData, return_date: e.target.value})}
                   required
@@ -332,6 +376,7 @@ const BookingSystem: React.FC = () => {
                   type="number"
                   step="0.1"
                   min="0.1"
+                  max="24"
                   value={formData.flight_hours}
                   onChange={(e) => setFormData({...formData, flight_hours: parseFloat(e.target.value) || 0})}
                   required
@@ -344,6 +389,7 @@ const BookingSystem: React.FC = () => {
                   id="airport_fees"
                   type="number"
                   min="0"
+                  max="50000"
                   value={formData.airport_fees}
                   onChange={(e) => setFormData({...formData, airport_fees: parseFloat(e.target.value) || 0})}
                 />
@@ -355,6 +401,7 @@ const BookingSystem: React.FC = () => {
                   id="overnight_stays"
                   type="number"
                   min="0"
+                  max="30"
                   value={formData.overnight_stays}
                   onChange={(e) => setFormData({...formData, overnight_stays: parseInt(e.target.value) || 0})}
                 />
@@ -367,6 +414,7 @@ const BookingSystem: React.FC = () => {
                   value={formData.stops}
                   onChange={(e) => setFormData({...formData, stops: e.target.value})}
                   placeholder="Cidades de escala separadas por vírgula"
+                  maxLength={200}
                 />
               </div>
             </div>
@@ -378,6 +426,7 @@ const BookingSystem: React.FC = () => {
                 value={formData.notes}
                 onChange={(e) => setFormData({...formData, notes: e.target.value})}
                 placeholder="Observações adicionais sobre o voo"
+                maxLength={500}
                 rows={3}
               />
             </div>
@@ -422,10 +471,10 @@ const BookingSystem: React.FC = () => {
             <Button 
               type="submit" 
               className="w-full bg-aviation-gradient hover:opacity-90 text-white"
-              disabled={!selectedAircraft || formData.flight_hours <= 0 || costBreakdown.total_cost > profile.balance}
+              disabled={!selectedAircraft || formData.flight_hours <= 0 || costBreakdown.total_cost > profile.balance || isSubmitting}
             >
               <Plane className="h-4 w-4 mr-2" />
-              Criar Reserva
+              {isSubmitting ? 'Criando Reserva...' : 'Criar Reserva'}
             </Button>
           </form>
         </CardContent>

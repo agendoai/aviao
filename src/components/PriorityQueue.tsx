@@ -7,32 +7,43 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Crown, Users, TrendingUp, Clock, Star, Trophy, Award } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Profile = Tables<'profiles'>;
 
 const PriorityQueue: React.FC = () => {
   const { profile } = useAuth();
+  const { toast } = useToast();
   const [allProfiles, setAllProfiles] = useState<Profile[]>([]);
   const [nextRotation, setNextRotation] = useState<Date | null>(null);
+  const [isRotating, setIsRotating] = useState(false);
 
   useEffect(() => {
     fetchAllProfiles();
     calculateNextRotation();
     
-    // Atualizar a cada minuto para mostrar tempo restante
     const interval = setInterval(calculateNextRotation, 60000);
     return () => clearInterval(interval);
   }, []);
 
   const fetchAllProfiles = async () => {
-    const { data, error } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('priority_position', { ascending: true });
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('priority_position', { ascending: true });
 
-    if (data && !error) {
-      setAllProfiles(data);
+      if (error) throw error;
+      if (data) {
+        setAllProfiles(data);
+      }
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao carregar lista de prioridades.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -92,19 +103,45 @@ const PriorityQueue: React.FC = () => {
   };
 
   const rotatePriorities = async () => {
+    if (!profile) return;
+
+    setIsRotating(true);
     try {
-      const { error } = await supabase.rpc('rotate_priorities');
+      const { data, error } = await supabase.rpc('rotate_priorities_secure');
       
       if (error) throw error;
+      
+      if (data?.error) {
+        toast({
+          title: "Erro",
+          description: data.error,
+          variant: "destructive"
+        });
+        return;
+      }
+
+      toast({
+        title: "Sucesso",
+        description: "Prioridades rotacionadas com sucesso!",
+      });
       
       await fetchAllProfiles();
       calculateNextRotation();
     } catch (error) {
-      console.error('Erro ao rotacionar prioridades:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao rotacionar prioridades.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsRotating(false);
     }
   };
 
   if (!profile) return null;
+
+  // Check if user is admin to show rotation button
+  const isAdmin = profile.role === 'admin';
 
   return (
     <div className="space-y-6">
@@ -176,15 +213,18 @@ const PriorityQueue: React.FC = () => {
                 Lista atualizada de todos os membros e suas posições de prioridade
               </CardDescription>
             </div>
-            <Button 
-              onClick={rotatePriorities}
-              variant="outline"
-              size="sm"
-              className="hidden md:flex"
-            >
-              <TrendingUp className="h-4 w-4 mr-2" />
-              Rotacionar Agora
-            </Button>
+            {isAdmin && (
+              <Button 
+                onClick={rotatePriorities}
+                variant="outline"
+                size="sm"
+                disabled={isRotating}
+                className="hidden md:flex"
+              >
+                <TrendingUp className="h-4 w-4 mr-2" />
+                {isRotating ? 'Rotacionando...' : 'Rotacionar Agora'}
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardContent>
@@ -233,6 +273,16 @@ const PriorityQueue: React.FC = () => {
                               Você
                             </Badge>
                           )}
+                          {member.role === 'admin' && (
+                            <Badge variant="destructive" className="text-xs">
+                              Admin
+                            </Badge>
+                          )}
+                          {member.role !== 'admin' && member.role !== 'client' && (
+                            <Badge variant="outline" className="text-xs">
+                              {member.role.charAt(0).toUpperCase() + member.role.slice(1)}
+                            </Badge>
+                          )}
                         </div>
                         <div className="flex items-center space-x-2 text-sm text-gray-600">
                           <span>Saldo: R$ {member.balance.toLocaleString('pt-BR')}</span>
@@ -263,6 +313,23 @@ const PriorityQueue: React.FC = () => {
               );
             })}
           </div>
+
+          {/* Admin Controls */}
+          {isAdmin && (
+            <div className="mt-6 p-4 bg-red-50 rounded-lg border border-red-200">
+              <h4 className="font-medium text-red-900 mb-2">Controles de Administrador:</h4>
+              <Button 
+                onClick={rotatePriorities}
+                variant="outline"
+                size="sm"
+                disabled={isRotating}
+                className="md:hidden"
+              >
+                <TrendingUp className="h-4 w-4 mr-2" />
+                {isRotating ? 'Rotacionando...' : 'Rotacionar Prioridades'}
+              </Button>
+            </div>
+          )}
 
           {/* Explicação do Sistema */}
           <div className="mt-6 p-4 bg-blue-50 rounded-lg border border-blue-200">

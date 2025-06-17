@@ -218,6 +218,24 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      create_booking_secure: {
+        Args: {
+          p_aircraft_id: string
+          p_departure_date: string
+          p_departure_time: string
+          p_return_date: string
+          p_return_time: string
+          p_origin: string
+          p_destination: string
+          p_passengers: number
+          p_flight_hours: number
+          p_airport_fees: number
+          p_overnight_stays?: number
+          p_stops?: string
+          p_notes?: string
+        }
+        Returns: Json
+      }
       rotate_priorities: {
         Args: Record<PropertyKey, never>
         Returns: undefined

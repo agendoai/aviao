@@ -6,6 +6,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { CalendarDays, Plane, CreditCard, Users, TrendingUp, Clock } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Transaction = Tables<'transactions'>;
@@ -13,6 +14,7 @@ type Booking = Tables<'bookings'>;
 
 const Dashboard: React.FC = () => {
   const { profile } = useAuth();
+  const { toast } = useToast();
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [recentBookings, setRecentBookings] = useState<Booking[]>([]);
   const [topProfiles, setTopProfiles] = useState<Tables<'profiles'>[]>([]);
@@ -27,40 +29,59 @@ const Dashboard: React.FC = () => {
   const fetchRecentActivity = async () => {
     if (!profile) return;
 
-    // Fetch recent transactions
-    const { data: transactions } = await supabase
-      .from('transactions')
-      .select('*')
-      .eq('user_id', profile.id)
-      .order('created_at', { ascending: false })
-      .limit(5);
+    try {
+      // Fetch recent transactions
+      const { data: transactions, error: transError } = await supabase
+        .from('transactions')
+        .select('*')
+        .eq('user_id', profile.id)
+        .order('created_at', { ascending: false })
+        .limit(5);
 
-    if (transactions) {
-      setRecentTransactions(transactions);
-    }
+      if (transError) throw transError;
+      if (transactions) {
+        setRecentTransactions(transactions);
+      }
 
-    // Fetch recent bookings
-    const { data: bookings } = await supabase
-      .from('bookings')
-      .select('*')
-      .eq('user_id', profile.id)
-      .order('created_at', { ascending: false })
-      .limit(3);
+      // Fetch recent bookings
+      const { data: bookings, error: bookError } = await supabase
+        .from('bookings')
+        .select('*')
+        .eq('user_id', profile.id)
+        .order('created_at', { ascending: false })
+        .limit(3);
 
-    if (bookings) {
-      setRecentBookings(bookings);
+      if (bookError) throw bookError;
+      if (bookings) {
+        setRecentBookings(bookings);
+      }
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao carregar atividades recentes.",
+        variant: "destructive"
+      });
     }
   };
 
   const fetchTopProfiles = async () => {
-    const { data } = await supabase
-      .from('profiles')
-      .select('*')
-      .order('priority_position', { ascending: true })
-      .limit(5);
+    try {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('*')
+        .order('priority_position', { ascending: true })
+        .limit(5);
 
-    if (data) {
-      setTopProfiles(data);
+      if (error) throw error;
+      if (data) {
+        setTopProfiles(data);
+      }
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao carregar lista de prioridades.",
+        variant: "destructive"
+      });
     }
   };
 
@@ -142,6 +163,7 @@ const Dashboard: React.FC = () => {
             </div>
             <p className="text-xs text-muted-foreground mt-2">
               Tier: {profile.membership_tier.toUpperCase()}
+              {profile.role !== 'client' && ` • ${profile.role.charAt(0).toUpperCase() + profile.role.slice(1)}`}
             </p>
           </CardContent>
         </Card>
@@ -194,7 +216,12 @@ const Dashboard: React.FC = () => {
                     member.id === profile.id ? 'bg-aviation-gold/20 border border-aviation-gold' : 'bg-gray-50'
                   }`}
                 >
-                  <span className="font-medium">#{member.priority_position}</span>
+                  <div className="flex items-center space-x-2">
+                    <span className="font-medium">#{member.priority_position}</span>
+                    {member.role === 'admin' && (
+                      <span className="text-xs bg-red-100 text-red-600 px-1 rounded">Admin</span>
+                    )}
+                  </div>
                   <span className="text-sm">
                     {member.id === profile.id ? 'Você' : member.name}
                   </span>
