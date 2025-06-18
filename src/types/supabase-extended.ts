@@ -58,8 +58,16 @@ export interface AircraftWithSeats extends Tables<'aircraft'> {
   };
 }
 
-// Booking with extended information
-export interface BookingWithDetails extends Tables<'bookings'> {
+// Booking with extended information - fix passengers type conflict
+export interface BookingWithDetails extends Omit<Tables<'bookings'>, 'passengers'> {
   aircraft: Tables<'aircraft'>;
-  passengers?: Passenger[];
+  passenger_list?: Passenger[];
+  passenger_count: number;
 }
+
+// Database function names for RPC calls
+export type DatabaseFunction = 
+  | 'create_booking_secure'
+  | 'rotate_priorities'
+  | 'create_pre_reservation'
+  | 'confirm_pre_reservation';
