@@ -3,7 +3,7 @@ import type { Tables } from '@/integrations/supabase/types';
 
 // Extended profile type that includes the role field
 export interface ProfileWithRole extends Omit<Tables<'profiles'>, 'role'> {
-  role: 'admin' | 'client' | 'support' | 'concierge' | 'pilot';
+  role: 'admin' | 'client' | 'support' | 'concierge' | 'pilot' | 'owner';
 }
 
 // Function response types
@@ -16,4 +16,50 @@ export interface BookingResponse {
 export interface PriorityRotationResponse {
   success?: boolean;
   error?: string;
+}
+
+export interface PreReservationResponse {
+  success?: boolean;
+  pre_reservation_id?: string;
+  priority_position?: number;
+  expires_at?: string;
+  can_confirm_immediately?: boolean;
+  error?: string;
+}
+
+export interface ConfirmReservationResponse {
+  success?: boolean;
+  booking_id?: string;
+  final_cost?: number;
+  card_fee?: number;
+  blocked_until?: string;
+  error?: string;
+}
+
+// Extended types for new tables
+export type PreReservation = Tables<'pre_reservations'>;
+export type PrioritySlot = Tables<'priority_slots'>;
+export type ChatRoom = Tables<'chat_rooms'>;
+export type ChatMessage = Tables<'chat_messages'>;
+export type SeatSharing = Tables<'seat_sharing'>;
+export type Passenger = Tables<'passengers'>;
+
+// Aircraft with seat configuration
+export interface AircraftWithSeats extends Tables<'aircraft'> {
+  seat_configuration: {
+    total_seats: number;
+    layout: string;
+    seats: Array<{
+      number: number;
+      row: number;
+      position: string;
+      type: string;
+    }>;
+  };
+}
+
+// Booking with extended information
+export interface BookingWithDetails extends Tables<'bookings'> {
+  aircraft: Tables<'aircraft'>;
+  passengers?: Passenger[];
 }
