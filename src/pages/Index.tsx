@@ -4,7 +4,7 @@ import { useAuth } from '../components/AuthContext';
 import LoginForm from '../components/LoginForm';
 import Header from '../components/Header';
 import Dashboard from '../components/Dashboard';
-import BookingSystem from '../components/BookingSystem';
+import EnhancedBookingSystem from '../components/EnhancedBookingSystem';
 import PriorityQueue from '../components/PriorityQueue';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -80,14 +80,14 @@ const Index = () => {
             <div className="flex items-center justify-between">
               <div>
                 <h1 className="text-3xl font-bold text-gray-900">
-                  Sistema de Reservas
+                  Sistema de Reservas Aprimorado
                 </h1>
                 <p className="text-gray-600">
-                  Planeje sua próxima missão com nossa aeronave
+                  Sistema completo com seleção de aeronave, assentos, rotas e cálculo automático de custos
                 </p>
               </div>
             </div>
-            <BookingSystem />
+            <EnhancedBookingSystem />
           </TabsContent>
 
           <TabsContent value="priority" className="space-y-6">
