@@ -65,7 +65,7 @@ export interface BookingWithDetails extends Omit<Tables<'bookings'>, 'passengers
   passenger_count: number;
 }
 
-// Database function names for RPC calls
+// Database function names for RPC calls - Updated to include new functions
 export type DatabaseFunction = 
   | 'create_booking_secure'
   | 'rotate_priorities'
