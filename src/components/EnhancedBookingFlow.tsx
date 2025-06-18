@@ -22,7 +22,11 @@ interface RouteStop {
   stayDuration: number;
 }
 
-const EnhancedBookingFlow: React.FC = () => {
+interface EnhancedBookingFlowProps {
+  selectedDate?: Date | null;
+}
+
+const EnhancedBookingFlow: React.FC<EnhancedBookingFlowProps> = ({ selectedDate }) => {
   const { toast } = useToast();
   
   const [currentStep, setCurrentStep] = useState(0);
@@ -90,7 +94,7 @@ const EnhancedBookingFlow: React.FC = () => {
   const handleConfirmBooking = () => {
     toast({
       title: "Reserva Criada!",
-      description: "Sua reserva foi criada com sucesso. Aguarde a confirmação.",
+      description: "Sua reserva foi criada com sucesso e está aguardando confirmação baseada na sua posição de prioridade.",
     });
   };
 
@@ -102,10 +106,15 @@ const EnhancedBookingFlow: React.FC = () => {
       <Card className="aviation-card">
         <CardHeader>
           <CardTitle className="text-2xl font-bold text-aviation-blue">
-            Sistema de Reserva Aprimorado
+            Sistema de Reserva Completo
           </CardTitle>
           <CardDescription className="text-lg">
             Fluxo completo com seleção de aeronave, assentos e cálculo automático
+            {selectedDate && (
+              <span className="block mt-1 text-aviation-blue font-medium">
+                Data selecionada: {selectedDate.toLocaleDateString('pt-BR')}
+              </span>
+            )}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -141,7 +150,7 @@ const EnhancedBookingFlow: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Conteúdo da etapa atual */}
+      {/* Conteúdo da etap atual */}
       <div className="space-y-6">
         {currentStep === 0 && (
           <AircraftSelector
@@ -179,7 +188,7 @@ const EnhancedBookingFlow: React.FC = () => {
             <CardHeader>
               <CardTitle>Confirmar Reserva</CardTitle>
               <CardDescription>
-                Revise todos os detalhes antes de confirmar
+                Revise todos os detalhes antes de confirmar sua reserva
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">

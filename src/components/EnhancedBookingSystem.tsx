@@ -4,7 +4,6 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { CalendarDays, Clock, Users, MessageCircle, Plane } from 'lucide-react';
 import FlightCalendar from './FlightCalendar';
-import PreReservationSystem from './PreReservationSystem';
 import FlightSharingChat from './FlightSharingChat';
 import PriorityQueue from './PriorityQueue';
 import EnhancedBookingFlow from './EnhancedBookingFlow';
@@ -15,12 +14,7 @@ const EnhancedBookingSystem: React.FC = () => {
 
   const handleDateSelect = (date: Date) => {
     setSelectedDate(date);
-    setActiveTab('reservation');
-  };
-
-  const handleReservationComplete = () => {
-    setActiveTab('calendar');
-    setSelectedDate(null);
+    setActiveTab('enhanced');
   };
 
   return (
@@ -37,7 +31,7 @@ const EnhancedBookingSystem: React.FC = () => {
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="enhanced" className="flex items-center space-x-2">
             <Plane className="h-4 w-4" />
             <span>Reserva Completa</span>
@@ -45,10 +39,6 @@ const EnhancedBookingSystem: React.FC = () => {
           <TabsTrigger value="calendar" className="flex items-center space-x-2">
             <CalendarDays className="h-4 w-4" />
             <span>Calendário</span>
-          </TabsTrigger>
-          <TabsTrigger value="reservation" className="flex items-center space-x-2">
-            <Clock className="h-4 w-4" />
-            <span>Pré-Reserva</span>
           </TabsTrigger>
           <TabsTrigger value="priority" className="flex items-center space-x-2">
             <Users className="h-4 w-4" />
@@ -61,18 +51,11 @@ const EnhancedBookingSystem: React.FC = () => {
         </TabsList>
 
         <TabsContent value="enhanced" className="space-y-6">
-          <EnhancedBookingFlow />
+          <EnhancedBookingFlow selectedDate={selectedDate} />
         </TabsContent>
 
         <TabsContent value="calendar" className="space-y-6">
           <FlightCalendar onDateSelect={handleDateSelect} />
-        </TabsContent>
-
-        <TabsContent value="reservation" className="space-y-6">
-          <PreReservationSystem 
-            selectedDate={selectedDate}
-            onReservationComplete={handleReservationComplete}
-          />
         </TabsContent>
 
         <TabsContent value="priority" className="space-y-6">
