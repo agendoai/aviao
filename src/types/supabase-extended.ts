@@ -1,5 +1,4 @@
 
-
 import type { Tables } from '@/integrations/supabase/types';
 
 // Extended profile type that includes the role field
@@ -72,4 +71,3 @@ export type DatabaseFunction =
   | 'rotate_priorities'
   | 'create_pre_reservation'
   | 'confirm_pre_reservation';
-
