@@ -22,6 +22,35 @@ const localizer = dateFnsLocalizer({
   locales: { 'pt-BR': ptBR },
 });
 
+// Configure formats for the calendar
+const formats = {
+  dateFormat: 'dd',
+  dayFormat: (date: Date, culture?: string, localizer?: any) =>
+    localizer.format(date, 'dd/MM', culture),
+  dayHeaderFormat: (date: Date, culture?: string, localizer?: any) =>
+    localizer.format(date, 'dddd', culture),
+  dayRangeHeaderFormat: ({ start, end }: { start: Date; end: Date }, culture?: string, localizer?: any) =>
+    localizer.format(start, 'MMMM dd', culture) + ' – ' + localizer.format(end, 'MMMM dd, yyyy', culture),
+  agendaHeaderFormat: ({ start, end }: { start: Date; end: Date }, culture?: string, localizer?: any) =>
+    localizer.format(start, 'MMMM dd', culture) + ' – ' + localizer.format(end, 'MMMM dd, yyyy', culture),
+  agendaDateFormat: (date: Date, culture?: string, localizer?: any) =>
+    localizer.format(date, 'ddd MMM dd', culture),
+  agendaTimeFormat: (date: Date, culture?: string, localizer?: any) =>
+    localizer.format(date, 'HH:mm', culture),
+  agendaTimeRangeFormat: ({ start, end }: { start: Date; end: Date }, culture?: string, localizer?: any) =>
+    localizer.format(start, 'HH:mm', culture) + ' – ' + localizer.format(end, 'HH:mm', culture),
+  selectRangeFormat: ({ start, end }: { start: Date; end: Date }, culture?: string, localizer?: any) =>
+    localizer.format(start, 'MMMM dd', culture) + ' – ' + localizer.format(end, 'MMMM dd, yyyy', culture),
+  eventTimeRangeFormat: ({ start, end }: { start: Date; end: Date }, culture?: string, localizer?: any) =>
+    localizer.format(start, 'HH:mm', culture) + ' – ' + localizer.format(end, 'HH:mm', culture),
+  timeGutterFormat: (date: Date, culture?: string, localizer?: any) =>
+    localizer.format(date, 'HH:mm', culture),
+  monthHeaderFormat: (date: Date, culture?: string, localizer?: any) =>
+    localizer.format(date, 'MMMM yyyy', culture),
+  weekdayFormat: (date: Date, culture?: string, localizer?: any) =>
+    localizer.format(date, 'dddd', culture),
+};
+
 interface FlightEvent {
   id: string;
   title: string;
@@ -214,6 +243,7 @@ const FlightCalendar: React.FC<FlightCalendarProps> = ({ selectedAircraft, onDat
               views={['month', 'week', 'day']}
               defaultView="month"
               culture="pt-BR"
+              formats={formats}
               messages={{
                 next: "Próximo",
                 previous: "Anterior",
