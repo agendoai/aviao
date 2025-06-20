@@ -6,6 +6,7 @@ import Header from '../components/Header';
 import Dashboard from '../components/Dashboard';
 import EnhancedBookingSystem from '../components/EnhancedBookingSystem';
 import PriorityQueue from '../components/PriorityQueue';
+import ReportsSection from '../components/reports/ReportsSection';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CalendarDays, BarChart3, Settings, Home, Users } from 'lucide-react';
@@ -105,15 +106,17 @@ const Index = () => {
           </TabsContent>
 
           <TabsContent value="reports" className="space-y-6">
-            <div className="text-center py-12">
-              <BarChart3 className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Relatórios em Desenvolvimento
-              </h3>
-              <p className="text-gray-600">
-                Relatórios detalhados de uso, custos e estatísticas estarão disponíveis em breve.
-              </p>
+            <div className="flex items-center justify-between">
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">
+                  Relatórios e Analytics
+                </h1>
+                <p className="text-gray-600">
+                  Análise detalhada de uso, custos e estatísticas de voo
+                </p>
+              </div>
             </div>
+            <ReportsSection />
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
