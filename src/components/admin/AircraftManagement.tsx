@@ -85,7 +85,7 @@ const AircraftManagement: React.FC = () => {
     }
   };
 
-  const updateAircraftStatus = async (id: string, status: string) => {
+  const updateAircraftStatus = async (id: string, status: 'available' | 'maintenance') => {
     try {
       const { error } = await supabase
         .from('aircraft')
@@ -113,7 +113,6 @@ const AircraftManagement: React.FC = () => {
     switch (status) {
       case 'available': return 'default';
       case 'maintenance': return 'destructive';
-      case 'reserved': return 'secondary';
       default: return 'outline';
     }
   };
@@ -121,8 +120,7 @@ const AircraftManagement: React.FC = () => {
   const getStatusLabel = (status: string) => {
     const labels: Record<string, string> = {
       available: 'Disponível',
-      maintenance: 'Manutenção',
-      reserved: 'Reservada'
+      maintenance: 'Manutenção'
     };
     return labels[status] || status;
   };
@@ -241,7 +239,7 @@ const AircraftManagement: React.FC = () => {
                       <div className="flex gap-2">
                         <Select
                           value={plane.status}
-                          onValueChange={(newStatus) => updateAircraftStatus(plane.id, newStatus)}
+                          onValueChange={(newStatus: 'available' | 'maintenance') => updateAircraftStatus(plane.id, newStatus)}
                         >
                           <SelectTrigger className="w-32">
                             <SelectValue />
@@ -249,7 +247,6 @@ const AircraftManagement: React.FC = () => {
                           <SelectContent>
                             <SelectItem value="available">Disponível</SelectItem>
                             <SelectItem value="maintenance">Manutenção</SelectItem>
-                            <SelectItem value="reserved">Reservada</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
