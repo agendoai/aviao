@@ -7,6 +7,7 @@ import Dashboard from '../components/Dashboard';
 import EnhancedBookingSystem from '../components/EnhancedBookingSystem';
 import PriorityQueue from '../components/PriorityQueue';
 import ReportsSection from '../components/reports/ReportsSection';
+import SettingsSection from '../components/settings/SettingsSection';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CalendarDays, BarChart3, Settings, Home, Users } from 'lucide-react';
@@ -120,15 +121,7 @@ const Index = () => {
           </TabsContent>
 
           <TabsContent value="settings" className="space-y-6">
-            <div className="text-center py-12">
-              <Settings className="h-16 w-16 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">
-                Configurações
-              </h3>
-              <p className="text-gray-600">
-                Configurações de perfil e preferências estarão disponíveis em breve.
-              </p>
-            </div>
+            <SettingsSection />
           </TabsContent>
         </Tabs>
       </main>
