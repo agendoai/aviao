@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
@@ -12,8 +13,15 @@ interface UsageStatisticsProps {
   dateRange?: DateRange;
 }
 
+interface AircraftUsageData {
+  name: string;
+  flights: number;
+  hours: number;
+  revenue: number;
+}
+
 const UsageStatistics: React.FC<UsageStatisticsProps> = ({ aircraftUsage, bookings, loading, dateRange }) => {
-  const processAircraftData = () => {
+  const processAircraftData = (): AircraftUsageData[] => {
     const usage = aircraftUsage.reduce((acc, booking) => {
       const aircraftName = booking.aircraft?.name || 'Desconhecida';
       if (!acc[aircraftName]) {
@@ -28,7 +36,7 @@ const UsageStatistics: React.FC<UsageStatisticsProps> = ({ aircraftUsage, bookin
       acc[aircraftName].hours += Number(booking.flight_hours) || 0;
       acc[aircraftName].revenue += Number(booking.total_cost) || 0;
       return acc;
-    }, {});
+    }, {} as Record<string, AircraftUsageData>);
 
     return Object.values(usage);
   };
@@ -73,7 +81,7 @@ const UsageStatistics: React.FC<UsageStatisticsProps> = ({ aircraftUsage, bookin
 
     const aircraftData = processAircraftData();
     const mostUsedAircraft = aircraftData
-      .sort((a: any, b: any) => (b.flights || 0) - (a.flights || 0))[0]?.name || 'N/A';
+      .sort((a, b) => (b.flights || 0) - (a.flights || 0))[0]?.name || 'N/A';
 
     return {
       totalBookings,
