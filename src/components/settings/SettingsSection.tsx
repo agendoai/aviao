@@ -15,7 +15,6 @@ import {
   Bell, 
   Shield, 
   CreditCard, 
-  Plane, 
   Settings as SettingsIcon,
   Save,
   Eye,
@@ -56,15 +55,6 @@ const SettingsSection: React.FC = () => {
     two_factor_enabled: false,
     login_alerts: true,
     session_timeout: '30'
-  });
-
-  // Flight preferences state
-  const [flightPreferences, setFlightPreferences] = useState({
-    preferred_aircraft: '',
-    default_passengers: '1',
-    preferred_departure_time: '09:00',
-    auto_confirm_priority: false,
-    seat_preference: 'window'
   });
 
   const [showCurrentPassword, setShowCurrentPassword] = useState(false);
@@ -206,7 +196,7 @@ const SettingsSection: React.FC = () => {
 
       {/* Settings Tabs */}
       <Tabs defaultValue="profile" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-5">
+        <TabsList className="grid w-full grid-cols-4">
           <TabsTrigger value="profile" className="flex items-center space-x-2">
             <User className="h-4 w-4" />
             <span className="hidden sm:inline">Perfil</span>
@@ -222,10 +212,6 @@ const SettingsSection: React.FC = () => {
           <TabsTrigger value="billing" className="flex items-center space-x-2">
             <CreditCard className="h-4 w-4" />
             <span className="hidden sm:inline">Pagamentos</span>
-          </TabsTrigger>
-          <TabsTrigger value="preferences" className="flex items-center space-x-2">
-            <Plane className="h-4 w-4" />
-            <span className="hidden sm:inline">Voo</span>
           </TabsTrigger>
         </TabsList>
 
@@ -477,40 +463,60 @@ const SettingsSection: React.FC = () => {
           </div>
         </TabsContent>
 
-        {/* Billing Settings */}
+        {/* Billing/Payment Settings */}
         <TabsContent value="billing">
-          <Card>
-            <CardHeader>
-              <CardTitle>Informações de Pagamento</CardTitle>
-              <CardDescription>
-                Gerencie seus métodos de pagamento e histórico financeiro
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                <div className="bg-green-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-green-900">Saldo Atual</h4>
-                  <p className="text-2xl font-bold text-green-600">
-                    R$ {profile.balance.toLocaleString('pt-BR')}
-                  </p>
-                </div>
-                <div className="bg-blue-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-blue-900">Status Mensalidade</h4>
-                  <Badge variant={profile.monthly_fee_status === 'paid' ? 'default' : 'destructive'}>
-                    {profile.monthly_fee_status === 'paid' ? 'Em dia' : 'Pendente'}
-                  </Badge>
-                </div>
-                <div className="bg-purple-50 p-4 rounded-lg">
-                  <h4 className="font-medium text-purple-900">Plano Atual</h4>
-                  <div className={`inline-flex items-center px-2 py-1 rounded-full text-white text-sm ${tierInfo.color}`}>
-                    <TierIcon className="h-4 w-4 mr-1" />
-                    {tierInfo.label}
+          <div className="space-y-6">
+            {/* Account Balance */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Saldo da Conta</CardTitle>
+                <CardDescription>
+                  Gerencie o saldo da sua conta e histórico de transações
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                  <div className="bg-green-50 p-4 rounded-lg">
+                    <h4 className="font-medium text-green-900">Saldo Atual</h4>
+                    <p className="text-2xl font-bold text-green-600">
+                      R$ {profile.balance.toLocaleString('pt-BR')}
+                    </p>
+                  </div>
+                  <div className="bg-blue-50 p-4 rounded-lg">
+                    <h4 className="font-medium text-blue-900">Status Mensalidade</h4>
+                    <Badge variant={profile.monthly_fee_status === 'paid' ? 'default' : 'destructive'}>
+                      {profile.monthly_fee_status === 'paid' ? 'Em dia' : 'Pendente'}
+                    </Badge>
+                  </div>
+                  <div className="bg-purple-50 p-4 rounded-lg">
+                    <h4 className="font-medium text-purple-900">Plano Atual</h4>
+                    <div className={`inline-flex items-center px-2 py-1 rounded-full text-white text-sm ${tierInfo.color}`}>
+                      <TierIcon className="h-4 w-4 mr-1" />
+                      {tierInfo.label}
+                    </div>
                   </div>
                 </div>
-              </div>
-              
-              <div className="space-y-4">
-                <h4 className="font-medium">Métodos de Pagamento</h4>
+                
+                <div className="flex space-x-4">
+                  <Button className="bg-aviation-gradient hover:opacity-90">
+                    Adicionar Saldo
+                  </Button>
+                  <Button variant="outline">
+                    Histórico de Transações
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            {/* Payment Methods */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Métodos de Pagamento</CardTitle>
+                <CardDescription>
+                  Gerencie seus cartões e formas de pagamento
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
                 <div className="border-2 border-dashed border-gray-200 p-6 rounded-lg text-center">
                   <CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-4" />
                   <p className="text-gray-600 mb-4">Nenhum cartão cadastrado</p>
@@ -518,111 +524,39 @@ const SettingsSection: React.FC = () => {
                     Adicionar Cartão
                   </Button>
                 </div>
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
+              </CardContent>
+            </Card>
 
-        {/* Flight Preferences */}
-        <TabsContent value="preferences">
-          <Card>
-            <CardHeader>
-              <CardTitle>Preferências de Voo</CardTitle>
-              <CardDescription>
-                Configure suas preferências padrão para reservas de voo
-              </CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="space-y-2">
-                  <Label>Aeronave Preferida</Label>
-                  <Select 
-                    value={flightPreferences.preferred_aircraft} 
-                    onValueChange={(value) => 
-                      setFlightPreferences(prev => ({ ...prev, preferred_aircraft: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione uma aeronave" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="any">Qualquer disponível</SelectItem>
-                      <SelectItem value="citation">Citation XLS+</SelectItem>
-                      <SelectItem value="phenom">Phenom 300</SelectItem>
-                    </SelectContent>
-                  </Select>
+            {/* Automatic Payments */}
+            <Card>
+              <CardHeader>
+                <CardTitle>Pagamentos Automáticos</CardTitle>
+                <CardDescription>
+                  Configure recargas automáticas e pagamento de mensalidades
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Recarga Automática</Label>
+                    <p className="text-sm text-gray-600">
+                      Recarregar saldo automaticamente quando ficar abaixo de R$ 1.000
+                    </p>
+                  </div>
+                  <Switch />
                 </div>
-                <div className="space-y-2">
-                  <Label>Número Padrão de Passageiros</Label>
-                  <Select 
-                    value={flightPreferences.default_passengers} 
-                    onValueChange={(value) => 
-                      setFlightPreferences(prev => ({ ...prev, default_passengers: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {[1,2,3,4,5,6,7,8].map(num => (
-                        <SelectItem key={num} value={num.toString()}>
-                          {num} passageiro{num > 1 ? 's' : ''}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <Label>Débito Automático da Mensalidade</Label>
+                    <p className="text-sm text-gray-600">
+                      Débito automático da mensalidade no cartão cadastrado
+                    </p>
+                  </div>
+                  <Switch />
                 </div>
-                <div className="space-y-2">
-                  <Label>Horário Preferido de Partida</Label>
-                  <Input
-                    type="time"
-                    value={flightPreferences.preferred_departure_time}
-                    onChange={(e) => 
-                      setFlightPreferences(prev => ({ ...prev, preferred_departure_time: e.target.value }))
-                    }
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Preferência de Assento</Label>
-                  <Select 
-                    value={flightPreferences.seat_preference} 
-                    onValueChange={(value) => 
-                      setFlightPreferences(prev => ({ ...prev, seat_preference: value }))
-                    }
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="window">Janela</SelectItem>
-                      <SelectItem value="aisle">Corredor</SelectItem>
-                      <SelectItem value="any">Sem preferência</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              </div>
-              
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label>Auto-confirmar quando em Prioridade #1</Label>
-                  <p className="text-sm text-gray-600">
-                    Confirmar automaticamente reservas quando você estiver em primeiro lugar
-                  </p>
-                </div>
-                <Switch
-                  checked={flightPreferences.auto_confirm_priority}
-                  onCheckedChange={(checked) => 
-                    setFlightPreferences(prev => ({ ...prev, auto_confirm_priority: checked }))
-                  }
-                />
-              </div>
-              
-              <Button className="bg-aviation-gradient hover:opacity-90">
-                <Save className="h-4 w-4 mr-2" />
-                Salvar Preferências
-              </Button>
-            </CardContent>
-          </Card>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
       </Tabs>
     </div>
