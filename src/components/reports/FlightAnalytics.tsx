@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
@@ -23,7 +22,7 @@ const FlightAnalytics: React.FC<FlightAnalyticsProps> = ({ bookings, loading, da
         acc[month] = { month, flights: 0, hours: 0, distance: 0 };
       }
       acc[month].flights += 1;
-      acc[month].hours += parseFloat(booking.flight_hours);
+      acc[month].hours += Number(booking.flight_hours) || 0;
       return acc;
     }, {});
 
@@ -41,13 +40,13 @@ const FlightAnalytics: React.FC<FlightAnalyticsProps> = ({ bookings, loading, da
 
     return Object.entries(destinations)
       .map(([destination, count]) => ({ destination, count }))
-      .sort((a, b) => b.count - a.count)
+      .sort((a, b) => (b.count as number) - (a.count as number))
       .slice(0, 10);
   };
 
   const calculateStats = () => {
     const totalFlights = bookings.length;
-    const totalHours = bookings.reduce((sum, booking) => sum + parseFloat(booking.flight_hours), 0);
+    const totalHours = bookings.reduce((sum, booking) => sum + (Number(booking.flight_hours) || 0), 0);
     const avgFlightTime = totalFlights > 0 ? totalHours / totalFlights : 0;
     const uniqueDestinations = new Set(bookings.map(b => b.destination)).size;
 

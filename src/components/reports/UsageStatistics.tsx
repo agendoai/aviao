@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ChartContainer, ChartTooltip, ChartTooltipContent } from '@/components/ui/chart';
@@ -26,8 +25,8 @@ const UsageStatistics: React.FC<UsageStatisticsProps> = ({ aircraftUsage, bookin
         };
       }
       acc[aircraftName].flights += 1;
-      acc[aircraftName].hours += parseFloat(booking.flight_hours);
-      acc[aircraftName].revenue += parseFloat(booking.total_cost);
+      acc[aircraftName].hours += Number(booking.flight_hours) || 0;
+      acc[aircraftName].revenue += Number(booking.total_cost) || 0;
       return acc;
     }, {});
 
@@ -43,7 +42,7 @@ const UsageStatistics: React.FC<UsageStatisticsProps> = ({ aircraftUsage, bookin
         acc[dayName] = { day: dayName, flights: 0, hours: 0 };
       }
       acc[dayName].flights += 1;
-      acc[dayName].hours += parseFloat(booking.flight_hours);
+      acc[dayName].hours += Number(booking.flight_hours) || 0;
       return acc;
     }, {});
 
@@ -57,8 +56,10 @@ const UsageStatistics: React.FC<UsageStatisticsProps> = ({ aircraftUsage, bookin
     }));
 
     bookings.forEach(booking => {
-      const hour = parseInt(booking.departure_time.split(':')[0]);
-      hours[hour].flights += 1;
+      const hour = parseInt(booking.departure_time?.split(':')[0] || '0');
+      if (hour >= 0 && hour < 24) {
+        hours[hour].flights += 1;
+      }
     });
 
     return hours.filter(h => h.flights > 0);
@@ -66,12 +67,13 @@ const UsageStatistics: React.FC<UsageStatisticsProps> = ({ aircraftUsage, bookin
 
   const calculateUsageStats = () => {
     const totalBookings = bookings.length;
-    const totalPassengers = bookings.reduce((sum, b) => sum + b.passengers, 0);
-    const totalHours = bookings.reduce((sum, b) => sum + parseFloat(b.flight_hours), 0);
+    const totalPassengers = bookings.reduce((sum, b) => sum + (Number(b.passengers) || 0), 0);
+    const totalHours = bookings.reduce((sum, b) => sum + (Number(b.flight_hours) || 0), 0);
     const avgPassengers = totalBookings > 0 ? totalPassengers / totalBookings : 0;
 
-    const mostUsedAircraft = processAircraftData()
-      .sort((a, b) => b.flights - a.flights)[0]?.name || 'N/A';
+    const aircraftData = processAircraftData();
+    const mostUsedAircraft = aircraftData
+      .sort((a: any, b: any) => (b.flights || 0) - (a.flights || 0))[0]?.name || 'N/A';
 
     return {
       totalBookings,
