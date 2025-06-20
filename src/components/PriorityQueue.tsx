@@ -75,21 +75,21 @@ const PriorityQueue: React.FC = () => {
           label: 'VIP', 
           color: 'bg-gradient-to-r from-purple-500 to-pink-500', 
           icon: Crown,
-          benefits: 'Prioridade máxima, 48h de reserva'
+          benefits: 'Acesso prioritário'
         };
       case 'premium':
         return { 
           label: 'Premium', 
           color: 'bg-gradient-to-r from-yellow-400 to-orange-500', 
           icon: Star,
-          benefits: 'Prioridade alta, 24h de reserva'
+          benefits: 'Benefícios especiais'
         };
       default:
         return { 
           label: 'Basic', 
           color: 'bg-gradient-to-r from-blue-500 to-cyan-500', 
           icon: Users,
-          benefits: 'Prioridade padrão, 12h de reserva'
+          benefits: 'Acesso padrão'
         };
     }
   };
@@ -329,8 +329,6 @@ const PriorityQueue: React.FC = () => {
             <div className="text-sm text-blue-800 space-y-1">
               <p>• A fila rotaciona automaticamente todos os dias às 00:00</p>
               <p>• O membro em #1 vai para a última posição, todos os outros sobem uma posição</p>
-              <p>• Membros VIP têm prioridade máxima e 48h para usar sua reserva</p>
-              <p>• Membros Premium têm 24h e Basic têm 12h para confirmar reservas</p>
               <p>• O status de pagamento da mensalidade afeta a posição na fila</p>
             </div>
           </div>
