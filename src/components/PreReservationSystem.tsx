@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -9,7 +10,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { Calendar, Clock, CreditCard, Wallet, Plane, Users, MapPin } from 'lucide-react';
+import { Calendar, Clock, CreditCard, Wallet, Plane, Users, MapPin, Moon } from 'lucide-react';
 import { useAuth } from './AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
@@ -113,11 +114,46 @@ const PreReservationSystem: React.FC<PreReservationSystemProps> = ({
     return baseCost + airportFees;
   };
 
-  const calculateFinalCost = (baseCost: number) => {
-    if (paymentMethod === 'card') {
-      return baseCost * 1.02; // +2% para cartão
+  const calculateOvernightStays = () => {
+    const departureTime = formData.departure_time;
+    const returnTime = formData.return_time;
+    const departureDate = new Date(formData.departure_date);
+    const returnDate = new Date(formData.return_date);
+    
+    // Se a data de retorno é diferente da partida, ou se o horário de retorno é menor que o de partida
+    if (returnDate > departureDate || (returnDate.getTime() === departureDate.getTime() && returnTime < departureTime)) {
+      const daysDiff = Math.ceil((returnDate.getTime() - departureDate.getTime()) / (1000 * 60 * 60 * 24));
+      if (daysDiff === 0 && returnTime < departureTime) {
+        return 1; // Passou da meia-noite no mesmo dia
+      }
+      return daysDiff;
     }
-    return baseCost;
+    return 0;
+  };
+
+  const calculateFinalCost = (baseCost: number, overnightStays: number = 0) => {
+    const overnightFee = overnightStays * 1500;
+    let finalCost = baseCost + overnightFee;
+    
+    if (paymentMethod === 'card') {
+      finalCost = finalCost * 1.02; // +2% para cartão
+    }
+    return { finalCost, overnightFee };
+  };
+
+  const getExpirationMessage = () => {
+    if (!profile) return '';
+    
+    if (profile.priority_position === 1) {
+      return 'Você pode confirmar imediatamente!';
+    } else {
+      const currentHour = new Date().getHours();
+      if (currentHour >= 20) {
+        return 'Reserva será confirmada automaticamente à meia-noite se ninguém com prioridade maior reservar.';
+      } else {
+        return 'Aguarde até 12h para confirmação automática se ninguém com prioridade maior reservar.';
+      }
+    }
   };
 
   const handleCreatePreReservation = async () => {
@@ -134,6 +170,16 @@ const PreReservationSystem: React.FC<PreReservationSystemProps> = ({
       toast({
         title: "Erro",
         description: "Preencha todos os campos obrigatórios.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Validar se há volta obrigatória
+    if (!formData.return_date || !formData.return_time) {
+      toast({
+        title: "Erro",
+        description: "Data e horário de retorno são obrigatórios.",
         variant: "destructive"
       });
       return;
@@ -167,12 +213,16 @@ const PreReservationSystem: React.FC<PreReservationSystemProps> = ({
       }
 
       if (response.success) {
+        const overnightMsg = response.overnight_stays > 0 
+          ? ` (+ R$ ${response.overnight_fee.toFixed(2)} de pernoite)` 
+          : '';
+          
         toast({
           title: "Pré-reserva criada!",
-          description: `Posição ${response.priority_position} na fila. ${
+          description: `Posição ${response.priority_position} na fila. Custo: R$ ${response.final_cost.toFixed(2)}${overnightMsg}. ${
             response.can_confirm_immediately 
               ? 'Você pode confirmar imediatamente!' 
-              : 'Aguarde até 12h para confirmação.'
+              : getExpirationMessage()
           }`
         });
         
@@ -235,6 +285,10 @@ const PreReservationSystem: React.FC<PreReservationSystemProps> = ({
 
   if (!profile) return null;
 
+  const overnightStays = calculateOvernightStays();
+  const baseCost = calculateCost();
+  const { finalCost, overnightFee } = calculateFinalCost(baseCost, overnightStays);
+
   return (
     <div className="space-y-6">
       {profile && (
@@ -251,9 +305,7 @@ const PreReservationSystem: React.FC<PreReservationSystemProps> = ({
                 #{profile.priority_position}
               </div>
               <p className="text-gray-600 mt-2">
-                {profile.priority_position === 1 
-                  ? "🎯 Você tem confirmação imediata!"
-                  : "⏳ Aguarde até 12h para confirmação automática"}
+                {getExpirationMessage()}
               </p>
             </div>
           </CardContent>
@@ -277,18 +329,30 @@ const PreReservationSystem: React.FC<PreReservationSystemProps> = ({
                 <p>{currentPreReservation.origin} → {currentPreReservation.destination}</p>
               </div>
               <div>
-                <span className="font-medium">Data:</span>
-                <p>{format(new Date(currentPreReservation.departure_date), 'dd/MM/yyyy', { locale: ptBR })}</p>
+                <span className="font-medium">Data/Hora Ida:</span>
+                <p>{format(new Date(currentPreReservation.departure_date), 'dd/MM/yyyy', { locale: ptBR })} às {currentPreReservation.departure_time}</p>
               </div>
               <div>
-                <span className="font-medium">Horário:</span>
-                <p>{currentPreReservation.departure_time} - {currentPreReservation.return_time}</p>
+                <span className="font-medium">Data/Hora Volta:</span>
+                <p>{format(new Date(currentPreReservation.return_date), 'dd/MM/yyyy', { locale: ptBR })} às {currentPreReservation.return_time}</p>
               </div>
               <div>
                 <span className="font-medium">Posição:</span>
                 <Badge variant="outline">#{currentPreReservation.priority_position}</Badge>
               </div>
             </div>
+
+            {(currentPreReservation as any).overnight_stays > 0 && (
+              <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+                <div className="flex items-center space-x-2 text-blue-800">
+                  <Moon className="h-4 w-4" />
+                  <span className="font-medium">Pernoite Detectada</span>
+                </div>
+                <p className="text-sm text-blue-700 mt-1">
+                  {(currentPreReservation as any).overnight_stays} noite(s) × R$ 1.500,00 = R$ {((currentPreReservation as any).overnight_fee || 0).toFixed(2)}
+                </p>
+              </div>
+            )}
 
             <Separator />
 
@@ -314,8 +378,14 @@ const PreReservationSystem: React.FC<PreReservationSystemProps> = ({
               <div className="bg-white p-4 rounded-lg border">
                 <div className="flex justify-between items-center">
                   <span>Custo base:</span>
-                  <span>R$ {currentPreReservation.total_cost.toFixed(2)}</span>
+                  <span>R$ {(currentPreReservation.total_cost - ((currentPreReservation as any).overnight_fee || 0)).toFixed(2)}</span>
                 </div>
+                {(currentPreReservation as any).overnight_fee > 0 && (
+                  <div className="flex justify-between items-center text-blue-600">
+                    <span>Taxa de pernoite:</span>
+                    <span>+R$ {((currentPreReservation as any).overnight_fee || 0).toFixed(2)}</span>
+                  </div>
+                )}
                 {paymentMethod === 'card' && (
                   <div className="flex justify-between items-center text-red-600">
                     <span>Taxa cartão (2%):</span>
@@ -325,7 +395,7 @@ const PreReservationSystem: React.FC<PreReservationSystemProps> = ({
                 <Separator className="my-2" />
                 <div className="flex justify-between items-center font-bold">
                   <span>Total final:</span>
-                  <span>R$ {calculateFinalCost(currentPreReservation.total_cost).toFixed(2)}</span>
+                  <span>R$ {(paymentMethod === 'card' ? currentPreReservation.total_cost * 1.02 : currentPreReservation.total_cost).toFixed(2)}</span>
                 </div>
               </div>
 
@@ -347,10 +417,17 @@ const PreReservationSystem: React.FC<PreReservationSystemProps> = ({
               <span>Nova Pré-reserva</span>
             </CardTitle>
             <CardDescription>
-              Crie uma pré-reserva e entre na fila de prioridades
+              Crie uma pré-reserva com ida e volta obrigatórias
             </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
+            <Alert>
+              <Clock className="h-4 w-4" />
+              <AlertDescription>
+                <strong>Importante:</strong> Todo voo deve ter ida e volta. Se o retorno for após meia-noite, será cobrada taxa de pernoite de R$ 1.500,00 por noite.
+              </AlertDescription>
+            </Alert>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="aircraft">Aeronave</Label>
@@ -399,22 +476,24 @@ const PreReservationSystem: React.FC<PreReservationSystemProps> = ({
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="return_date">Data de Retorno</Label>
+                <Label htmlFor="return_date">Data de Retorno *</Label>
                 <Input
                   id="return_date"
                   type="date"
                   value={formData.return_date}
                   onChange={(e) => setFormData({...formData, return_date: e.target.value})}
+                  required
                 />
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="return_time">Horário de Retorno</Label>
+                <Label htmlFor="return_time">Horário de Retorno *</Label>
                 <Input
                   id="return_time"
                   type="time"
                   value={formData.return_time}
                   onChange={(e) => setFormData({...formData, return_time: e.target.value})}
+                  required
                 />
               </div>
 
@@ -456,10 +535,16 @@ const PreReservationSystem: React.FC<PreReservationSystemProps> = ({
                     <span>Taxas de aeroporto:</span>
                     <span>R$ 150,00</span>
                   </div>
+                  {overnightStays > 0 && (
+                    <div className="flex justify-between text-blue-600">
+                      <span>Pernoite ({overnightStays} noite{overnightStays > 1 ? 's' : ''}):</span>
+                      <span>+R$ {overnightFee.toFixed(2)}</span>
+                    </div>
+                  )}
                   <Separator className="my-2" />
                   <div className="flex justify-between font-bold">
                     <span>Total estimado:</span>
-                    <span>R$ {calculateCost().toFixed(2)}</span>
+                    <span>R$ {(baseCost + overnightFee).toFixed(2)}</span>
                   </div>
                 </div>
               </div>
@@ -467,7 +552,7 @@ const PreReservationSystem: React.FC<PreReservationSystemProps> = ({
 
             <Button 
               onClick={handleCreatePreReservation}
-              disabled={isLoading || !formData.aircraft_id || !formData.destination}
+              disabled={isLoading || !formData.aircraft_id || !formData.destination || !formData.return_date || !formData.return_time}
               className="w-full bg-aviation-gradient hover:opacity-90 text-white"
             >
               {isLoading ? 'Criando...' : 'Criar Pré-reserva'}
@@ -479,7 +564,7 @@ const PreReservationSystem: React.FC<PreReservationSystemProps> = ({
       <Alert>
         <Clock className="h-4 w-4" />
         <AlertDescription>
-          <strong>Como funciona:</strong> Se você não for o 1º na fila, sua pré-reserva será confirmada automaticamente após 12h se ninguém com prioridade maior fizer uma reserva para o mesmo período.
+          <strong>Como funciona:</strong> {getExpirationMessage()} A aeronave fica bloqueada por 3h após o retorno para manutenção.
         </AlertDescription>
       </Alert>
     </div>

@@ -377,6 +377,8 @@ export type Database = {
           flight_hours: number
           id: string
           origin: string
+          overnight_fee: number | null
+          overnight_stays: number | null
           passengers: number
           payment_method: string | null
           priority_position: number
@@ -397,6 +399,8 @@ export type Database = {
           flight_hours: number
           id?: string
           origin: string
+          overnight_fee?: number | null
+          overnight_stays?: number | null
           passengers?: number
           payment_method?: string | null
           priority_position: number
@@ -417,6 +421,8 @@ export type Database = {
           flight_hours?: number
           id?: string
           origin?: string
+          overnight_fee?: number | null
+          overnight_stays?: number | null
           passengers?: number
           payment_method?: string | null
           priority_position?: number
@@ -639,6 +645,10 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      auto_confirm_expired_reservations: {
+        Args: Record<PropertyKey, never>
+        Returns: undefined
+      }
       confirm_pre_reservation: {
         Args: { p_pre_reservation_id: string; p_payment_method: string }
         Returns: Json

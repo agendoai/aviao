@@ -24,6 +24,9 @@ export interface PreReservationResponse {
   priority_position?: number;
   expires_at?: string;
   can_confirm_immediately?: boolean;
+  overnight_stays?: number;
+  overnight_fee?: number;
+  final_cost?: number;
   error?: string;
 }
 
@@ -70,4 +73,5 @@ export type DatabaseFunction =
   | 'create_booking_secure'
   | 'rotate_priorities'
   | 'create_pre_reservation'
-  | 'confirm_pre_reservation';
+  | 'confirm_pre_reservation'
+  | 'auto_confirm_expired_reservations';
