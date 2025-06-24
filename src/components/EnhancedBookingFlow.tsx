@@ -401,7 +401,7 @@ const EnhancedBookingFlow: React.FC<EnhancedBookingFlowProps> = ({ selectedDate 
                 </div>
 
                 {/* Retorno à Base */}
-                {getReturnDetails() && (
+                {route.length > 0 && flightTiming?.calculatedReturnTime && (
                   <div className="bg-green-50 p-4 rounded-lg border-2 border-green-200">
                     <div className="flex items-center space-x-2 mb-3">
                       <Clock className="h-5 w-5 text-green-600" />
@@ -409,20 +409,20 @@ const EnhancedBookingFlow: React.FC<EnhancedBookingFlowProps> = ({ selectedDate 
                     </div>
                     <div className="space-y-2">
                       <p className="font-medium">
-                        {getReturnDetails()?.departureLocation} → Araçatuba (ABC)
+                        {route[route.length - 1]?.destination} → Araçatuba (ABC)
                       </p>
                       <div className="grid grid-cols-2 gap-4 text-sm">
                         <div>
-                          <span className="text-gray-600">Saída:</span>
-                          <span className="ml-2 font-medium">{getReturnDetails()?.departureTime}</span>
+                          <span className="text-gray-600">Saída da última escala:</span>
+                          <span className="ml-2 font-medium">{route[route.length - 1]?.departureTime}</span>
                         </div>
                         <div>
-                          <span className="text-gray-600">Chegada estimada:</span>
-                          <span className="ml-2 font-medium">{getReturnDetails()?.estimatedReturnTime}</span>
+                          <span className="text-gray-600">Chegada estimada à base:</span>
+                          <span className="ml-2 font-medium text-green-600">{flightTiming.calculatedReturnTime}</span>
                         </div>
                       </div>
                       <p className="text-xs text-gray-500 mt-2">
-                        * Tempo de voo estimado: {getReturnDetails()?.estimatedFlightDuration}h
+                        * Tempo de voo estimado: 2h (calculado automaticamente)
                       </p>
                     </div>
                   </div>
