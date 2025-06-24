@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -154,113 +155,6 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
     });
   };
 
-  // Controles de horários da missão
-  const [departureFromBase, setDepartureFromBase] = useState('08:00');
-  const [desiredReturnTime, setDesiredReturnTime] = useState('18:00');
-  const [flightDate, setFlightDate] = useState(new Date().toISOString().split('T')[0]);
-  const [desiredReturnDate, setDesiredReturnDate] = useState(new Date().toISOString().split('T')[0]);
-  const [useCalculatedReturn, setUseCalculatedReturn] = useState(true);
-
-  // Estados para o calendário simplificado
-  const [occupiedDates, setOccupiedDates] = useState<Date[]>([]);
-  const [isLoadingDates, setIsLoadingDates] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
-  const [showTimeConfiguration, setShowTimeConfiguration] = useState(false);
-
-  useEffect(() => {
-    calculateTimingAndNotify();
-  }, [departureFromBase, desiredReturnTime, desiredReturnDate, flightDate, route, useCalculatedReturn]);
-
-  useEffect(() => {
-    if (selectedAircraftId) {
-      fetchOccupiedDates();
-    }
-  }, [selectedAircraftId]);
-
-  const fetchOccupiedDates = async () => {
-    if (!selectedAircraftId) return;
-    
-    setIsLoadingDates(true);
-    try {
-      const { data, error } = await supabase
-        .from('bookings')
-        .select('departure_date, return_date')
-        .eq('aircraft_id', selectedAircraftId)
-        .in('status', ['confirmed', 'pending']);
-
-      if (error) throw error;
-
-      const dates: Date[] = [];
-      if (data) {
-        data.forEach(booking => {
-          const start = new Date(booking.departure_date);
-          const end = new Date(booking.return_date);
-          
-          for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
-            dates.push(new Date(date));
-          }
-        });
-      }
-      
-      setOccupiedDates(dates);
-    } catch (error) {
-      console.error('Erro ao buscar datas ocupadas:', error);
-      toast({
-        title: "Erro",
-        description: "Erro ao carregar disponibilidade da aeronave.",
-        variant: "destructive"
-      });
-    } finally {
-      setIsLoadingDates(false);
-    }
-  };
-
-  const isDateOccupied = (date: Date) => {
-    return occupiedDates.some(occupiedDate => 
-      occupiedDate.toDateString() === date.toDateString()
-    );
-  };
-
-  const handleDateSelect = (date: Date | undefined) => {
-    if (!date) return;
-    
-    // Verificar se a data está ocupada
-    if (isDateOccupied(date)) {
-      toast({
-        title: "Data Indisponível",
-        description: "Esta data já possui reserva confirmada para a aeronave selecionada.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    // Verificar se é data passada
-    if (date < new Date()) {
-      toast({
-        title: "Data Inválida",
-        description: "Não é possível selecionar datas passadas.",
-        variant: "destructive"
-      });
-      return;
-    }
-
-    setSelectedDate(date);
-    setFlightDate(date.toISOString().split('T')[0]);
-    setDesiredReturnDate(date.toISOString().split('T')[0]);
-    setShowTimeConfiguration(true);
-
-    toast({
-      title: "Data Selecionada",
-      description: `${date.toLocaleDateString('pt-BR', { 
-        weekday: 'long', 
-        year: 'numeric', 
-        month: 'long', 
-        day: 'numeric' 
-      })} selecionada com sucesso!`,
-      variant: "default"
-    });
-  };
-
   const calculateReturnTimeToBase = (): { time: string; date: string } => {
     if (route.length === 0) return { 
       time: desiredReturnTime, 
@@ -381,7 +275,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
     // Reset form
     setNewDestination('');
     setArrivalTime('');
-    setDepartureTime(''); // Corrigido: removido parênteses vazios
+    setDepartureTime('');
     
     // Calculate costs
     calculateRouteCosts(updatedRoute);
