@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -21,26 +22,20 @@ const localizer = dateFnsLocalizer({
   locales: { 'pt-BR': ptBR },
 });
 
-// Configure formats for the calendar - simplified without localizer parameter
-const formats = {
-  dateFormat: 'dd',
-  dayFormat: (date: Date) => format(date, 'dd/MM', { locale: ptBR }),
-  dayHeaderFormat: (date: Date) => format(date, 'dddd', { locale: ptBR }),
-  dayRangeHeaderFormat: ({ start, end }: { start: Date; end: Date }) =>
-    format(start, 'MMMM dd', { locale: ptBR }) + ' – ' + format(end, 'MMMM dd, yyyy', { locale: ptBR }),
-  agendaHeaderFormat: ({ start, end }: { start: Date; end: Date }) =>
-    format(start, 'MMMM dd', { locale: ptBR }) + ' – ' + format(end, 'MMMM dd, yyyy', { locale: ptBR }),
-  agendaDateFormat: (date: Date) => format(date, 'ddd MMM dd', { locale: ptBR }),
-  agendaTimeFormat: (date: Date) => format(date, 'HH:mm', { locale: ptBR }),
-  agendaTimeRangeFormat: ({ start, end }: { start: Date; end: Date }) =>
-    format(start, 'HH:mm', { locale: ptBR }) + ' – ' + format(end, 'HH:mm', { locale: ptBR }),
-  selectRangeFormat: ({ start, end }: { start: Date; end: Date }) =>
-    format(start, 'MMMM dd', { locale: ptBR }) + ' – ' + format(end, 'MMMM dd, yyyy', { locale: ptBR }),
-  eventTimeRangeFormat: ({ start, end }: { start: Date; end: Date }) =>
-    format(start, 'HH:mm', { locale: ptBR }) + ' – ' + format(end, 'HH:mm', { locale: ptBR }),
-  timeGutterFormat: (date: Date) => format(date, 'HH:mm', { locale: ptBR }),
-  monthHeaderFormat: (date: Date) => format(date, 'MMMM yyyy', { locale: ptBR }),
-  weekdayFormat: (date: Date) => format(date, 'dddd', { locale: ptBR }),
+// Simple messages for the calendar
+const messages = {
+  next: "Próximo",
+  previous: "Anterior",
+  today: "Hoje",
+  month: "Mês",
+  week: "Semana",
+  day: "Dia",
+  agenda: "Agenda",
+  date: "Data",
+  time: "Horário",
+  event: "Evento",
+  noEventsInRange: "Nenhum evento neste período",
+  showMore: (total: number) => `+ ${total} mais`
 };
 
 interface FlightEvent {
@@ -235,21 +230,7 @@ const FlightCalendar: React.FC<FlightCalendarProps> = ({ selectedAircraft, onDat
               views={['month', 'week', 'day']}
               defaultView="month"
               culture="pt-BR"
-              formats={formats}
-              messages={{
-                next: "Próximo",
-                previous: "Anterior",
-                today: "Hoje",
-                month: "Mês",
-                week: "Semana",
-                day: "Dia",
-                agenda: "Agenda",
-                date: "Data",
-                time: "Horário",
-                event: "Evento",
-                noEventsInRange: "Nenhum evento neste período",
-                showMore: (total) => `+ ${total} mais`
-              }}
+              messages={messages}
             />
           </div>
         </CardContent>
