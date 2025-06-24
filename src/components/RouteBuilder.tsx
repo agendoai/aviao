@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -35,7 +34,7 @@ interface RouteBuilderProps {
     desiredReturnTime: string;
     desiredReturnDate: string;
   }) => void;
-  selectedAircraftId?: string; // Nova prop para ID da aeronave selecionada
+  selectedAircraftId?: string;
 }
 
 const RouteBuilder: React.FC<RouteBuilderProps> = ({
@@ -58,11 +57,11 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
   const [desiredReturnDate, setDesiredReturnDate] = useState(new Date().toISOString().split('T')[0]);
   const [useCalculatedReturn, setUseCalculatedReturn] = useState(true);
 
-  // Estados para o calendário
+  // Estados para o calendário simplificado
   const [occupiedDates, setOccupiedDates] = useState<Date[]>([]);
   const [isLoadingDates, setIsLoadingDates] = useState(false);
-  const [selectedDate, setSelectedDate] = useState<Date>(new Date());
-  const [showTimeInputs, setShowTimeInputs] = useState(false);
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [showTimeConfiguration, setShowTimeConfiguration] = useState(false);
 
   useEffect(() => {
     calculateTimingAndNotify();
@@ -93,7 +92,6 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
           const start = new Date(booking.departure_date);
           const end = new Date(booking.return_date);
           
-          // Adicionar todos os dias entre a data de saída e retorno
           for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
             dates.push(new Date(date));
           }
@@ -119,9 +117,10 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
     );
   };
 
-  const handleCalendarDateSelect = (date: Date | undefined) => {
+  const handleDateSelect = (date: Date | undefined) => {
     if (!date) return;
     
+    // Verificar se a data está ocupada
     if (isDateOccupied(date)) {
       toast({
         title: "Data Indisponível",
@@ -131,6 +130,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
       return;
     }
 
+    // Verificar se é data passada
     if (date < new Date()) {
       toast({
         title: "Data Inválida",
@@ -143,7 +143,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
     setSelectedDate(date);
     setFlightDate(date.toISOString().split('T')[0]);
     setDesiredReturnDate(date.toISOString().split('T')[0]);
-    setShowTimeInputs(true);
+    setShowTimeConfiguration(true);
 
     toast({
       title: "Data Selecionada",
@@ -152,7 +152,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
         year: 'numeric', 
         month: 'long', 
         day: 'numeric' 
-      })} selecionada. Configure os horários abaixo.`,
+      })} selecionada com sucesso!`,
       variant: "default"
     });
   };
@@ -384,32 +384,26 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Calendário Principal de Seleção */}
+          {/* Seção de Seleção de Data */}
           {selectedAircraftId && (
             <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
               <h4 className="font-semibold mb-4 flex items-center space-x-2 text-blue-800">
                 <CalendarIcon className="h-5 w-5" />
-                <span>Selecione a Data da Missão</span>
+                <span>1. Selecione a Data da Missão</span>
               </h4>
               
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                 {/* Calendário */}
-                <div className="lg:col-span-2">
+                <div>
                   <Calendar
                     mode="single"
                     selected={selectedDate}
-                    onSelect={handleCalendarDateSelect}
-                    className="rounded-md border bg-white p-4 shadow-sm w-full"
-                    disabled={(date) => {
-                      // Desabilitar datas passadas
-                      if (date < new Date()) return true;
-                      // Não desabilitar datas ocupadas, apenas marcar visualmente
-                      return false;
-                    }}
+                    onSelect={handleDateSelect}
+                    className="rounded-md border bg-white shadow-sm w-fit mx-auto"
+                    disabled={(date) => date < new Date()}
                     modifiers={{
                       occupied: occupiedDates,
-                      available: (date) => !isDateOccupied(date) && date >= new Date(),
-                      selected: (date) => date.toDateString() === selectedDate.toDateString()
+                      available: (date) => !isDateOccupied(date) && date >= new Date()
                     }}
                     modifiersStyles={{
                       occupied: {
@@ -422,20 +416,21 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                         backgroundColor: '#dcfce7',
                         color: '#16a34a',
                         fontWeight: 'bold'
-                      },
-                      selected: {
-                        backgroundColor: '#3b82f6',
-                        color: 'white',
-                        fontWeight: 'bold'
                       }
                     }}
                   />
+                  
+                  {isLoadingDates && (
+                    <div className="text-center mt-4 text-sm text-gray-600">
+                      Carregando disponibilidade...
+                    </div>
+                  )}
                 </div>
                 
                 {/* Painel de Informações */}
                 <div className="space-y-4">
                   <div className="bg-white p-4 rounded-lg border shadow-sm">
-                    <h5 className="font-medium text-sm mb-3 text-gray-700">Legenda de Disponibilidade:</h5>
+                    <h5 className="font-medium text-sm mb-3 text-gray-700">Legenda:</h5>
                     <div className="space-y-2 text-sm">
                       <div className="flex items-center space-x-2">
                         <div className="w-4 h-4 bg-red-100 border border-red-300 rounded"></div>
@@ -446,70 +441,51 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                         <span>Disponível para reserva</span>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <div className="w-4 h-4 bg-blue-500 border border-blue-300 rounded"></div>
-                        <span>Data selecionada</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
                         <div className="w-4 h-4 bg-gray-100 border border-gray-300 rounded"></div>
                         <span>Datas passadas</span>
                       </div>
                     </div>
                   </div>
                   
-                  {isLoadingDates && (
-                    <div className="text-sm text-gray-600 bg-white p-3 rounded border">
-                      Carregando disponibilidade...
-                    </div>
-                  )}
-                  
-                  <div className="bg-white p-4 rounded-lg border shadow-sm">
-                    <h5 className="font-medium text-sm mb-2 text-gray-700">Data Selecionada:</h5>
-                    <p className="text-sm font-medium text-blue-600">
-                      {selectedDate.toLocaleDateString('pt-BR', { 
-                        weekday: 'long', 
-                        year: 'numeric', 
-                        month: 'long', 
-                        day: 'numeric' 
-                      })}
-                    </p>
-                    
-                    {isDateOccupied(selectedDate) && (
-                      <div className="mt-2 p-2 bg-red-50 border border-red-200 rounded">
-                        <p className="text-xs text-red-600 flex items-center">
-                          <AlertTriangle className="h-3 w-3 mr-1" />
-                          Esta data possui conflito com reserva existente
-                        </p>
-                      </div>
-                    )}
-                    
-                    {!isDateOccupied(selectedDate) && selectedDate >= new Date() && (
+                  {selectedDate && (
+                    <div className="bg-white p-4 rounded-lg border shadow-sm">
+                      <h5 className="font-medium text-sm mb-2 text-gray-700">Data Selecionada:</h5>
+                      <p className="text-sm font-medium text-blue-600">
+                        {selectedDate.toLocaleDateString('pt-BR', { 
+                          weekday: 'long', 
+                          year: 'numeric', 
+                          month: 'long', 
+                          day: 'numeric' 
+                        })}
+                      </p>
+                      
                       <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded">
                         <p className="text-xs text-green-600">
-                          ✓ Data disponível para reserva
+                          ✓ Data disponível - Configure os horários abaixo
                         </p>
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
                 </div>
               </div>
             </div>
           )}
 
-          {/* Controle de Horários - Só aparece após selecionar data */}
-          {showTimeInputs && (
-            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
-              <h4 className="font-medium mb-4 flex items-center space-x-2">
-                <Clock className="h-4 w-4" />
-                <span>Configuração de Horários para {selectedDate.toLocaleDateString('pt-BR')}</span>
+          {/* Configuração de Horários */}
+          {showTimeConfiguration && selectedDate && (
+            <div className="bg-green-50 p-6 rounded-lg border border-green-200">
+              <h4 className="font-semibold mb-4 flex items-center space-x-2 text-green-800">
+                <Clock className="h-5 w-5" />
+                <span>2. Configure os Horários da Missão</span>
               </h4>
               
-              {/* Primeira linha: Horário de saída */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* Horário de Saída */}
                 <div className="space-y-2">
-                  <Label htmlFor="departure-base">Horário de Saída da Base</Label>
+                  <Label htmlFor="departure-time">Horário de Saída da Base</Label>
                   <div className="relative">
                     <Input
-                      id="departure-base"
+                      id="departure-time"
                       type="time"
                       value={departureFromBase}
                       onChange={(e) => setDepartureFromBase(e.target.value)}
@@ -518,181 +494,107 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                     <Plane className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
                   </div>
                 </div>
-                
-                <div className="flex items-end">
-                  <div className="bg-white p-3 rounded border w-full">
-                    <p className="text-xs text-gray-600 mb-1">Data da missão:</p>
-                    <p className="font-medium text-sm">
+
+                {/* Modo de Retorno */}
+                <div className="space-y-2">
+                  <Label>Modo de Retorno</Label>
+                  <div className="flex space-x-2">
+                    <Button
+                      variant={useCalculatedReturn ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setUseCalculatedReturn(true)}
+                      className="flex-1"
+                    >
+                      <Calculator className="h-3 w-3 mr-1" />
+                      Automático
+                    </Button>
+                    <Button
+                      variant={!useCalculatedReturn ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => setUseCalculatedReturn(false)}
+                      className="flex-1"
+                    >
+                      <CalendarIcon className="h-3 w-3 mr-1" />
+                      Manual
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Horário de Retorno Manual */}
+                {!useCalculatedReturn && (
+                  <>
+                    <div className="space-y-2">
+                      <Label htmlFor="return-date">Data de Retorno Desejada</Label>
+                      <Input
+                        id="return-date"
+                        type="date"
+                        value={desiredReturnDate}
+                        onChange={(e) => setDesiredReturnDate(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="return-time">Horário de Retorno Desejado</Label>
+                      <div className="relative">
+                        <Input
+                          id="return-time"
+                          type="time"
+                          value={desiredReturnTime}
+                          onChange={(e) => setDesiredReturnTime(e.target.value)}
+                        />
+                        <Plane className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+                      </div>
+                    </div>
+                  </>
+                )}
+              </div>
+
+              {/* Resumo da Configuração */}
+              <div className="mt-6 bg-white p-4 rounded border">
+                <h5 className="font-medium text-sm mb-3">Resumo da Missão:</h5>
+                <div className="grid grid-cols-2 gap-4 text-sm">
+                  <div>
+                    <span className="text-gray-600">Data:</span>
+                    <div className="font-medium">
                       {selectedDate.toLocaleDateString('pt-BR')}
-                    </p>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Saída:</span>
+                    <div className="font-medium">{departureFromBase}</div>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Retorno:</span>
+                    <div className="font-medium">
+                      {useCalculatedReturn ? "Automático" : `${desiredReturnTime} (${new Date(desiredReturnDate).toLocaleDateString('pt-BR')})`}
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Escalas:</span>
+                    <div className="font-medium">{route.length}</div>
                   </div>
                 </div>
               </div>
 
-              {/* Segunda linha: Modo de retorno */}
-              <div className="mb-4">
-                <Label>Modo de Retorno</Label>
-                <div className="flex space-x-2 mt-2">
-                  <Button
-                    variant={useCalculatedReturn ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setUseCalculatedReturn(true)}
-                    className="flex-1"
-                  >
-                    <Calculator className="h-3 w-3 mr-1" />
-                    Automático
-                  </Button>
-                  <Button
-                    variant={!useCalculatedReturn ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setUseCalculatedReturn(false)}
-                    className="flex-1"
-                  >
-                    <CalendarIcon className="h-3 w-3 mr-1" />
-                    Manual
-                  </Button>
-                </div>
-              </div>
-
-              {/* Terceira linha: Data e horário de retorno */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="return-date">
-                    {useCalculatedReturn ? "Data de Retorno (Calculada)" : "Data de Retorno Desejada"}
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="return-date"
-                      type="date"
-                      value={useCalculatedReturn ? calculateReturnTimeToBase().date : desiredReturnDate}
-                      onChange={(e) => setDesiredReturnDate(e.target.value)}
-                      disabled={useCalculatedReturn}
-                      className={useCalculatedReturn ? "bg-gray-100 cursor-not-allowed" : ""}
-                    />
-                    <CalendarIcon className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="return-time">
-                    {useCalculatedReturn ? "Horário de Retorno (Calculado)" : "Horário de Retorno Desejado"}
-                  </Label>
-                  <div className="relative">
-                    <Input
-                      id="return-time"
-                      type="time"
-                      value={useCalculatedReturn ? calculateReturnTimeToBase().time : desiredReturnTime}
-                      onChange={(e) => setDesiredReturnTime(e.target.value)}
-                      disabled={useCalculatedReturn}
-                      className={useCalculatedReturn ? "bg-gray-100 cursor-not-allowed" : ""}
-                    />
-                    <Plane className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
-                  </div>
-                  <p className="text-xs text-gray-600">
-                    {useCalculatedReturn 
-                      ? "Calculado automaticamente (+2h da última escala)"
-                      : "Data e horário desejados para retorno à base"
-                    }
-                  </p>
-                </div>
-              </div>
-
-              {/* Análise de Viabilidade */}
-              {!useCalculatedReturn && route.length > 0 && (
-                <div className="mt-4 space-y-2">
-                  <Label>Análise de Viabilidade do Retorno</Label>
-                  <div className="bg-white p-3 rounded border">
-                    {isReturnTimeFeasible() ? (
-                      <div className="text-green-600 text-sm">
-                        <div className="flex items-center space-x-1">
-                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                          <span className="font-medium">Retorno Viável</span>
-                        </div>
-                        <p className="mt-1">
-                          Folga de {Math.round(getTimeDifference())} minutos após última escala
-                        </p>
-                        <p className="text-xs text-gray-600 mt-1">
-                          Retorno programado: {formatDateTime(desiredReturnDate, desiredReturnTime)}
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="text-red-600 text-sm">
-                        <div className="flex items-center space-x-1">
-                          <AlertTriangle className="h-3 w-3" />
-                          <span className="font-medium">Retorno Inviável</span>
-                        </div>
-                        <p className="mt-1">
-                          Retorno {Math.abs(Math.round(getTimeDifference()))} minutos antes do possível
-                        </p>
-                        <p className="text-xs text-gray-600 mt-1">
-                          Primeiro horário possível: {formatDateTime(calculateReturnTimeToBase().date, calculateReturnTimeToBase().time)}
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
-              
               {/* Alerta de Pernoite */}
               {checkForOvernight() && (
                 <Alert className="mt-4 border-amber-200 bg-amber-50">
                   <Moon className="h-4 w-4" />
                   <AlertDescription className="text-amber-800">
-                    <strong>Pernoite Detectada!</strong> A missão se estende por {calculateOvernightDays()} dia(s) além da data de saída.
-                    <span className="block mt-1">
-                      Taxa de pernoite: {calculateOvernightDays()} × R$ 1.500,00 = R$ {(calculateOvernightDays() * 1500).toLocaleString('pt-BR')}
-                    </span>
-                    <p className="text-xs mt-2">
-                      Saída: {formatDateTime(flightDate, departureFromBase)} | 
-                      Retorno: {formatDateTime(getEffectiveReturnDateTime().date, getEffectiveReturnDateTime().time)}
-                    </p>
+                    <strong>Pernoite Detectada!</strong> A missão se estende por {calculateOvernightDays()} dia(s).
+                    Taxa de pernoite: R$ {(calculateOvernightDays() * 1500).toLocaleString('pt-BR')}
                   </AlertDescription>
                 </Alert>
               )}
-
-              {/* Resumo da Missão */}
-              <div className="mt-4 bg-white p-3 rounded border">
-                <h5 className="font-medium text-sm mb-2">Resumo da Missão:</h5>
-                <div className="grid grid-cols-2 gap-4 text-sm">
-                  <div>
-                    <span className="text-gray-600">Duração total:</span>
-                    <div className="font-medium">
-                      {(() => {
-                        const effective = getEffectiveReturnDateTime();
-                        const departure = new Date(`${flightDate}T${departureFromBase}`);
-                        const returnTime = new Date(`${effective.date}T${effective.time}`);
-                        
-                        const duration = (returnTime.getTime() - departure.getTime()) / (1000 * 60 * 60);
-                        return `${duration.toFixed(1)}h`;
-                      })()}
-                    </div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Escalas programadas:</span>
-                    <div className="font-medium">{route.length}</div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Dias de operação:</span>
-                    <div className="font-medium">{calculateOvernightDays() + 1}</div>
-                  </div>
-                  <div>
-                    <span className="text-gray-600">Retorno previsto:</span>
-                    <div className="font-medium text-xs">
-                      {new Date(getEffectiveReturnDateTime().date).toLocaleDateString('pt-BR')}
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
           )}
 
           {/* Visualização da rota atual */}
-          {route.length > 0 && (
+          {route.length > 0 && selectedDate && (
             <div className="bg-gray-50 p-4 rounded-lg">
               <h4 className="font-medium mb-3">Rota Programada:</h4>
               <div className="flex items-center space-x-2 flex-wrap">
                 <Badge variant="outline" className="text-green-600 border-green-600">
-                  {baseLocation} ({new Date(flightDate).toLocaleDateString('pt-BR')} {departureFromBase})
+                  {baseLocation} ({selectedDate.toLocaleDateString('pt-BR')} {departureFromBase})
                 </Badge>
                 {route.map((stop, index) => (
                   <React.Fragment key={stop.id}>
@@ -719,48 +621,50 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
           )}
 
           {/* Formulário para adicionar parada */}
-          <div className="space-y-4">
-            <h4 className="font-medium">Adicionar Escala:</h4>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="destination">Destino</Label>
-                <Input
-                  id="destination"
-                  value={newDestination}
-                  onChange={(e) => setNewDestination(e.target.value)}
-                  placeholder="Ex: São Paulo (GRU)"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="arrival">Chegada</Label>
-                <Input
-                  id="arrival"
-                  type="time"
-                  value={arrivalTime}
-                  onChange={(e) => setArrivalTime(e.target.value)}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="departure">Saída</Label>
-                <Input
-                  id="departure"
-                  type="time"
-                  value={departureTime}
-                  onChange={(e) => setDepartureTime(e.target.value)}
-                />
-              </div>
-              <div className="flex items-end">
-                <Button 
-                  onClick={addStop} 
-                  className="w-full bg-aviation-gradient hover:opacity-90"
-                  disabled={!newDestination || !arrivalTime || !departureTime}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  Adicionar
-                </Button>
+          {showTimeConfiguration && (
+            <div className="space-y-4">
+              <h4 className="font-medium">3. Adicionar Escalas (Opcional):</h4>
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="destination">Destino</Label>
+                  <Input
+                    id="destination"
+                    value={newDestination}
+                    onChange={(e) => setNewDestination(e.target.value)}
+                    placeholder="Ex: São Paulo (GRU)"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="arrival">Chegada</Label>
+                  <Input
+                    id="arrival"
+                    type="time"
+                    value={arrivalTime}
+                    onChange={(e) => setArrivalTime(e.target.value)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="departure">Saída</Label>
+                  <Input
+                    id="departure"
+                    type="time"
+                    value={departureTime}
+                    onChange={(e) => setDepartureTime(e.target.value)}
+                  />
+                </div>
+                <div className="flex items-end">
+                  <Button 
+                    onClick={addStop} 
+                    className="w-full bg-aviation-gradient hover:opacity-90"
+                    disabled={!newDestination || !arrivalTime || !departureTime}
+                  >
+                    <Plus className="h-4 w-4 mr-2" />
+                    Adicionar
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
+          )}
 
           {/* Lista de escalas */}
           {route.length > 0 && (
