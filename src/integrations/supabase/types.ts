@@ -330,6 +330,59 @@ export type Database = {
           },
         ]
       }
+      credit_recharges: {
+        Row: {
+          amount: number
+          created_at: string
+          external_payment_id: string | null
+          id: string
+          metadata: Json | null
+          payment_method_id: string | null
+          payment_method_type: string
+          processed_at: string | null
+          status: string
+          transaction_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          amount: number
+          created_at?: string
+          external_payment_id?: string | null
+          id?: string
+          metadata?: Json | null
+          payment_method_id?: string | null
+          payment_method_type: string
+          processed_at?: string | null
+          status?: string
+          transaction_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          amount?: number
+          created_at?: string
+          external_payment_id?: string | null
+          id?: string
+          metadata?: Json | null
+          payment_method_id?: string | null
+          payment_method_type?: string
+          processed_at?: string | null
+          status?: string
+          transaction_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "credit_recharges_payment_method_id_fkey"
+            columns: ["payment_method_id"]
+            isOneToOne: false
+            referencedRelation: "payment_methods"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       passengers: {
         Row: {
           birth_date: string
@@ -363,6 +416,51 @@ export type Database = {
           phone?: string | null
           rg?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      payment_methods: {
+        Row: {
+          bank_account_info: Json | null
+          card_brand: string | null
+          card_holder_name: string | null
+          card_number_last_four: string | null
+          created_at: string
+          id: string
+          is_active: boolean | null
+          is_default: boolean | null
+          pix_key: string | null
+          type: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bank_account_info?: Json | null
+          card_brand?: string | null
+          card_holder_name?: string | null
+          card_number_last_four?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          pix_key?: string | null
+          type: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bank_account_info?: Json | null
+          card_brand?: string | null
+          card_holder_name?: string | null
+          card_number_last_four?: string | null
+          created_at?: string
+          id?: string
+          is_active?: boolean | null
+          is_default?: boolean | null
+          pix_key?: string | null
+          type?: string
+          updated_at?: string
+          user_id?: string
         }
         Relationships: []
       }
@@ -683,6 +781,15 @@ export type Database = {
           p_passengers: number
           p_flight_hours: number
           p_total_cost: number
+        }
+        Returns: Json
+      }
+      process_credit_recharge: {
+        Args: {
+          p_amount: number
+          p_payment_method_id?: string
+          p_payment_method_type?: string
+          p_external_payment_id?: string
         }
         Returns: Json
       }

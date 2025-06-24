@@ -39,6 +39,14 @@ export interface ConfirmReservationResponse {
   error?: string;
 }
 
+export interface CreditRechargeResponse {
+  success?: boolean;
+  recharge_id?: string;
+  new_balance?: number;
+  amount_added?: number;
+  error?: string;
+}
+
 // Extended types for new tables
 export type PreReservation = Tables<'pre_reservations'>;
 export type PrioritySlot = Tables<'priority_slots'>;
@@ -46,6 +54,8 @@ export type ChatRoom = Tables<'chat_rooms'>;
 export type ChatMessage = Tables<'chat_messages'>;
 export type SeatSharing = Tables<'seat_sharing'>;
 export type Passenger = Tables<'passengers'>;
+export type PaymentMethod = Tables<'payment_methods'>;
+export type CreditRecharge = Tables<'credit_recharges'>;
 
 // Aircraft with seat configuration
 export interface AircraftWithSeats extends Tables<'aircraft'> {
@@ -74,4 +84,5 @@ export type DatabaseFunction =
   | 'rotate_priorities'
   | 'create_pre_reservation'
   | 'confirm_pre_reservation'
-  | 'auto_confirm_expired_reservations';
+  | 'auto_confirm_expired_reservations'
+  | 'process_credit_recharge';
