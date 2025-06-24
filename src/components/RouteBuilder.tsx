@@ -50,6 +50,110 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
   const [arrivalTime, setArrivalTime] = useState('');
   const [departureTime, setDepartureTime] = useState('');
   
+  // Estados do calendário e horários
+  const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
+  const [flightDate, setFlightDate] = useState('');
+  const [departureFromBase, setDepartureFromBase] = useState('08:00');
+  const [desiredReturnTime, setDesiredReturnTime] = useState('18:00');
+  const [desiredReturnDate, setDesiredReturnDate] = useState('');
+  const [useCalculatedReturn, setUseCalculatedReturn] = useState(true);
+  
+  // Estados para disponibilidade da aeronave
+  const [occupiedDates, setOccupiedDates] = useState<Date[]>([]);
+  const [isLoadingDates, setIsLoadingDates] = useState(false);
+
+  useEffect(() => {
+    if (selectedAircraftId) {
+      fetchOccupiedDates();
+    }
+  }, [selectedAircraftId]);
+
+  useEffect(() => {
+    if (selectedDate && flightDate) {
+      calculateTimingAndNotify();
+    }
+  }, [departureFromBase, desiredReturnTime, desiredReturnDate, flightDate, route, useCalculatedReturn, selectedDate]);
+
+  const fetchOccupiedDates = async () => {
+    if (!selectedAircraftId) return;
+    
+    setIsLoadingDates(true);
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('departure_date, return_date')
+        .eq('aircraft_id', selectedAircraftId)
+        .in('status', ['confirmed', 'pending']);
+
+      if (error) throw error;
+
+      const dates: Date[] = [];
+      if (data) {
+        data.forEach(booking => {
+          const start = new Date(booking.departure_date);
+          const end = new Date(booking.return_date);
+          
+          for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+            dates.push(new Date(date));
+          }
+        });
+      }
+      
+      setOccupiedDates(dates);
+    } catch (error) {
+      console.error('Erro ao buscar datas ocupadas:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao carregar disponibilidade da aeronave.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoadingDates(false);
+    }
+  };
+
+  const isDateOccupied = (date: Date) => {
+    return occupiedDates.some(occupiedDate => 
+      occupiedDate.toDateString() === date.toDateString()
+    );
+  };
+
+  const handleDateSelect = (date: Date | undefined) => {
+    if (!date) return;
+    
+    if (isDateOccupied(date)) {
+      toast({
+        title: "Data Indisponível",
+        description: "Esta data já possui reserva confirmada para a aeronave selecionada.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    if (date < new Date()) {
+      toast({
+        title: "Data Inválida",
+        description: "Não é possível selecionar datas passadas.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setSelectedDate(date);
+    setFlightDate(date.toISOString().split('T')[0]);
+    setDesiredReturnDate(date.toISOString().split('T')[0]);
+
+    toast({
+      title: "Data Selecionada",
+      description: `${date.toLocaleDateString('pt-BR', { 
+        weekday: 'long', 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric' 
+      })} selecionada com sucesso!`,
+    });
+  };
+
   // Controles de horários da missão
   const [departureFromBase, setDepartureFromBase] = useState('08:00');
   const [desiredReturnTime, setDesiredReturnTime] = useState('18:00');
@@ -377,29 +481,30 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <MapPin className="h-5 w-5" />
-            <span>Definição da Rota e Horários da Missão</span>
+            <span>Planejamento de Voo</span>
           </CardTitle>
           <CardDescription>
-            Base: {baseLocation} (saída e retorno obrigatórios)
+            Base: {baseLocation} - Selecione a data e configure sua missão
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Seção de Seleção de Data */}
-          {selectedAircraftId && (
-            <div className="bg-gradient-to-br from-blue-50 to-indigo-50 p-6 rounded-lg border border-blue-200">
-              <h4 className="font-semibold mb-4 flex items-center space-x-2 text-blue-800">
-                <CalendarIcon className="h-5 w-5" />
-                <span>1. Selecione a Data da Missão</span>
-              </h4>
-              
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <CardContent className="space-y-8">
+          
+          {/* PASSO 1: Seleção de Data */}
+          <div className="space-y-4">
+            <div className="flex items-center space-x-2 mb-4">
+              <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">1</div>
+              <h3 className="text-lg font-semibold">Selecione a Data da Missão</h3>
+            </div>
+            
+            {selectedAircraftId ? (
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
                 {/* Calendário */}
-                <div>
+                <div className="lg:col-span-2">
                   <Calendar
                     mode="single"
                     selected={selectedDate}
                     onSelect={handleDateSelect}
-                    className="rounded-md border bg-white shadow-sm w-fit mx-auto"
+                    className="rounded-lg border bg-white shadow-sm w-full max-w-none"
                     disabled={(date) => date < new Date()}
                     modifiers={{
                       occupied: occupiedDates,
@@ -419,38 +524,32 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                       }
                     }}
                   />
-                  
-                  {isLoadingDates && (
-                    <div className="text-center mt-4 text-sm text-gray-600">
-                      Carregando disponibilidade...
-                    </div>
-                  )}
                 </div>
                 
-                {/* Painel de Informações */}
+                {/* Painel de Status */}
                 <div className="space-y-4">
-                  <div className="bg-white p-4 rounded-lg border shadow-sm">
-                    <h5 className="font-medium text-sm mb-3 text-gray-700">Legenda:</h5>
+                  <div className="bg-gray-50 p-4 rounded-lg">
+                    <h4 className="font-medium text-sm mb-3">Status das Datas</h4>
                     <div className="space-y-2 text-sm">
                       <div className="flex items-center space-x-2">
-                        <div className="w-4 h-4 bg-red-100 border border-red-300 rounded"></div>
-                        <span>Indisponível (reservado)</span>
+                        <div className="w-4 h-4 bg-green-100 border border-green-300 rounded"></div>
+                        <span>Disponível</span>
                       </div>
                       <div className="flex items-center space-x-2">
-                        <div className="w-4 h-4 bg-green-100 border border-green-300 rounded"></div>
-                        <span>Disponível para reserva</span>
+                        <div className="w-4 h-4 bg-red-100 border border-red-300 rounded"></div>
+                        <span>Ocupado</span>
                       </div>
                       <div className="flex items-center space-x-2">
                         <div className="w-4 h-4 bg-gray-100 border border-gray-300 rounded"></div>
-                        <span>Datas passadas</span>
+                        <span>Passado</span>
                       </div>
                     </div>
                   </div>
                   
                   {selectedDate && (
-                    <div className="bg-white p-4 rounded-lg border shadow-sm">
-                      <h5 className="font-medium text-sm mb-2 text-gray-700">Data Selecionada:</h5>
-                      <p className="text-sm font-medium text-blue-600">
+                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                      <h4 className="font-medium text-sm mb-2 text-green-800">Data Selecionada</h4>
+                      <p className="text-sm font-medium text-green-700">
                         {selectedDate.toLocaleDateString('pt-BR', { 
                           weekday: 'long', 
                           year: 'numeric', 
@@ -458,31 +557,37 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                           day: 'numeric' 
                         })}
                       </p>
-                      
-                      <div className="mt-2 p-2 bg-green-50 border border-green-200 rounded">
-                        <p className="text-xs text-green-600">
-                          ✓ Data disponível - Configure os horários abaixo
-                        </p>
-                      </div>
+                    </div>
+                  )}
+                  
+                  {isLoadingDates && (
+                    <div className="text-center text-sm text-gray-600">
+                      Carregando disponibilidade...
                     </div>
                   )}
                 </div>
               </div>
-            </div>
-          )}
+            ) : (
+              <Alert>
+                <AlertTriangle className="h-4 w-4" />
+                <AlertDescription>
+                  Selecione uma aeronave primeiro para visualizar a disponibilidade do calendário.
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
 
-          {/* Configuração de Horários */}
-          {showTimeConfiguration && selectedDate && (
-            <div className="bg-green-50 p-6 rounded-lg border border-green-200">
-              <h4 className="font-semibold mb-4 flex items-center space-x-2 text-green-800">
-                <Clock className="h-5 w-5" />
-                <span>2. Configure os Horários da Missão</span>
-              </h4>
+          {/* PASSO 2: Configuração de Horários */}
+          {selectedDate && (
+            <div className="space-y-4 border-t pt-6">
+              <div className="flex items-center space-x-2 mb-4">
+                <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">2</div>
+                <h3 className="text-lg font-semibold">Configure os Horários</h3>
+              </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                {/* Horário de Saída */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-blue-50 p-6 rounded-lg">
                 <div className="space-y-2">
-                  <Label htmlFor="departure-time">Horário de Saída da Base</Label>
+                  <Label htmlFor="departure-time">Saída da Base</Label>
                   <div className="relative">
                     <Input
                       id="departure-time"
@@ -495,9 +600,8 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                   </div>
                 </div>
 
-                {/* Modo de Retorno */}
                 <div className="space-y-2">
-                  <Label>Modo de Retorno</Label>
+                  <Label>Tipo de Retorno</Label>
                   <div className="flex space-x-2">
                     <Button
                       variant={useCalculatedReturn ? "default" : "outline"}
@@ -506,7 +610,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                       className="flex-1"
                     >
                       <Calculator className="h-3 w-3 mr-1" />
-                      Automático
+                      Auto
                     </Button>
                     <Button
                       variant={!useCalculatedReturn ? "default" : "outline"}
@@ -514,49 +618,32 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                       onClick={() => setUseCalculatedReturn(false)}
                       className="flex-1"
                     >
-                      <CalendarIcon className="h-3 w-3 mr-1" />
+                      <Clock className="h-3 w-3 mr-1" />
                       Manual
                     </Button>
                   </div>
                 </div>
 
-                {/* Horário de Retorno Manual */}
                 {!useCalculatedReturn && (
-                  <>
-                    <div className="space-y-2">
-                      <Label htmlFor="return-date">Data de Retorno Desejada</Label>
-                      <Input
-                        id="return-date"
-                        type="date"
-                        value={desiredReturnDate}
-                        onChange={(e) => setDesiredReturnDate(e.target.value)}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="return-time">Horário de Retorno Desejado</Label>
-                      <div className="relative">
-                        <Input
-                          id="return-time"
-                          type="time"
-                          value={desiredReturnTime}
-                          onChange={(e) => setDesiredReturnTime(e.target.value)}
-                        />
-                        <Plane className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
-                      </div>
-                    </div>
-                  </>
+                  <div className="space-y-2">
+                    <Label htmlFor="return-time">Retorno Desejado</Label>
+                    <Input
+                      id="return-time"
+                      type="time"
+                      value={desiredReturnTime}
+                      onChange={(e) => setDesiredReturnTime(e.target.value)}
+                    />
+                  </div>
                 )}
               </div>
 
-              {/* Resumo da Configuração */}
-              <div className="mt-6 bg-white p-4 rounded border">
-                <h5 className="font-medium text-sm mb-3">Resumo da Missão:</h5>
-                <div className="grid grid-cols-2 gap-4 text-sm">
+              {/* Resumo dos Horários */}
+              <div className="bg-white p-4 rounded-lg border">
+                <h4 className="font-medium text-sm mb-3">Resumo da Missão</h4>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
                     <span className="text-gray-600">Data:</span>
-                    <div className="font-medium">
-                      {selectedDate.toLocaleDateString('pt-BR')}
-                    </div>
+                    <div className="font-medium">{selectedDate.toLocaleDateString('pt-BR')}</div>
                   </div>
                   <div>
                     <span className="text-gray-600">Saída:</span>
@@ -565,7 +652,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                   <div>
                     <span className="text-gray-600">Retorno:</span>
                     <div className="font-medium">
-                      {useCalculatedReturn ? "Automático" : `${desiredReturnTime} (${new Date(desiredReturnDate).toLocaleDateString('pt-BR')})`}
+                      {useCalculatedReturn ? "Automático" : desiredReturnTime}
                     </div>
                   </div>
                   <div>
@@ -577,53 +664,56 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
 
               {/* Alerta de Pernoite */}
               {checkForOvernight() && (
-                <Alert className="mt-4 border-amber-200 bg-amber-50">
+                <Alert className="border-amber-200 bg-amber-50">
                   <Moon className="h-4 w-4" />
                   <AlertDescription className="text-amber-800">
-                    <strong>Pernoite Detectada!</strong> A missão se estende por {calculateOvernightDays()} dia(s).
-                    Taxa de pernoite: R$ {(calculateOvernightDays() * 1500).toLocaleString('pt-BR')}
+                    <strong>Pernoite Detectada!</strong> Missão com {calculateOvernightDays()} dia(s) de duração.
+                    Taxa adicional: R$ {(calculateOvernightDays() * 1500).toLocaleString('pt-BR')}
                   </AlertDescription>
                 </Alert>
               )}
             </div>
           )}
 
-          {/* Visualização da rota atual */}
-          {route.length > 0 && selectedDate && (
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <h4 className="font-medium mb-3">Rota Programada:</h4>
-              <div className="flex items-center space-x-2 flex-wrap">
-                <Badge variant="outline" className="text-green-600 border-green-600">
-                  {baseLocation} ({selectedDate.toLocaleDateString('pt-BR')} {departureFromBase})
-                </Badge>
-                {route.map((stop, index) => (
-                  <React.Fragment key={stop.id}>
-                    <ArrowRight className="h-4 w-4 text-gray-400" />
-                    <Badge variant="outline" className="relative group">
-                      {stop.destination} ({stop.arrivalTime}-{stop.departureTime})
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="absolute -top-2 -right-2 h-5 w-5 p-0 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                        onClick={() => removeStop(stop.id)}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </Badge>
-                  </React.Fragment>
-                ))}
-                <ArrowRight className="h-4 w-4 text-gray-400" />
-                <Badge variant="outline" className="text-blue-600 border-blue-600">
-                  {baseLocation} ({new Date(getEffectiveReturnDateTime().date).toLocaleDateString('pt-BR')} {getEffectiveReturnDateTime().time})
-                </Badge>
+          {/* PASSO 3: Escalas (Opcional) */}
+          {selectedDate && (
+            <div className="space-y-4 border-t pt-6">
+              <div className="flex items-center space-x-2 mb-4">
+                <div className="w-8 h-8 bg-gray-400 text-white rounded-full flex items-center justify-center text-sm font-bold">3</div>
+                <h3 className="text-lg font-semibold">Adicionar Escalas (Opcional)</h3>
               </div>
-            </div>
-          )}
 
-          {/* Formulário para adicionar parada */}
-          {showTimeConfiguration && (
-            <div className="space-y-4">
-              <h4 className="font-medium">3. Adicionar Escalas (Opcional):</h4>
+              {/* Visualização da rota atual */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium mb-3">Rota Programada:</h4>
+                <div className="flex items-center space-x-2 flex-wrap">
+                  <Badge variant="outline" className="text-green-600 border-green-600">
+                    {baseLocation} ({departureFromBase})
+                  </Badge>
+                  {route.map((stop, index) => (
+                    <React.Fragment key={stop.id}>
+                      <ArrowRight className="h-4 w-4 text-gray-400" />
+                      <Badge variant="outline" className="relative group">
+                        {stop.destination} ({stop.arrivalTime}-{stop.departureTime})
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="absolute -top-2 -right-2 h-5 w-5 p-0 bg-red-500 text-white rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                          onClick={() => removeStop(stop.id)}
+                        >
+                          <X className="h-3 w-3" />
+                        </Button>
+                      </Badge>
+                    </React.Fragment>
+                  ))}
+                  <ArrowRight className="h-4 w-4 text-gray-400" />
+                  <Badge variant="outline" className="text-blue-600 border-blue-600">
+                    {baseLocation} ({getEffectiveReturnDateTime().time})
+                  </Badge>
+                </div>
+              </div>
+
+              {/* Formulário para nova escala */}
               <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="destination">Destino</Label>
@@ -655,7 +745,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                 <div className="flex items-end">
                   <Button 
                     onClick={addStop} 
-                    className="w-full bg-aviation-gradient hover:opacity-90"
+                    className="w-full"
                     disabled={!newDestination || !arrivalTime || !departureTime}
                   >
                     <Plus className="h-4 w-4 mr-2" />
@@ -663,35 +753,35 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                   </Button>
                 </div>
               </div>
-            </div>
-          )}
 
-          {/* Lista de escalas */}
-          {route.length > 0 && (
-            <div className="space-y-2">
-              <h4 className="font-medium">Escalas Programadas:</h4>
-              {route.map((stop, index) => (
-                <div key={stop.id} className="flex items-center justify-between p-3 bg-white rounded-lg border">
-                  <div className="flex items-center space-x-4">
-                    <Badge variant="secondary">{index + 1}</Badge>
-                    <div>
-                      <p className="font-medium">{stop.destination}</p>
-                      <p className="text-sm text-gray-600">
-                        {stop.arrivalTime} - {stop.departureTime} 
-                        ({stop.stayDuration.toFixed(1)}h de permanência)
-                      </p>
+              {/* Lista de escalas */}
+              {route.length > 0 && (
+                <div className="space-y-2">
+                  <h4 className="font-medium">Escalas Confirmadas:</h4>
+                  {route.map((stop, index) => (
+                    <div key={stop.id} className="flex items-center justify-between p-3 bg-white rounded-lg border">
+                      <div className="flex items-center space-x-4">
+                        <Badge variant="secondary">{index + 1}</Badge>
+                        <div>
+                          <p className="font-medium">{stop.destination}</p>
+                          <p className="text-sm text-gray-600">
+                            {stop.arrivalTime} - {stop.departureTime} 
+                            ({stop.stayDuration.toFixed(1)}h de permanência)
+                          </p>
+                        </div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => removeStop(stop.id)}
+                        className="text-red-500 hover:text-red-700"
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
                     </div>
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeStop(stop.id)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
+                  ))}
                 </div>
-              ))}
+              )}
             </div>
           )}
         </CardContent>
