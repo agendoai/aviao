@@ -9,6 +9,7 @@ import { Plus, CreditCard } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import type { CreditRechargeResponse } from '@/types/supabase-extended';
 
 interface PaymentMethod {
   id: string;
@@ -90,13 +91,16 @@ const CreditRechargeManager: React.FC = () => {
 
       if (error) throw error;
 
-      if (data.error) {
-        throw new Error(data.error);
+      // Type casting para acessar as propriedades
+      const response = data as CreditRechargeResponse;
+
+      if (response.error) {
+        throw new Error(response.error);
       }
 
       // Atualizar perfil com novo saldo
-      if (profile) {
-        await updateProfile({ balance: data.new_balance });
+      if (profile && response.new_balance) {
+        await updateProfile({ balance: response.new_balance });
       }
 
       toast({

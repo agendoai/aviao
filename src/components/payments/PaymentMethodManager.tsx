@@ -11,6 +11,9 @@ import { CreditCard, Plus, Trash2, Edit } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import type { Tables } from '@/integrations/supabase/types';
+
+type PaymentMethodRow = Tables<'payment_methods'>;
 
 interface PaymentMethod {
   id: string;
@@ -54,7 +57,20 @@ const PaymentMethodManager: React.FC = () => {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setPaymentMethods(data || []);
+      
+      // Transform data to match our interface
+      const transformedData: PaymentMethod[] = (data || []).map((item: PaymentMethodRow) => ({
+        id: item.id,
+        type: item.type as PaymentMethod['type'],
+        card_number_last_four: item.card_number_last_four || undefined,
+        card_brand: item.card_brand || undefined,
+        card_holder_name: item.card_holder_name || undefined,
+        pix_key: item.pix_key || undefined,
+        is_default: item.is_default || false,
+        is_active: item.is_active || false
+      }));
+      
+      setPaymentMethods(transformedData);
     } catch (error) {
       toast({
         title: "Erro",
@@ -86,7 +102,7 @@ const PaymentMethodManager: React.FC = () => {
 
       const { error } = await supabase
         .from('payment_methods')
-        .insert(paymentMethodData);
+        .insert([paymentMethodData]);
 
       if (error) throw error;
 
@@ -96,7 +112,7 @@ const PaymentMethodManager: React.FC = () => {
           .from('payment_methods')
           .update({ is_default: false })
           .eq('user_id', profile?.id)
-          .neq('id', paymentMethodData);
+          .neq('type', formData.type);
       }
 
       toast({
