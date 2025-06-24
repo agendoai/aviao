@@ -249,6 +249,7 @@ const EnhancedBookingFlow: React.FC<EnhancedBookingFlowProps> = ({ selectedDate 
             onRouteChange={handleRouteChange}
             onCostCalculation={handleCostCalculation}
             onTimingChange={handleTimingChange}
+            selectedAircraftId={selectedAircraft?.id}
           />
         )}
 
