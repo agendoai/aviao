@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,9 +16,11 @@ type Aircraft = Tables<'aircraft'>;
 const localizer = dateFnsLocalizer({
   format,
   parse,
-  startOfWeek,
+  startOfWeek: () => startOfWeek(new Date(), { weekStartsOn: 0 }),
   getDay,
-  locales: { 'pt-BR': ptBR },
+  locales: {
+    'pt-BR': ptBR,
+  },
 });
 
 // Simple messages for the calendar
