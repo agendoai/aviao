@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,33 +21,26 @@ const localizer = dateFnsLocalizer({
   locales: { 'pt-BR': ptBR },
 });
 
-// Configure formats for the calendar
+// Configure formats for the calendar - simplified without localizer parameter
 const formats = {
   dateFormat: 'dd',
-  dayFormat: (date: Date, culture?: string, localizer?: any) =>
-    localizer.format(date, 'dd/MM', culture),
-  dayHeaderFormat: (date: Date, culture?: string, localizer?: any) =>
-    localizer.format(date, 'dddd', culture),
-  dayRangeHeaderFormat: ({ start, end }: { start: Date; end: Date }, culture?: string, localizer?: any) =>
-    localizer.format(start, 'MMMM dd', culture) + ' – ' + localizer.format(end, 'MMMM dd, yyyy', culture),
-  agendaHeaderFormat: ({ start, end }: { start: Date; end: Date }, culture?: string, localizer?: any) =>
-    localizer.format(start, 'MMMM dd', culture) + ' – ' + localizer.format(end, 'MMMM dd, yyyy', culture),
-  agendaDateFormat: (date: Date, culture?: string, localizer?: any) =>
-    localizer.format(date, 'ddd MMM dd', culture),
-  agendaTimeFormat: (date: Date, culture?: string, localizer?: any) =>
-    localizer.format(date, 'HH:mm', culture),
-  agendaTimeRangeFormat: ({ start, end }: { start: Date; end: Date }, culture?: string, localizer?: any) =>
-    localizer.format(start, 'HH:mm', culture) + ' – ' + localizer.format(end, 'HH:mm', culture),
-  selectRangeFormat: ({ start, end }: { start: Date; end: Date }, culture?: string, localizer?: any) =>
-    localizer.format(start, 'MMMM dd', culture) + ' – ' + localizer.format(end, 'MMMM dd, yyyy', culture),
-  eventTimeRangeFormat: ({ start, end }: { start: Date; end: Date }, culture?: string, localizer?: any) =>
-    localizer.format(start, 'HH:mm', culture) + ' – ' + localizer.format(end, 'HH:mm', culture),
-  timeGutterFormat: (date: Date, culture?: string, localizer?: any) =>
-    localizer.format(date, 'HH:mm', culture),
-  monthHeaderFormat: (date: Date, culture?: string, localizer?: any) =>
-    localizer.format(date, 'MMMM yyyy', culture),
-  weekdayFormat: (date: Date, culture?: string, localizer?: any) =>
-    localizer.format(date, 'dddd', culture),
+  dayFormat: (date: Date) => format(date, 'dd/MM', { locale: ptBR }),
+  dayHeaderFormat: (date: Date) => format(date, 'dddd', { locale: ptBR }),
+  dayRangeHeaderFormat: ({ start, end }: { start: Date; end: Date }) =>
+    format(start, 'MMMM dd', { locale: ptBR }) + ' – ' + format(end, 'MMMM dd, yyyy', { locale: ptBR }),
+  agendaHeaderFormat: ({ start, end }: { start: Date; end: Date }) =>
+    format(start, 'MMMM dd', { locale: ptBR }) + ' – ' + format(end, 'MMMM dd, yyyy', { locale: ptBR }),
+  agendaDateFormat: (date: Date) => format(date, 'ddd MMM dd', { locale: ptBR }),
+  agendaTimeFormat: (date: Date) => format(date, 'HH:mm', { locale: ptBR }),
+  agendaTimeRangeFormat: ({ start, end }: { start: Date; end: Date }) =>
+    format(start, 'HH:mm', { locale: ptBR }) + ' – ' + format(end, 'HH:mm', { locale: ptBR }),
+  selectRangeFormat: ({ start, end }: { start: Date; end: Date }) =>
+    format(start, 'MMMM dd', { locale: ptBR }) + ' – ' + format(end, 'MMMM dd, yyyy', { locale: ptBR }),
+  eventTimeRangeFormat: ({ start, end }: { start: Date; end: Date }) =>
+    format(start, 'HH:mm', { locale: ptBR }) + ' – ' + format(end, 'HH:mm', { locale: ptBR }),
+  timeGutterFormat: (date: Date) => format(date, 'HH:mm', { locale: ptBR }),
+  monthHeaderFormat: (date: Date) => format(date, 'MMMM yyyy', { locale: ptBR }),
+  weekdayFormat: (date: Date) => format(date, 'dddd', { locale: ptBR }),
 };
 
 interface FlightEvent {
