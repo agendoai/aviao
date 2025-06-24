@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,42 +15,14 @@ type Booking = Tables<'bookings'>;
 type Aircraft = Tables<'aircraft'>;
 
 const localizer = dateFnsLocalizer({
-  format: (date: Date, formatStr: string) => {
-    return format(date, formatStr, { locale: ptBR });
-  },
-  parse: (dateStr: string, formatStr: string) => {
-    return parse(dateStr, formatStr, new Date(), { locale: ptBR });
-  },
-  startOfWeek: (date: Date) => {
-    return startOfWeek(date, { weekStartsOn: 0, locale: ptBR });
-  },
-  getDay: (date: Date) => {
-    return getDay(date);
-  },
+  format,
+  parse,
+  startOfWeek,
+  getDay,
   locales: {
     'pt-BR': ptBR,
   },
 });
-
-// Define formats for the calendar
-const formats = {
-  dateFormat: 'dd',
-  dayFormat: 'dd',
-  dayRangeHeaderFormat: ({ start, end }: { start: Date; end: Date }) =>
-    `${format(start, 'dd/MM', { locale: ptBR })} - ${format(end, 'dd/MM', { locale: ptBR })}`,
-  dayHeaderFormat: (date: Date) =>
-    format(date, 'EEEE dd/MM', { locale: ptBR }),
-  monthHeaderFormat: (date: Date) =>
-    format(date, 'MMMM yyyy', { locale: ptBR }),
-  agendaHeaderFormat: ({ start, end }: { start: Date; end: Date }) =>
-    `${format(start, 'dd/MM/yyyy', { locale: ptBR })} - ${format(end, 'dd/MM/yyyy', { locale: ptBR })}`,
-  agendaDateFormat: (date: Date) =>
-    format(date, 'EEEE dd/MM', { locale: ptBR }),
-  agendaTimeFormat: (date: Date) =>
-    format(date, 'HH:mm', { locale: ptBR }),
-  agendaTimeRangeFormat: ({ start, end }: { start: Date; end: Date }) =>
-    `${format(start, 'HH:mm', { locale: ptBR })} - ${format(end, 'HH:mm', { locale: ptBR })}`,
-};
 
 // Messages for the calendar
 const messages = {
@@ -258,7 +231,6 @@ const FlightCalendar: React.FC<FlightCalendarProps> = ({ selectedAircraft, onDat
               defaultView="month"
               culture="pt-BR"
               messages={messages}
-              formats={formats}
             />
           </div>
         </CardContent>
