@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -398,8 +397,8 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                     mode="single"
                     selected={selectedDate}
                     onSelect={handleDateSelect}
-                    className="rounded-lg border bg-white shadow-sm w-full max-w-none"
-                    disabled={(date) => date < new Date()}
+                    className="rounded-lg border bg-white shadow-sm w-full max-w-none pointer-events-auto"
+                    disabled={(date) => date < new Date() || isDateOccupied(date)}
                     modifiers={{
                       occupied: occupiedDates,
                       available: (date) => !isDateOccupied(date) && date >= new Date()
@@ -465,7 +464,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
               <Alert>
                 <AlertTriangle className="h-4 w-4" />
                 <AlertDescription>
-                  Selecione uma aeronave primeiro para visualizar a disponibilidade do calendário.
+                  A aeronave foi selecionada no início do fluxo. Se você não vê o calendário, volte ao passo anterior para selecionar uma aeronave.
                 </AlertDescription>
               </Alert>
             )}
