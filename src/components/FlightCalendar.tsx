@@ -14,10 +14,13 @@ type Booking = Tables<'bookings'>;
 type Aircraft = Tables<'aircraft'>;
 
 const localizer = dateFnsLocalizer({
-  format,
-  parse,
-  startOfWeek: () => startOfWeek(new Date(), { weekStartsOn: 0 }),
-  getDay,
+  format: (date: Date, formatStr: string, culture?: string) => 
+    format(date, formatStr, { locale: culture === 'pt-BR' ? ptBR : undefined }),
+  parse: (dateStr: string, formatStr: string, culture?: string) => 
+    parse(dateStr, formatStr, new Date(), { locale: culture === 'pt-BR' ? ptBR : undefined }),
+  startOfWeek: (date: Date, culture?: string) => 
+    startOfWeek(date, { weekStartsOn: 0, locale: culture === 'pt-BR' ? ptBR : undefined }),
+  getDay: (date: Date) => getDay(date),
   locales: {
     'pt-BR': ptBR,
   },
@@ -102,7 +105,6 @@ const FlightCalendar: React.FC<FlightCalendarProps> = ({ selectedAircraft, onDat
           const aircraft = booking.aircraft as Aircraft;
           if (!aircraft) return;
 
-          // Evento principal do voo
           const departureDateTime = new Date(`${booking.departure_date}T${booking.departure_time}`);
           const returnDateTime = new Date(`${booking.return_date}T${booking.return_time}`);
           
@@ -118,7 +120,6 @@ const FlightCalendar: React.FC<FlightCalendarProps> = ({ selectedAircraft, onDat
             }
           });
 
-          // Período de bloqueio pós-voo (se existir)
           if (booking.blocked_until) {
             const blockedUntil = new Date(booking.blocked_until);
             calendarEvents.push({
