@@ -16,10 +16,25 @@ type Booking = Tables<'bookings'>;
 type Aircraft = Tables<'aircraft'>;
 
 const localizer = dateFnsLocalizer({
-  format,
-  parse,
-  startOfWeek,
-  getDay,
+  format: (date: Date, formatStr: string, culture?: string) => {
+    return format(date, formatStr, { 
+      locale: culture === 'pt-BR' ? ptBR : undefined 
+    });
+  },
+  parse: (dateStr: string, formatStr: string, culture?: string) => {
+    return parse(dateStr, formatStr, new Date(), { 
+      locale: culture === 'pt-BR' ? ptBR : undefined 
+    });
+  },
+  startOfWeek: (date: Date, culture?: string) => {
+    return startOfWeek(date, { 
+      weekStartsOn: 0,
+      locale: culture === 'pt-BR' ? ptBR : undefined 
+    });
+  },
+  getDay: (date: Date) => {
+    return getDay(date);
+  },
   locales: {
     'pt-BR': ptBR,
   },
