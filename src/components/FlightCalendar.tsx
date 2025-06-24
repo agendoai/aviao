@@ -1,4 +1,5 @@
 
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,10 +16,18 @@ type Booking = Tables<'bookings'>;
 type Aircraft = Tables<'aircraft'>;
 
 const localizer = dateFnsLocalizer({
-  format,
-  parse,
-  startOfWeek,
-  getDay,
+  format: (date: Date, formatStr: string, culture?: string) => {
+    return format(date, formatStr, { locale: ptBR });
+  },
+  parse: (dateStr: string, formatStr: string, culture?: string) => {
+    return parse(dateStr, formatStr, new Date(), { locale: ptBR });
+  },
+  startOfWeek: (date: Date, culture?: string) => {
+    return startOfWeek(date, { weekStartsOn: 0, locale: ptBR });
+  },
+  getDay: (date: Date) => {
+    return getDay(date);
+  },
   locales: {
     'pt-BR': ptBR,
   },
@@ -285,3 +294,4 @@ const FlightCalendar: React.FC<FlightCalendarProps> = ({ selectedAircraft, onDat
 };
 
 export default FlightCalendar;
+
