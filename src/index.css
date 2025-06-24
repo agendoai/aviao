@@ -92,6 +92,43 @@
   }
   
   .aviation-card {
-    @apply bg-white/90 backdrop-blur-sm border border-white/20 shadow-xl;
+    @apply bg-white/95 backdrop-blur-sm border border-white/30 shadow-lg rounded-xl;
   }
+
+  .tab-content-container {
+    @apply bg-white/80 backdrop-blur-sm rounded-xl border border-white/40 shadow-xl;
+  }
+
+  .sidebar-gradient {
+    @apply bg-gradient-to-b from-white/95 to-white/80 backdrop-blur-sm;
+  }
+
+  .status-card {
+    @apply bg-gradient-to-br from-white/90 to-white/70 backdrop-blur border border-white/50 shadow-md rounded-lg;
+  }
+}
+
+/* Smooth transitions */
+@layer utilities {
+  .transition-all-smooth {
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .hover-lift {
+    @apply transition-all-smooth hover:transform hover:-translate-y-1 hover:shadow-lg;
+  }
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  @apply bg-gray-100 rounded-full;
+}
+
+::-webkit-scrollbar-thumb {
+  @apply bg-aviation-blue/30 rounded-full hover:bg-aviation-blue/50;
 }
