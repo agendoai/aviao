@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { MapPin, Plus, X, ArrowRight, Clock, Moon, AlertTriangle, Plane, Calculator } from 'lucide-react';
+import { MapPin, Plus, X, ArrowRight, Clock, Moon, AlertTriangle, Plane, Calculator, Calendar } from 'lucide-react';
 
 interface RouteStop {
   id: string;
@@ -19,7 +19,18 @@ interface RouteBuilderProps {
   baseLocation: string;
   onRouteChange: (route: RouteStop[]) => void;
   onCostCalculation: (costs: any) => void;
-  onTimingChange?: (timing: { departureFromBase: string; returnToBase: string; hasOvernight: boolean; overnightCount: number; calculatedReturnTime: string; desiredReturnTime: string }) => void;
+  onTimingChange?: (timing: { 
+    departureFromBase: string; 
+    returnToBase: string; 
+    returnDate: string;
+    flightDate: string;
+    hasOvernight: boolean; 
+    overnightCount: number; 
+    calculatedReturnTime: string; 
+    calculatedReturnDate: string;
+    desiredReturnTime: string;
+    desiredReturnDate: string;
+  }) => void;
 }
 
 const RouteBuilder: React.FC<RouteBuilderProps> = ({
@@ -37,96 +48,112 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
   const [departureFromBase, setDepartureFromBase] = useState('08:00');
   const [desiredReturnTime, setDesiredReturnTime] = useState('18:00');
   const [flightDate, setFlightDate] = useState(new Date().toISOString().split('T')[0]);
+  const [desiredReturnDate, setDesiredReturnDate] = useState(new Date().toISOString().split('T')[0]);
   const [useCalculatedReturn, setUseCalculatedReturn] = useState(true);
 
   useEffect(() => {
     calculateTimingAndNotify();
-  }, [departureFromBase, desiredReturnTime, flightDate, route, useCalculatedReturn]);
+  }, [departureFromBase, desiredReturnTime, desiredReturnDate, flightDate, route, useCalculatedReturn]);
 
-  const calculateReturnTimeToBase = (): string => {
-    if (route.length === 0) return desiredReturnTime;
+  const calculateReturnTimeToBase = (): { time: string; date: string } => {
+    if (route.length === 0) return { 
+      time: desiredReturnTime, 
+      date: flightDate 
+    };
     
     // Pegar a última escala
     const lastStop = route[route.length - 1];
-    const lastDepartureTime = new Date(`2024-01-01T${lastStop.departureTime}`);
+    const lastDepartureTime = new Date(`${flightDate}T${lastStop.departureTime}`);
     
     // Assumir 2 horas de voo de volta à base
     const estimatedFlightDuration = 2; // horas
-    const returnTime = new Date(lastDepartureTime.getTime() + (estimatedFlightDuration * 60 * 60 * 1000));
+    const returnDateTime = new Date(lastDepartureTime.getTime() + (estimatedFlightDuration * 60 * 60 * 1000));
     
-    return returnTime.toTimeString().slice(0, 5);
+    return {
+      time: returnDateTime.toTimeString().slice(0, 5),
+      date: returnDateTime.toISOString().split('T')[0]
+    };
   };
 
-  const getEffectiveReturnTime = (): string => {
-    return useCalculatedReturn ? calculateReturnTimeToBase() : desiredReturnTime;
+  const getEffectiveReturnDateTime = (): { time: string; date: string } => {
+    if (useCalculatedReturn) {
+      return calculateReturnTimeToBase();
+    } else {
+      return {
+        time: desiredReturnTime,
+        date: desiredReturnDate
+      };
+    }
   };
 
   const calculateTimingAndNotify = () => {
-    const calculatedReturnTime = calculateReturnTimeToBase();
-    const effectiveReturnTime = getEffectiveReturnTime();
-    const hasOvernight = checkForOvernight(effectiveReturnTime);
-    const overnightCount = calculateOvernightDays(effectiveReturnTime);
+    const calculatedReturn = calculateReturnTimeToBase();
+    const effectiveReturn = getEffectiveReturnDateTime();
+    const hasOvernight = checkForOvernight(effectiveReturn.time, effectiveReturn.date);
+    const overnightCount = calculateOvernightDays(effectiveReturn.date);
     
     if (onTimingChange) {
       onTimingChange({
         departureFromBase,
-        returnToBase: effectiveReturnTime,
+        returnToBase: effectiveReturn.time,
+        returnDate: effectiveReturn.date,
+        flightDate,
         hasOvernight,
         overnightCount,
-        calculatedReturnTime,
-        desiredReturnTime
+        calculatedReturnTime: calculatedReturn.time,
+        calculatedReturnDate: calculatedReturn.date,
+        desiredReturnTime,
+        desiredReturnDate
       });
     }
   };
 
-  const checkForOvernight = (returnTime?: string): boolean => {
-    const checkTime = returnTime || getEffectiveReturnTime();
-    // Se o horário de retorno é menor que o de saída, passou da meia-noite
+  const checkForOvernight = (returnTime?: string, returnDate?: string): boolean => {
+    const checkTime = returnTime || getEffectiveReturnDateTime().time;
+    const checkDate = returnDate || getEffectiveReturnDateTime().date;
+    
+    // Se a data de retorno é diferente da data de saída, é pernoite
+    if (checkDate !== flightDate) return true;
+    
+    // Se mesmo dia, mas horário de retorno é menor que o de saída, passou da meia-noite
     return checkTime < departureFromBase;
   };
 
-  const calculateOvernightDays = (returnTime?: string): number => {
-    if (!checkForOvernight(returnTime)) return 0;
+  const calculateOvernightDays = (returnDate?: string): number => {
+    const checkDate = returnDate || getEffectiveReturnDateTime().date;
     
-    // Cálculo simples: se passou da meia-noite, conta como 1 pernoite
-    return 1;
+    const departure = new Date(flightDate);
+    const returnDay = new Date(checkDate);
+    
+    const timeDiff = returnDay.getTime() - departure.getTime();
+    const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+    
+    return Math.max(0, daysDiff);
   };
 
   const isReturnTimeFeasible = (): boolean => {
     if (route.length === 0 || useCalculatedReturn) return true;
     
     const calculatedReturn = calculateReturnTimeToBase();
-    const desiredReturn = new Date(`2024-01-01T${desiredReturnTime}`);
-    const calculatedReturnDate = new Date(`2024-01-01T${calculatedReturn}`);
+    const desiredReturnDateTime = new Date(`${desiredReturnDate}T${desiredReturnTime}`);
+    const calculatedReturnDateTime = new Date(`${calculatedReturn.date}T${calculatedReturn.time}`);
     
-    // Se o retorno calculado é no dia seguinte, ajustar
-    if (calculatedReturn < departureFromBase) {
-      calculatedReturnDate.setDate(calculatedReturnDate.getDate() + 1);
-    }
-    
-    if (desiredReturnTime < departureFromBase) {
-      desiredReturn.setDate(desiredReturn.getDate() + 1);
-    }
-    
-    return desiredReturn >= calculatedReturnDate;
+    return desiredReturnDateTime >= calculatedReturnDateTime;
   };
 
   const getTimeDifference = (): number => {
     if (route.length === 0 || useCalculatedReturn) return 0;
     
-    const calculatedReturn = new Date(`2024-01-01T${calculateReturnTimeToBase()}`);
-    const desiredReturn = new Date(`2024-01-01T${desiredReturnTime}`);
+    const calculatedReturn = calculateReturnTimeToBase();
+    const desiredReturnDateTime = new Date(`${desiredReturnDate}T${desiredReturnTime}`);
+    const calculatedReturnDateTime = new Date(`${calculatedReturn.date}T${calculatedReturn.time}`);
     
-    // Ajustar para o dia seguinte se necessário
-    if (calculateReturnTimeToBase() < departureFromBase) {
-      calculatedReturn.setDate(calculatedReturn.getDate() + 1);
-    }
-    
-    if (desiredReturnTime < departureFromBase) {
-      desiredReturn.setDate(desiredReturn.getDate() + 1);
-    }
-    
-    return (desiredReturn.getTime() - calculatedReturn.getTime()) / (1000 * 60); // em minutos
+    return (desiredReturnDateTime.getTime() - calculatedReturnDateTime.getTime()) / (1000 * 60); // em minutos
+  };
+
+  const formatDateTime = (date: string, time: string): string => {
+    const dateObj = new Date(`${date}T${time}`);
+    return dateObj.toLocaleDateString('pt-BR') + ' às ' + time;
   };
 
   const addStop = () => {
@@ -176,8 +203,8 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
     const hourlyRate = 5000;
     let totalCost = 0;
     const segments = [];
-    const effectiveReturnTime = getEffectiveReturnTime();
-    const overnightCount = calculateOvernightDays(effectiveReturnTime);
+    const effectiveReturn = getEffectiveReturnDateTime();
+    const overnightCount = calculateOvernightDays(effectiveReturn.date);
     const overnightFee = overnightCount * 1500;
 
     // Adicionar segmentos da rota
@@ -223,7 +250,8 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
         overnightCost: 0,
         hasOvernight: false,
         total: returnSegmentCost,
-        estimatedArrival: effectiveReturnTime
+        estimatedArrival: effectiveReturn.time,
+        estimatedArrivalDate: effectiveReturn.date
       });
     }
 
@@ -236,7 +264,8 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
       overnightFee,
       overnightCount,
       totalFlightTime: segments.reduce((acc, seg) => acc + seg.flightTime, 0),
-      calculatedReturnTime: effectiveReturnTime
+      calculatedReturnTime: effectiveReturn.time,
+      calculatedReturnDate: effectiveReturn.date
     });
   };
 
@@ -257,12 +286,13 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
           <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
             <h4 className="font-medium mb-4 flex items-center space-x-2">
               <Clock className="h-4 w-4" />
-              <span>Configuração de Horários</span>
+              <span>Configuração de Horários e Datas</span>
             </h4>
             
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+            {/* Primeira linha: Data e horário de saída */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
               <div className="space-y-2">
-                <Label htmlFor="flight-date">Data do Voo</Label>
+                <Label htmlFor="flight-date">Data de Saída</Label>
                 <Input
                   id="flight-date"
                   type="date"
@@ -272,7 +302,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
               </div>
               
               <div className="space-y-2">
-                <Label htmlFor="departure-base">Saída da Base</Label>
+                <Label htmlFor="departure-base">Horário de Saída da Base</Label>
                 <Input
                   id="departure-base"
                   type="time"
@@ -280,42 +310,61 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                   onChange={(e) => setDepartureFromBase(e.target.value)}
                 />
               </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="return-mode">Modo de Retorno</Label>
-                <div className="flex space-x-2">
-                  <Button
-                    variant={useCalculatedReturn ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setUseCalculatedReturn(true)}
-                    className="flex-1"
-                  >
-                    <Calculator className="h-3 w-3 mr-1" />
-                    Auto
-                  </Button>
-                  <Button
-                    variant={!useCalculatedReturn ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => setUseCalculatedReturn(false)}
-                    className="flex-1"
-                  >
-                    <Clock className="h-3 w-3 mr-1" />
-                    Manual
-                  </Button>
-                </div>
+            </div>
+
+            {/* Segunda linha: Modo de retorno */}
+            <div className="mb-4">
+              <Label>Modo de Retorno</Label>
+              <div className="flex space-x-2 mt-2">
+                <Button
+                  variant={useCalculatedReturn ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setUseCalculatedReturn(true)}
+                  className="flex-1"
+                >
+                  <Calculator className="h-3 w-3 mr-1" />
+                  Automático
+                </Button>
+                <Button
+                  variant={!useCalculatedReturn ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setUseCalculatedReturn(false)}
+                  className="flex-1"
+                >
+                  <Calendar className="h-3 w-3 mr-1" />
+                  Manual
+                </Button>
               </div>
             </div>
 
+            {/* Terceira linha: Data e horário de retorno */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="desired-return">
-                  {useCalculatedReturn ? "Retorno Calculado" : "Retorno Desejado"}
+                <Label htmlFor="return-date">
+                  {useCalculatedReturn ? "Data de Retorno (Calculada)" : "Data de Retorno Desejada"}
                 </Label>
                 <div className="relative">
                   <Input
-                    id="desired-return"
+                    id="return-date"
+                    type="date"
+                    value={useCalculatedReturn ? calculateReturnTimeToBase().date : desiredReturnDate}
+                    onChange={(e) => setDesiredReturnDate(e.target.value)}
+                    disabled={useCalculatedReturn}
+                    className={useCalculatedReturn ? "bg-gray-100 cursor-not-allowed" : ""}
+                  />
+                  <Calendar className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="return-time">
+                  {useCalculatedReturn ? "Horário de Retorno (Calculado)" : "Horário de Retorno Desejado"}
+                </Label>
+                <div className="relative">
+                  <Input
+                    id="return-time"
                     type="time"
-                    value={useCalculatedReturn ? calculateReturnTimeToBase() : desiredReturnTime}
+                    value={useCalculatedReturn ? calculateReturnTimeToBase().time : desiredReturnTime}
                     onChange={(e) => setDesiredReturnTime(e.target.value)}
                     disabled={useCalculatedReturn}
                     className={useCalculatedReturn ? "bg-gray-100 cursor-not-allowed" : ""}
@@ -325,70 +374,76 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                 <p className="text-xs text-gray-600">
                   {useCalculatedReturn 
                     ? "Calculado automaticamente (+2h da última escala)"
-                    : "Horário desejado para retorno à base"
+                    : "Data e horário desejados para retorno à base"
                   }
                 </p>
               </div>
-
-              {!useCalculatedReturn && route.length > 0 && (
-                <div className="space-y-2">
-                  <Label>Análise de Viabilidade</Label>
-                  <div className="bg-white p-3 rounded border">
-                    {isReturnTimeFeasible() ? (
-                      <div className="text-green-600 text-sm">
-                        <div className="flex items-center space-x-1">
-                          <div className="w-2 h-2 bg-green-500 rounded-full"></div>
-                          <span className="font-medium">Horário Viável</span>
-                        </div>
-                        <p className="mt-1">
-                          Folga de {Math.round(getTimeDifference())} minutos após última escala
-                        </p>
-                      </div>
-                    ) : (
-                      <div className="text-red-600 text-sm">
-                        <div className="flex items-center space-x-1">
-                          <AlertTriangle className="h-3 w-3" />
-                          <span className="font-medium">Horário Inviável</span>
-                        </div>
-                        <p className="mt-1">
-                          Retorno {Math.abs(Math.round(getTimeDifference()))} minutos antes do possível
-                        </p>
-                      </div>
-                    )}
-                  </div>
-                </div>
-              )}
             </div>
+
+            {/* Análise de Viabilidade */}
+            {!useCalculatedReturn && route.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <Label>Análise de Viabilidade do Retorno</Label>
+                <div className="bg-white p-3 rounded border">
+                  {isReturnTimeFeasible() ? (
+                    <div className="text-green-600 text-sm">
+                      <div className="flex items-center space-x-1">
+                        <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                        <span className="font-medium">Retorno Viável</span>
+                      </div>
+                      <p className="mt-1">
+                        Folga de {Math.round(getTimeDifference())} minutos após última escala
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        Retorno programado: {formatDateTime(desiredReturnDate, desiredReturnTime)}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="text-red-600 text-sm">
+                      <div className="flex items-center space-x-1">
+                        <AlertTriangle className="h-3 w-3" />
+                        <span className="font-medium">Retorno Inviável</span>
+                      </div>
+                      <p className="mt-1">
+                        Retorno {Math.abs(Math.round(getTimeDifference()))} minutos antes do possível
+                      </p>
+                      <p className="text-xs text-gray-600 mt-1">
+                        Primeiro horário possível: {formatDateTime(calculateReturnTimeToBase().date, calculateReturnTimeToBase().time)}
+                      </p>
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
             
             {/* Alerta de Pernoite */}
             {checkForOvernight() && (
               <Alert className="mt-4 border-amber-200 bg-amber-50">
                 <Moon className="h-4 w-4" />
                 <AlertDescription className="text-amber-800">
-                  <strong>Pernoite Detectada!</strong> O retorno após meia-noite gera taxa adicional de R$ 1.500,00 por noite.
-                  {calculateOvernightDays() > 0 && (
-                    <span className="block mt-1">
-                      Noites: {calculateOvernightDays()} × R$ 1.500,00 = R$ {(calculateOvernightDays() * 1500).toFixed(2)}
-                    </span>
-                  )}
+                  <strong>Pernoite Detectada!</strong> A missão se estende por {calculateOvernightDays()} dia(s) além da data de saída.
+                  <span className="block mt-1">
+                    Taxa de pernoite: {calculateOvernightDays()} × R$ 1.500,00 = R$ {(calculateOvernightDays() * 1500).toLocaleString('pt-BR')}
+                  </span>
+                  <p className="text-xs mt-2">
+                    Saída: {formatDateTime(flightDate, departureFromBase)} | 
+                    Retorno: {formatDateTime(getEffectiveReturnDateTime().date, getEffectiveReturnDateTime().time)}
+                  </p>
                 </AlertDescription>
               </Alert>
             )}
 
-            {/* Resumo dos Horários */}
+            {/* Resumo da Missão */}
             <div className="mt-4 bg-white p-3 rounded border">
               <h5 className="font-medium text-sm mb-2">Resumo da Missão:</h5>
               <div className="grid grid-cols-2 gap-4 text-sm">
                 <div>
-                  <span className="text-gray-600">Duração total estimada:</span>
+                  <span className="text-gray-600">Duração total:</span>
                   <div className="font-medium">
                     {(() => {
-                      const departure = new Date(`2024-01-01T${departureFromBase}`);
-                      const returnTime = new Date(`2024-01-01T${getEffectiveReturnTime()}`);
-                      
-                      if (getEffectiveReturnTime() < departureFromBase) {
-                        returnTime.setDate(returnTime.getDate() + 1);
-                      }
+                      const effective = getEffectiveReturnDateTime();
+                      const departure = new Date(`${flightDate}T${departureFromBase}`);
+                      const returnTime = new Date(`${effective.date}T${effective.time}`);
                       
                       const duration = (returnTime.getTime() - departure.getTime()) / (1000 * 60 * 60);
                       return `${duration.toFixed(1)}h`;
@@ -398,6 +453,16 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                 <div>
                   <span className="text-gray-600">Escalas programadas:</span>
                   <div className="font-medium">{route.length}</div>
+                </div>
+                <div>
+                  <span className="text-gray-600">Dias de operação:</span>
+                  <div className="font-medium">{calculateOvernightDays() + 1}</div>
+                </div>
+                <div>
+                  <span className="text-gray-600">Retorno previsto:</span>
+                  <div className="font-medium text-xs">
+                    {new Date(getEffectiveReturnDateTime().date).toLocaleDateString('pt-BR')}
+                  </div>
                 </div>
               </div>
             </div>
@@ -409,7 +474,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
               <h4 className="font-medium mb-3">Rota Programada:</h4>
               <div className="flex items-center space-x-2 flex-wrap">
                 <Badge variant="outline" className="text-green-600 border-green-600">
-                  {baseLocation} ({departureFromBase})
+                  {baseLocation} ({new Date(flightDate).toLocaleDateString('pt-BR')} {departureFromBase})
                 </Badge>
                 {route.map((stop, index) => (
                   <React.Fragment key={stop.id}>
@@ -429,7 +494,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                 ))}
                 <ArrowRight className="h-4 w-4 text-gray-400" />
                 <Badge variant="outline" className="text-blue-600 border-blue-600">
-                  {baseLocation} ({getEffectiveReturnTime()})
+                  {baseLocation} ({new Date(getEffectiveReturnDateTime().date).toLocaleDateString('pt-BR')} {getEffectiveReturnDateTime().time})
                 </Badge>
               </div>
             </div>
