@@ -5,7 +5,10 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { MapPin, Plus, X, ArrowRight, Clock, Moon, AlertTriangle, Plane, Calculator, Calendar } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
+import { MapPin, Plus, X, ArrowRight, Clock, Moon, AlertTriangle, Plane, Calculator, Calendar as CalendarIcon } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
 
 interface RouteStop {
   id: string;
@@ -31,14 +34,17 @@ interface RouteBuilderProps {
     desiredReturnTime: string;
     desiredReturnDate: string;
   }) => void;
+  selectedAircraftId?: string; // Nova prop para ID da aeronave selecionada
 }
 
 const RouteBuilder: React.FC<RouteBuilderProps> = ({
   baseLocation = "Araçatuba (ABC)",
   onRouteChange,
   onCostCalculation,
-  onTimingChange
+  onTimingChange,
+  selectedAircraftId
 }) => {
+  const { toast } = useToast();
   const [route, setRoute] = useState<RouteStop[]>([]);
   const [newDestination, setNewDestination] = useState('');
   const [arrivalTime, setArrivalTime] = useState('');
@@ -51,9 +57,77 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
   const [desiredReturnDate, setDesiredReturnDate] = useState(new Date().toISOString().split('T')[0]);
   const [useCalculatedReturn, setUseCalculatedReturn] = useState(true);
 
+  // Estados para o calendário
+  const [occupiedDates, setOccupiedDates] = useState<Date[]>([]);
+  const [isLoadingDates, setIsLoadingDates] = useState(false);
+
   useEffect(() => {
     calculateTimingAndNotify();
   }, [departureFromBase, desiredReturnTime, desiredReturnDate, flightDate, route, useCalculatedReturn]);
+
+  useEffect(() => {
+    if (selectedAircraftId) {
+      fetchOccupiedDates();
+    }
+  }, [selectedAircraftId]);
+
+  const fetchOccupiedDates = async () => {
+    if (!selectedAircraftId) return;
+    
+    setIsLoadingDates(true);
+    try {
+      const { data, error } = await supabase
+        .from('bookings')
+        .select('departure_date, return_date')
+        .eq('aircraft_id', selectedAircraftId)
+        .in('status', ['confirmed', 'pending']);
+
+      if (error) throw error;
+
+      const dates: Date[] = [];
+      if (data) {
+        data.forEach(booking => {
+          const start = new Date(booking.departure_date);
+          const end = new Date(booking.return_date);
+          
+          // Adicionar todos os dias entre a data de saída e retorno
+          for (let date = new Date(start); date <= end; date.setDate(date.getDate() + 1)) {
+            dates.push(new Date(date));
+          }
+        });
+      }
+      
+      setOccupiedDates(dates);
+    } catch (error) {
+      console.error('Erro ao buscar datas ocupadas:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao carregar disponibilidade da aeronave.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoadingDates(false);
+    }
+  };
+
+  const isDateOccupied = (date: Date) => {
+    return occupiedDates.some(occupiedDate => 
+      occupiedDate.toDateString() === date.toDateString()
+    );
+  };
+
+  const handleDateSelect = (date: Date | undefined) => {
+    if (date && !isDateOccupied(date)) {
+      setFlightDate(date.toISOString().split('T')[0]);
+      setDesiredReturnDate(date.toISOString().split('T')[0]);
+    } else if (date && isDateOccupied(date)) {
+      toast({
+        title: "Data Indisponível",
+        description: "Esta data já possui reserva confirmada para a aeronave selecionada.",
+        variant: "destructive"
+      });
+    }
+  };
 
   const calculateReturnTimeToBase = (): { time: string; date: string } => {
     if (route.length === 0) return { 
@@ -282,6 +356,91 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
+          {/* Calendário de Disponibilidade */}
+          {selectedAircraftId && (
+            <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+              <h4 className="font-medium mb-4 flex items-center space-x-2">
+                <CalendarIcon className="h-4 w-4" />
+                <span>Disponibilidade da Aeronave</span>
+              </h4>
+              
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <div>
+                  <Calendar
+                    mode="single"
+                    selected={new Date(flightDate)}
+                    onSelect={handleDateSelect}
+                    className="rounded-md border bg-white p-3"
+                    disabled={(date) => {
+                      // Desabilitar datas passadas
+                      if (date < new Date()) return true;
+                      // Marcar datas ocupadas como desabilitadas visualmente
+                      return false;
+                    }}
+                    modifiers={{
+                      occupied: occupiedDates,
+                      available: (date) => !isDateOccupied(date) && date >= new Date()
+                    }}
+                    modifiersStyles={{
+                      occupied: {
+                        backgroundColor: '#fee2e2',
+                        color: '#dc2626',
+                        textDecoration: 'line-through'
+                      },
+                      available: {
+                        backgroundColor: '#dcfce7',
+                        color: '#16a34a'
+                      }
+                    }}
+                  />
+                </div>
+                
+                <div className="space-y-4">
+                  <div>
+                    <h5 className="font-medium text-sm mb-2">Legenda:</h5>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex items-center space-x-2">
+                        <div className="w-4 h-4 bg-red-100 border border-red-300 rounded"></div>
+                        <span>Dias com reserva confirmada</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-4 h-4 bg-green-100 border border-green-300 rounded"></div>
+                        <span>Dias disponíveis</span>
+                      </div>
+                      <div className="flex items-center space-x-2">
+                        <div className="w-4 h-4 bg-gray-100 border border-gray-300 rounded"></div>
+                        <span>Dias já passados</span>
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {isLoadingDates && (
+                    <div className="text-sm text-gray-600">
+                      Carregando disponibilidade...
+                    </div>
+                  )}
+                  
+                  <div className="bg-white p-3 rounded border">
+                    <h5 className="font-medium text-sm mb-1">Data Selecionada:</h5>
+                    <p className="text-sm text-gray-600">
+                      {new Date(flightDate).toLocaleDateString('pt-BR', { 
+                        weekday: 'long', 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}
+                    </p>
+                    {isDateOccupied(new Date(flightDate)) && (
+                      <p className="text-xs text-red-600 mt-1">
+                        ⚠️ Esta data possui conflito com reserva existente
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* Controle de Horários da Base */}
           <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
             <h4 className="font-medium mb-4 flex items-center space-x-2">
@@ -331,7 +490,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                   onClick={() => setUseCalculatedReturn(false)}
                   className="flex-1"
                 >
-                  <Calendar className="h-3 w-3 mr-1" />
+                  <CalendarIcon className="h-3 w-3 mr-1" />
                   Manual
                 </Button>
               </div>
@@ -352,7 +511,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                     disabled={useCalculatedReturn}
                     className={useCalculatedReturn ? "bg-gray-100 cursor-not-allowed" : ""}
                   />
-                  <Calendar className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
+                  <CalendarIcon className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
                 </div>
               </div>
 
