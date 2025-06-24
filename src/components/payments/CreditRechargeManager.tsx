@@ -9,7 +9,6 @@ import { Plus, CreditCard } from 'lucide-react';
 import { useAuth } from '../AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import type { CreditRechargeResponse } from '@/types/supabase-extended';
 
 interface PaymentMethod {
   id: string;
@@ -81,6 +80,8 @@ const CreditRechargeManager: React.FC = () => {
       const amount = parseFloat(rechargeAmount);
       const selectedMethod = paymentMethods.find(method => method.id === selectedPaymentMethod);
       
+      console.log('Processando recarga:', { amount, selectedPaymentMethod, selectedMethod });
+      
       // Chamar função do banco para processar recarga
       const { data, error } = await supabase.rpc('process_credit_recharge', {
         p_amount: amount,
@@ -89,27 +90,36 @@ const CreditRechargeManager: React.FC = () => {
         p_external_payment_id: `recharge_${Date.now()}`
       });
 
-      if (error) throw error;
+      console.log('Resposta da recarga:', { data, error });
 
-      // Type casting para acessar as propriedades
-      const response = data as CreditRechargeResponse;
-
-      if (response.error) {
-        throw new Error(response.error);
+      if (error) {
+        console.error('Erro na função RPC:', error);
+        throw error;
       }
 
-      // Atualizar perfil com novo saldo
-      if (profile && response.new_balance) {
-        await updateProfile({ balance: response.new_balance });
+      // Verificar se a resposta contém erro
+      if (data && typeof data === 'object' && 'error' in data) {
+        throw new Error(data.error as string);
       }
 
-      toast({
-        title: "Sucesso",
-        description: `Recarga de R$ ${amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} realizada com sucesso`
-      });
+      // Verificar se a recarga foi bem-sucedida
+      if (data && typeof data === 'object' && 'success' in data && data.success) {
+        // Atualizar perfil com novo saldo se disponível
+        if (profile && 'new_balance' in data && typeof data.new_balance === 'number') {
+          await updateProfile({ balance: data.new_balance });
+        }
 
-      setRechargeAmount('');
+        toast({
+          title: "Sucesso",
+          description: `Recarga de R$ ${amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} realizada com sucesso`
+        });
+
+        setRechargeAmount('');
+      } else {
+        throw new Error('Resposta inválida da função de recarga');
+      }
     } catch (error: any) {
+      console.error('Erro ao processar recarga:', error);
       toast({
         title: "Erro",
         description: error.message || "Erro ao processar recarga",
