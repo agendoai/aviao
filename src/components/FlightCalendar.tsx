@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -26,7 +27,7 @@ const localizer = dateFnsLocalizer({
   },
 });
 
-// Simple messages for the calendar
+// Messages for the calendar
 const messages = {
   next: "Próximo",
   previous: "Anterior",
@@ -40,6 +41,27 @@ const messages = {
   event: "Evento",
   noEventsInRange: "Nenhum evento neste período",
   showMore: (total: number) => `+ ${total} mais`
+};
+
+// Formats for the calendar
+const formats = {
+  monthHeaderFormat: 'MMMM yyyy',
+  dayHeaderFormat: 'eeee dd/MM',
+  dayRangeHeaderFormat: ({ start, end }: { start: Date; end: Date }) => 
+    `${format(start, 'dd/MM')} - ${format(end, 'dd/MM')}`,
+  agendaHeaderFormat: ({ start, end }: { start: Date; end: Date }) => 
+    `${format(start, 'dd/MM/yyyy')} - ${format(end, 'dd/MM/yyyy')}`,
+  selectRangeFormat: ({ start, end }: { start: Date; end: Date }) => 
+    `${format(start, 'dd/MM')} - ${format(end, 'dd/MM')}`,
+  agendaDateFormat: 'eeee dd/MM',
+  agendaTimeFormat: 'HH:mm',
+  agendaTimeRangeFormat: ({ start, end }: { start: Date; end: Date }) => 
+    `${format(start, 'HH:mm')} - ${format(end, 'HH:mm')}`,
+  timeGutterFormat: 'HH:mm',
+  eventTimeRangeFormat: ({ start, end }: { start: Date; end: Date }) => 
+    `${format(start, 'HH:mm')} - ${format(end, 'HH:mm')}`,
+  eventTimeRangeStartFormat: 'HH:mm',
+  eventTimeRangeEndFormat: 'HH:mm'
 };
 
 interface FlightEvent {
@@ -233,6 +255,7 @@ const FlightCalendar: React.FC<FlightCalendarProps> = ({ selectedAircraft, onDat
               defaultView="month"
               culture="pt-BR"
               messages={messages}
+              formats={formats}
             />
           </div>
         </CardContent>
