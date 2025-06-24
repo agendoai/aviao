@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -276,7 +277,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
     // Reset form
     setNewDestination('');
     setArrivalTime('');
-    setDepartureTime();
+    setDepartureTime(''); // Corrigido: removido parênteses vazios
     
     // Calculate costs
     calculateRouteCosts(updatedRoute);
