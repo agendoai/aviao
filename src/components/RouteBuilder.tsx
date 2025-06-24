@@ -389,85 +389,76 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
               <h3 className="text-lg font-semibold">Selecione a Data da Missão</h3>
             </div>
             
-            {selectedAircraftId ? (
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-                {/* Calendário */}
-                <div className="lg:col-span-2">
-                  <Calendar
-                    mode="single"
-                    selected={selectedDate}
-                    onSelect={handleDateSelect}
-                    className="rounded-lg border bg-white shadow-sm w-full max-w-none pointer-events-auto"
-                    disabled={(date) => date < new Date() || isDateOccupied(date)}
-                    modifiers={{
-                      occupied: occupiedDates,
-                      available: (date) => !isDateOccupied(date) && date >= new Date()
-                    }}
-                    modifiersStyles={{
-                      occupied: {
-                        backgroundColor: '#fee2e2',
-                        color: '#dc2626',
-                        textDecoration: 'line-through',
-                        fontWeight: 'bold'
-                      },
-                      available: {
-                        backgroundColor: '#dcfce7',
-                        color: '#16a34a',
-                        fontWeight: 'bold'
-                      }
-                    }}
-                  />
-                </div>
-                
-                {/* Painel de Status */}
-                <div className="space-y-4">
-                  <div className="bg-gray-50 p-4 rounded-lg">
-                    <h4 className="font-medium text-sm mb-3">Status das Datas</h4>
-                    <div className="space-y-2 text-sm">
-                      <div className="flex items-center space-x-2">
-                        <div className="w-4 h-4 bg-green-100 border border-green-300 rounded"></div>
-                        <span>Disponível</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="w-4 h-4 bg-red-100 border border-red-300 rounded"></div>
-                        <span>Ocupado</span>
-                      </div>
-                      <div className="flex items-center space-x-2">
-                        <div className="w-4 h-4 bg-gray-100 border border-gray-300 rounded"></div>
-                        <span>Passado</span>
-                      </div>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              {/* Calendário */}
+              <div className="lg:col-span-2">
+                <Calendar
+                  mode="single"
+                  selected={selectedDate}
+                  onSelect={handleDateSelect}
+                  className="rounded-lg border bg-white shadow-sm w-full max-w-none pointer-events-auto"
+                  disabled={(date) => date < new Date() || isDateOccupied(date)}
+                  modifiers={{
+                    occupied: occupiedDates,
+                    available: (date) => !isDateOccupied(date) && date >= new Date()
+                  }}
+                  modifiersStyles={{
+                    occupied: {
+                      backgroundColor: '#fee2e2',
+                      color: '#dc2626',
+                      textDecoration: 'line-through',
+                      fontWeight: 'bold'
+                    },
+                    available: {
+                      backgroundColor: '#dcfce7',
+                      color: '#16a34a',
+                      fontWeight: 'bold'
+                    }
+                  }}
+                />
+              </div>
+              
+              {/* Painel de Status */}
+              <div className="space-y-4">
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-medium text-sm mb-3">Status das Datas</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex items-center space-x-2">
+                      <div className="w-4 h-4 bg-green-100 border border-green-300 rounded"></div>
+                      <span>Disponível</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-4 h-4 bg-red-100 border border-red-300 rounded"></div>
+                      <span>Ocupado</span>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <div className="w-4 h-4 bg-gray-100 border border-gray-300 rounded"></div>
+                      <span>Passado</span>
                     </div>
                   </div>
-                  
-                  {selectedDate && (
-                    <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                      <h4 className="font-medium text-sm mb-2 text-green-800">Data Selecionada</h4>
-                      <p className="text-sm font-medium text-green-700">
-                        {selectedDate.toLocaleDateString('pt-BR', { 
-                          weekday: 'long', 
-                          year: 'numeric', 
-                          month: 'long', 
-                          day: 'numeric' 
-                        })}
-                      </p>
-                    </div>
-                  )}
-                  
-                  {isLoadingDates && (
-                    <div className="text-center text-sm text-gray-600">
-                      Carregando disponibilidade...
-                    </div>
-                  )}
                 </div>
+                
+                {selectedDate && (
+                  <div className="bg-green-50 p-4 rounded-lg border border-green-200">
+                    <h4 className="font-medium text-sm mb-2 text-green-800">Data Selecionada</h4>
+                    <p className="text-sm font-medium text-green-700">
+                      {selectedDate.toLocaleDateString('pt-BR', { 
+                        weekday: 'long', 
+                        year: 'numeric', 
+                        month: 'long', 
+                        day: 'numeric' 
+                      })}
+                    </p>
+                  </div>
+                )}
+                
+                {isLoadingDates && (
+                  <div className="text-center text-sm text-gray-600">
+                    Carregando disponibilidade...
+                  </div>
+                )}
               </div>
-            ) : (
-              <Alert>
-                <AlertTriangle className="h-4 w-4" />
-                <AlertDescription>
-                  A aeronave foi selecionada no início do fluxo. Se você não vê o calendário, volte ao passo anterior para selecionar uma aeronave.
-                </AlertDescription>
-              </Alert>
-            )}
+            </div>
           </div>
 
           {/* PASSO 2: Configuração de Horários */}
