@@ -1,14 +1,16 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 import { Progress } from '@/components/ui/progress';
-import { ArrowRight, CheckCircle, Clock, MapPin } from 'lucide-react';
+import { ArrowRight, CheckCircle, Clock, MapPin, CreditCard, Wallet, AlertTriangle } from 'lucide-react';
 import AircraftSelector from './AircraftSelector';
 import AircraftSeatingChart from './AircraftSeatingChart';
 import RouteBuilder from './RouteBuilder';
 import CostBreakdown from './CostBreakdown';
 import { useToast } from '@/hooks/use-toast';
+import { useAuth } from './AuthContext';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Aircraft = Tables<'aircraft'>;
@@ -27,18 +29,24 @@ interface EnhancedBookingFlowProps {
 
 const EnhancedBookingFlow: React.FC<EnhancedBookingFlowProps> = ({ selectedDate }) => {
   const { toast } = useToast();
+  const { profile } = useAuth();
   
   const [currentStep, setCurrentStep] = useState(0);
   const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
+  const [travelMode, setTravelMode] = useState<'solo' | 'shared'>('solo');
   const [route, setRoute] = useState<RouteStop[]>([]);
   const [costCalculation, setCostCalculation] = useState<any>(null);
+  const [flightTiming, setFlightTiming] = useState<any>(null);
+  const [paymentMethod, setPaymentMethod] = useState<'wallet' | 'card'>('wallet');
+  const [paymentProcessed, setPaymentProcessed] = useState(false);
 
   const steps = [
     { id: 'aircraft', title: 'Aeronave', description: 'Selecione a aeronave' },
-    { id: 'seats', title: 'Assentos', description: 'Escolha os assentos' },
-    { id: 'route', title: 'Rota', description: 'Defina o itinerário' },
+    { id: 'seats', title: 'Assentos', description: 'Escolha os assentos e modo' },
+    { id: 'route', title: 'Rota', description: 'Defina o itinerário e horários' },
     { id: 'costs', title: 'Custos', description: 'Revisar valores' },
+    { id: 'payment', title: 'Pagamento', description: 'Processar pagamento' },
     { id: 'confirm', title: 'Confirmar', description: 'Finalizar reserva' }
   ];
 
@@ -60,6 +68,17 @@ const EnhancedBookingFlow: React.FC<EnhancedBookingFlowProps> = ({ selectedDate 
     });
   };
 
+  const handleTravelModeChange = (mode: 'solo' | 'shared') => {
+    setTravelMode(mode);
+    if (mode === 'shared') {
+      // Aqui você implementaria a lógica para notificar outros filiados
+      toast({
+        title: "Notificações Enviadas",
+        description: "Todos os filiados foram notificados sobre esta oportunidade de compartilhamento.",
+      });
+    }
+  };
+
   const handleRouteChange = (newRoute: RouteStop[]) => {
     setRoute(newRoute);
   };
@@ -68,12 +87,49 @@ const EnhancedBookingFlow: React.FC<EnhancedBookingFlowProps> = ({ selectedDate 
     setCostCalculation(costs);
   };
 
+  const handleTimingChange = (timing: any) => {
+    setFlightTiming(timing);
+  };
+
+  const handlePayment = async () => {
+    if (!costCalculation || !profile) return;
+
+    const finalCost = paymentMethod === 'card' 
+      ? costCalculation.totalCost * 1.02 
+      : costCalculation.totalCost;
+
+    if (profile.balance < finalCost) {
+      toast({
+        title: "Saldo Insuficiente",
+        description: `Saldo atual: R$ ${profile.balance.toFixed(2)}. Necessário: R$ ${finalCost.toFixed(2)}`,
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Simular processamento do pagamento
+    toast({
+      title: "Processando Pagamento",
+      description: "Aguarde enquanto processamos seu pagamento...",
+    });
+
+    setTimeout(() => {
+      setPaymentProcessed(true);
+      toast({
+        title: "Pagamento Aprovado",
+        description: `R$ ${finalCost.toFixed(2)} debitado com sucesso.`,
+      });
+      setCurrentStep(5); // Ir para confirmação
+    }, 2000);
+  };
+
   const canProceedToNext = () => {
     switch (currentStep) {
       case 0: return selectedAircraft !== null;
       case 1: return selectedSeats.length > 0;
-      case 2: return route.length > 0;
+      case 2: return route.length > 0 && flightTiming !== null;
       case 3: return costCalculation !== null;
+      case 4: return paymentProcessed;
       default: return true;
     }
   };
@@ -93,7 +149,7 @@ const EnhancedBookingFlow: React.FC<EnhancedBookingFlowProps> = ({ selectedDate 
   const handleConfirmBooking = () => {
     toast({
       title: "Reserva Criada!",
-      description: "Sua reserva foi criada com sucesso e está aguardando confirmação baseada na sua posição de prioridade.",
+      description: `Sua reserva foi criada com sucesso${profile?.priority_position === 1 ? ' e confirmada automaticamente!' : ' e está aguardando sua vez na fila de prioridade.'}`,
     });
   };
 
@@ -127,7 +183,7 @@ const EnhancedBookingFlow: React.FC<EnhancedBookingFlowProps> = ({ selectedDate 
             Sistema de Reserva Completo
           </CardTitle>
           <CardDescription className="text-lg">
-            Fluxo completo com seleção de aeronave, assentos e cálculo automático
+            Fluxo completo com pagamento antecipado e controle de prioridade
             {selectedDate && (
               <span className="block mt-1 text-aviation-blue font-medium">
                 Data selecionada: {selectedDate.toLocaleDateString('pt-BR')}
@@ -182,6 +238,8 @@ const EnhancedBookingFlow: React.FC<EnhancedBookingFlowProps> = ({ selectedDate 
             aircraft={selectedAircraft}
             onSeatSelect={handleSeatSelect}
             selectedSeats={selectedSeats}
+            onTravelModeChange={handleTravelModeChange}
+            selectedTravelMode={travelMode}
           />
         )}
 
@@ -190,6 +248,7 @@ const EnhancedBookingFlow: React.FC<EnhancedBookingFlowProps> = ({ selectedDate 
             baseLocation="Araçatuba (ABC)"
             onRouteChange={handleRouteChange}
             onCostCalculation={handleCostCalculation}
+            onTimingChange={handleTimingChange}
           />
         )}
 
@@ -198,13 +257,100 @@ const EnhancedBookingFlow: React.FC<EnhancedBookingFlowProps> = ({ selectedDate 
             segments={costCalculation.segments}
             totalCost={costCalculation.totalCost}
             totalFlightTime={costCalculation.totalFlightTime}
+            overnightFee={costCalculation.overnightFee}
+            overnightCount={costCalculation.overnightCount}
           />
         )}
 
-        {currentStep === 4 && (
+        {currentStep === 4 && costCalculation && (
           <Card className="aviation-card">
             <CardHeader>
-              <CardTitle>Conferência da Reserva</CardTitle>
+              <CardTitle className="flex items-center space-x-2">
+                <CreditCard className="h-5 w-5" />
+                <span>Processamento do Pagamento</span>
+              </CardTitle>
+              <CardDescription>
+                Complete o pagamento para prosseguir com a reserva
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {/* Resumo do Pagamento */}
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <h4 className="font-medium mb-3">Resumo do Pagamento:</h4>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>Custo base do voo:</span>
+                    <span>R$ {(costCalculation.totalCost - (costCalculation.overnightFee || 0)).toFixed(2)}</span>
+                  </div>
+                  {costCalculation.overnightFee > 0 && (
+                    <div className="flex justify-between text-amber-600">
+                      <span>Taxa de pernoite ({costCalculation.overnightCount}x):</span>
+                      <span>R$ {costCalculation.overnightFee.toFixed(2)}</span>
+                    </div>
+                  )}
+                  {paymentMethod === 'card' && (
+                    <div className="flex justify-between text-blue-600">
+                      <span>Taxa do cartão (2%):</span>
+                      <span>R$ {(costCalculation.totalCost * 0.02).toFixed(2)}</span>
+                    </div>
+                  )}
+                  <div className="border-t pt-2 flex justify-between font-bold">
+                    <span>Total a pagar:</span>
+                    <span>R$ {(paymentMethod === 'card' ? costCalculation.totalCost * 1.02 : costCalculation.totalCost).toFixed(2)}</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Seleção do Método de Pagamento */}
+              <div className="space-y-4">
+                <h4 className="font-medium">Método de Pagamento:</h4>
+                <RadioGroup value={paymentMethod} onValueChange={(value: 'wallet' | 'card') => setPaymentMethod(value)}>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="wallet" id="wallet" />
+                    <Label htmlFor="wallet" className="flex items-center space-x-2">
+                      <Wallet className="h-4 w-4" />
+                      <span>Carteira Digital (Saldo: R$ {profile?.balance.toFixed(2)})</span>
+                    </Label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <RadioGroupItem value="card" id="card" />
+                    <Label htmlFor="card" className="flex items-center space-x-2">
+                      <CreditCard className="h-4 w-4" />
+                      <span>Cartão de Crédito (+2% taxa)</span>
+                    </Label>
+                  </div>
+                </RadioGroup>
+              </div>
+
+              {/* Aviso de Prioridade */}
+              <div className="bg-yellow-50 p-4 rounded-lg border border-yellow-200">
+                <div className="flex items-center space-x-2 text-yellow-800">
+                  <Clock className="h-4 w-4" />
+                  <span className="font-medium">Informação de Prioridade</span>
+                </div>
+                <p className="text-sm text-yellow-700 mt-1">
+                  Sua posição na fila: #{profile?.priority_position}
+                  {profile?.priority_position === 1 
+                    ? " - Sua reserva será confirmada imediatamente após o pagamento!" 
+                    : " - Após o pagamento, você aguardará sua vez na fila de prioridade."}
+                </p>
+              </div>
+
+              <Button 
+                onClick={handlePayment}
+                disabled={paymentProcessed}
+                className="w-full bg-aviation-gradient hover:opacity-90 text-white text-lg py-3"
+              >
+                {paymentProcessed ? 'Pagamento Processado ✓' : 'Processar Pagamento'}
+              </Button>
+            </CardContent>
+          </Card>
+        )}
+
+        {currentStep === 5 && (
+          <Card className="aviation-card">
+            <CardHeader>
+              <CardTitle>Confirmação Final da Reserva</CardTitle>
               <CardDescription>
                 Revise todos os detalhes antes de confirmar sua reserva
               </CardDescription>
@@ -300,10 +446,13 @@ const EnhancedBookingFlow: React.FC<EnhancedBookingFlowProps> = ({ selectedDate 
               </div>
 
               <div className="border-t pt-4">
-                <div className="bg-yellow-50 p-3 rounded-lg mb-4">
-                  <p className="text-sm text-yellow-800">
-                    <strong>Importante:</strong> O retorno à base é obrigatório e está incluído no cálculo.
-                    A aeronave ficará bloqueada por 3h adicionais após o retorno para manutenção.
+                <div className="bg-green-50 p-4 rounded-lg mb-4">
+                  <div className="flex items-center space-x-2 text-green-800">
+                    <CheckCircle className="h-4 w-4" />
+                    <span className="font-medium">Pagamento Confirmado</span>
+                  </div>
+                  <p className="text-sm text-green-700 mt-1">
+                    R$ {(paymentMethod === 'card' ? costCalculation?.totalCost * 1.02 : costCalculation?.totalCost).toFixed(2)} debitado com sucesso
                   </p>
                 </div>
                 
@@ -311,7 +460,7 @@ const EnhancedBookingFlow: React.FC<EnhancedBookingFlowProps> = ({ selectedDate 
                   onClick={handleConfirmBooking}
                   className="w-full bg-aviation-gradient hover:opacity-90 text-white text-lg py-3"
                 >
-                  Confirmar Reserva Completa
+                  Confirmar Reserva Definitiva
                 </Button>
               </div>
             </CardContent>
@@ -329,7 +478,7 @@ const EnhancedBookingFlow: React.FC<EnhancedBookingFlowProps> = ({ selectedDate 
           Anterior
         </Button>
 
-        {currentStep < steps.length - 1 ? (
+        {currentStep < steps.length - 1 && currentStep !== 4 ? (
           <Button
             onClick={handleNext}
             disabled={!canProceedToNext()}

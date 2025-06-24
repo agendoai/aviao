@@ -1,207 +1,188 @@
 
-import React from 'react';
+import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Users, User } from 'lucide-react';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
+import { Users, User, Share2 } from 'lucide-react';
+import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Aircraft = Tables<'aircraft'>;
 
-interface Seat {
-  number: number;
-  row: number;
-  position: string;
-  type: string;
-  isOccupied?: boolean;
-  passenger?: string;
-}
-
 interface AircraftSeatingChartProps {
   aircraft: Aircraft;
-  occupiedSeats?: number[];
-  onSeatSelect?: (seatNumber: number) => void;
-  selectedSeats?: number[];
+  onSeatSelect: (seatNumber: number) => void;
+  selectedSeats: number[];
+  onTravelModeChange?: (mode: 'solo' | 'shared') => void;
+  selectedTravelMode?: 'solo' | 'shared';
 }
 
 const AircraftSeatingChart: React.FC<AircraftSeatingChartProps> = ({
   aircraft,
-  occupiedSeats = [],
   onSeatSelect,
-  selectedSeats = []
+  selectedSeats,
+  onTravelModeChange,
+  selectedTravelMode = 'solo'
 }) => {
-  const seatConfiguration = aircraft.seat_configuration as any;
-  
-  if (!seatConfiguration || !seatConfiguration.seats) {
+  const { toast } = useToast();
+
+  const handleTravelModeChange = (mode: 'solo' | 'shared') => {
+    if (onTravelModeChange) {
+      onTravelModeChange(mode);
+    }
+    
+    if (mode === 'shared') {
+      toast({
+        title: "Modo Compartilhado Ativado",
+        description: "Notificações serão enviadas para todos os filiados sobre esta oportunidade de compartilhamento.",
+      });
+    }
+  };
+
+  const renderSeat = (seatNumber: number) => {
+    const isSelected = selectedSeats.includes(seatNumber);
+    const isOccupied = false; // Aqui você implementaria a lógica para verificar se o assento está ocupado
+    
     return (
-      <Card className="aviation-card">
-        <CardHeader>
-          <CardTitle>Configuração de Assentos</CardTitle>
-          <CardDescription>Configuração não disponível para esta aeronave</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="text-center py-8">
-            <Users className="h-12 w-12 mx-auto mb-4 text-gray-400" />
-            <p className="text-gray-500">
-              Capacidade: {aircraft.max_passengers} passageiros
-            </p>
-          </div>
-        </CardContent>
-      </Card>
+      <Button
+        key={seatNumber}
+        variant={isSelected ? "default" : isOccupied ? "destructive" : "outline"}
+        size="sm"
+        className={`w-12 h-12 ${isSelected ? 'bg-aviation-blue' : ''}`}
+        onClick={() => !isOccupied && onSeatSelect(seatNumber)}
+        disabled={isOccupied}
+      >
+        {seatNumber}
+      </Button>
     );
-  }
-
-  const seats: Seat[] = seatConfiguration.seats;
-  const layout = seatConfiguration.layout || '2-2';
-  const totalRows = Math.max(...seats.map(seat => seat.row));
-
-  const getSeatStatus = (seatNumber: number) => {
-    if (occupiedSeats.includes(seatNumber)) return 'occupied';
-    if (selectedSeats.includes(seatNumber)) return 'selected';
-    return 'available';
   };
 
-  const getSeatColor = (status: string) => {
-    switch (status) {
-      case 'occupied':
-        return 'bg-red-500 text-white cursor-not-allowed';
-      case 'selected':
-        return 'bg-aviation-gold text-white cursor-pointer';
-      case 'available':
-        return 'bg-green-500 text-white cursor-pointer hover:bg-green-600';
-      default:
-        return 'bg-gray-300 text-gray-600 cursor-not-allowed';
+  const generateSeatLayout = () => {
+    const seats = [];
+    const maxPassengers = aircraft.max_passengers || 8;
+    
+    // Layout padrão 2-2 para aeronaves menores
+    const seatsPerRow = 4;
+    const rows = Math.ceil(maxPassengers / seatsPerRow);
+    
+    for (let row = 0; row < rows; row++) {
+      const rowSeats = [];
+      for (let seat = 1; seat <= seatsPerRow && (row * seatsPerRow + seat) <= maxPassengers; seat++) {
+        const seatNumber = row * seatsPerRow + seat;
+        rowSeats.push(renderSeat(seatNumber));
+        
+        // Adicionar corredor no meio
+        if (seat === 2) {
+          rowSeats.push(<div key={`aisle-${row}`} className="w-4" />);
+        }
+      }
+      seats.push(
+        <div key={row} className="flex items-center justify-center space-x-2 mb-2">
+          {rowSeats}
+        </div>
+      );
     }
+    
+    return seats;
   };
-
-  const handleSeatClick = (seatNumber: number) => {
-    const status = getSeatStatus(seatNumber);
-    if (status !== 'occupied' && onSeatSelect) {
-      onSeatSelect(seatNumber);
-    }
-  };
-
-  // Agrupar assentos por fileira
-  const seatsByRow = seats.reduce((acc, seat) => {
-    if (!acc[seat.row]) {
-      acc[seat.row] = [];
-    }
-    acc[seat.row].push(seat);
-    return acc;
-  }, {} as Record<number, Seat[]>);
 
   return (
     <Card className="aviation-card">
       <CardHeader>
         <CardTitle className="flex items-center space-x-2">
           <Users className="h-5 w-5" />
-          <span>{aircraft.name} - Mapa de Assentos</span>
+          <span>Mapa de Assentos - {aircraft.name}</span>
         </CardTitle>
         <CardDescription>
-          Layout {layout} | {aircraft.max_passengers} assentos | {aircraft.model}
+          {aircraft.model} - Capacidade: {aircraft.max_passengers} passageiros
         </CardDescription>
       </CardHeader>
-      <CardContent>
-        {/* Legenda */}
-        <div className="flex justify-center space-x-6 mb-6">
-          <div className="flex items-center space-x-2">
-            <div className="w-4 h-4 bg-green-500 rounded"></div>
-            <span className="text-sm">Disponível</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <div className="w-4 h-4 bg-aviation-gold rounded"></div>
-            <span className="text-sm">Selecionado</span>
-          </div>
-          <div className="flex items-center space-x-2">
-            <div className="w-4 h-4 bg-red-500 rounded"></div>
-            <span className="text-sm">Ocupado</span>
-          </div>
-        </div>
-
-        {/* Cockpit */}
-        <div className="text-center mb-6">
-          <div className="inline-block bg-gray-200 px-6 py-2 rounded-t-full">
-            <span className="text-sm font-medium text-gray-600">COCKPIT</span>
-          </div>
-        </div>
-
-        {/* Mapa de Assentos */}
-        <div className="max-w-md mx-auto">
-          {Array.from({ length: totalRows }, (_, rowIndex) => {
-            const rowNumber = rowIndex + 1;
-            const rowSeats = seatsByRow[rowNumber] || [];
-            
-            // Organizar assentos por posição (A, B, C, D)
-            const leftSeats = rowSeats.filter(seat => ['A', 'B'].includes(seat.position));
-            const rightSeats = rowSeats.filter(seat => ['C', 'D'].includes(seat.position));
-
-            return (
-              <div key={rowNumber} className="flex items-center justify-center mb-3">
-                {/* Número da fileira */}
-                <div className="w-8 text-center text-sm font-medium text-gray-600">
-                  {rowNumber}
-                </div>
-
-                {/* Assentos da esquerda */}
-                <div className="flex space-x-1">
-                  {leftSeats.map((seat) => {
-                    const status = getSeatStatus(seat.number);
-                    return (
-                      <button
-                        key={seat.number}
-                        onClick={() => handleSeatClick(seat.number)}
-                        className={`w-8 h-8 rounded text-xs font-medium transition-colors ${getSeatColor(status)}`}
-                        disabled={status === 'occupied'}
-                        title={`Assento ${seat.number}${seat.position} - ${status === 'occupied' ? 'Ocupado' : status === 'selected' ? 'Selecionado' : 'Disponível'}`}
-                      >
-                        {seat.position}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Corredor */}
-                <div className="w-6 text-center">
-                  <div className="w-full h-px bg-gray-300"></div>
-                </div>
-
-                {/* Assentos da direita */}
-                <div className="flex space-x-1">
-                  {rightSeats.map((seat) => {
-                    const status = getSeatStatus(seat.number);
-                    return (
-                      <button
-                        key={seat.number}
-                        onClick={() => handleSeatClick(seat.number)}
-                        className={`w-8 h-8 rounded text-xs font-medium transition-colors ${getSeatColor(status)}`}
-                        disabled={status === 'occupied'}
-                        title={`Assento ${seat.number}${seat.position} - ${status === 'occupied' ? 'Ocupado' : status === 'selected' ? 'Selecionado' : 'Disponível'}`}
-                      >
-                        {seat.position}
-                      </button>
-                    );
-                  })}
-                </div>
-
-                {/* Número da fileira (direita) */}
-                <div className="w-8 text-center text-sm font-medium text-gray-600">
-                  {rowNumber}
-                </div>
+      <CardContent className="space-y-6">
+        {/* Opções de Viagem */}
+        <div className="space-y-4">
+          <h4 className="font-medium">Modo de Viagem:</h4>
+          <RadioGroup 
+            value={selectedTravelMode} 
+            onValueChange={(value: 'solo' | 'shared') => handleTravelModeChange(value)}
+            className="flex space-x-6"
+          >
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="solo" id="solo" />
+              <Label htmlFor="solo" className="flex items-center space-x-2 cursor-pointer">
+                <User className="h-4 w-4" />
+                <span>Viajar Sozinho</span>
+              </Label>
+            </div>
+            <div className="flex items-center space-x-2">
+              <RadioGroupItem value="shared" id="shared" />
+              <Label htmlFor="shared" className="flex items-center space-x-2 cursor-pointer">
+                <Share2 className="h-4 w-4" />
+                <span>Compartilhar Aeronave</span>
+              </Label>
+            </div>
+          </RadioGroup>
+          
+          {selectedTravelMode === 'shared' && (
+            <div className="bg-blue-50 p-3 rounded-lg border border-blue-200">
+              <div className="flex items-center space-x-2 text-blue-800">
+                <Share2 className="h-4 w-4" />
+                <span className="font-medium">Modo Compartilhado Ativo</span>
               </div>
-            );
-          })}
-        </div>
-
-        {/* Informações adicionais */}
-        <div className="mt-6 text-center text-sm text-gray-600">
-          <p>Ocupação: {occupiedSeats.length}/{aircraft.max_passengers} assentos</p>
-          {selectedSeats.length > 0 && (
-            <div className="mt-2">
-              <Badge variant="outline" className="text-aviation-blue border-aviation-blue">
-                Selecionados: {selectedSeats.join(', ')}
-              </Badge>
+              <p className="text-sm text-blue-700 mt-1">
+                Todos os filiados receberão notificação sobre esta oportunidade de compartilhamento. 
+                Você poderá dividir os custos proporcionalmente com outros passageiros.
+              </p>
             </div>
           )}
         </div>
+
+        {/* Mapa de Assentos */}
+        <div className="space-y-4">
+          <div className="text-center">
+            <div className="bg-gray-200 p-2 rounded-t-lg mb-4">
+              <span className="text-sm text-gray-600">COCKPIT</span>
+            </div>
+          </div>
+          
+          <div className="space-y-2">
+            {generateSeatLayout()}
+          </div>
+          
+          {/* Legenda */}
+          <div className="flex justify-center space-x-4 mt-6">
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 border border-gray-300 rounded"></div>
+              <span className="text-sm">Disponível</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 bg-aviation-blue rounded"></div>
+              <span className="text-sm">Selecionado</span>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="w-4 h-4 bg-red-500 rounded"></div>
+              <span className="text-sm">Ocupado</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Resumo da Seleção */}
+        {selectedSeats.length > 0 && (
+          <div className="bg-gray-50 p-4 rounded-lg">
+            <h4 className="font-medium mb-2">Seleção Atual:</h4>
+            <div className="flex flex-wrap gap-2">
+              {selectedSeats.map(seat => (
+                <Badge key={seat} variant="default">
+                  Assento {seat}
+                </Badge>
+              ))}
+            </div>
+            <p className="text-sm text-gray-600 mt-2">
+              {selectedSeats.length} assento(s) selecionado(s) • Modo: {selectedTravelMode === 'solo' ? 'Individual' : 'Compartilhado'}
+            </p>
+          </div>
+        )}
       </CardContent>
     </Card>
   );

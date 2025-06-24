@@ -1,35 +1,74 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { MapPin, Plus, X, ArrowRight } from 'lucide-react';
+import { Alert, AlertDescription } from '@/components/ui/alert';
+import { MapPin, Plus, X, ArrowRight, Clock, Moon, AlertTriangle } from 'lucide-react';
 
 interface RouteStop {
   id: string;
   destination: string;
   arrivalTime: string;
   departureTime: string;
-  stayDuration: number; // em horas
+  stayDuration: number;
 }
 
 interface RouteBuilderProps {
   baseLocation: string;
   onRouteChange: (route: RouteStop[]) => void;
   onCostCalculation: (costs: any) => void;
+  onTimingChange?: (timing: { departureFromBase: string; returnToBase: string; hasOvernight: boolean; overnightCount: number }) => void;
 }
 
 const RouteBuilder: React.FC<RouteBuilderProps> = ({
   baseLocation = "Araçatuba (ABC)",
   onRouteChange,
-  onCostCalculation
+  onCostCalculation,
+  onTimingChange
 }) => {
   const [route, setRoute] = useState<RouteStop[]>([]);
   const [newDestination, setNewDestination] = useState('');
   const [arrivalTime, setArrivalTime] = useState('');
   const [departureTime, setDepartureTime] = useState('');
+  
+  // Novos campos para controle de horários
+  const [departureFromBase, setDepartureFromBase] = useState('08:00');
+  const [returnToBase, setReturnToBase] = useState('18:00');
+  const [flightDate, setFlightDate] = useState(new Date().toISOString().split('T')[0]);
+
+  useEffect(() => {
+    calculateOvernightAndNotify();
+  }, [departureFromBase, returnToBase, flightDate, route]);
+
+  const calculateOvernightAndNotify = () => {
+    const hasOvernight = checkForOvernight();
+    const overnightCount = calculateOvernightDays();
+    
+    if (onTimingChange) {
+      onTimingChange({
+        departureFromBase,
+        returnToBase,
+        hasOvernight,
+        overnightCount
+      });
+    }
+  };
+
+  const checkForOvernight = (): boolean => {
+    // Se o horário de retorno é menor que o de saída, passou da meia-noite
+    return returnToBase < departureFromBase;
+  };
+
+  const calculateOvernightDays = (): number => {
+    if (!checkForOvernight()) return 0;
+    
+    // Cálculo simples: se passou da meia-noite, conta como 1 pernoite
+    // Em uma implementação mais complexa, você poderia calcular com base nas datas
+    return 1;
+  };
 
   const addStop = () => {
     if (!newDestination || !arrivalTime || !departureTime) return;
@@ -67,7 +106,6 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
     const arrivalTime = new Date(`2024-01-01T${arrival}`);
     let departureTime = new Date(`2024-01-01T${departure}`);
     
-    // Se a partida é antes da chegada, assumimos que é no dia seguinte
     if (departureTime < arrivalTime) {
       departureTime.setDate(departureTime.getDate() + 1);
     }
@@ -76,24 +114,21 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
   };
 
   const calculateRouteCosts = (routeStops: RouteStop[]) => {
-    const hourlyRate = 5000; // R$ 5.000/hora (exemplo)
+    const hourlyRate = 5000;
     let totalCost = 0;
     const segments = [];
+    const overnightCount = calculateOvernightDays();
+    const overnightFee = overnightCount * 1500;
 
     // Adicionar segmentos da rota
     let previousLocation = baseLocation;
     
     routeStops.forEach((stop, index) => {
-      const flightTime = 2; // Assumindo 2h por trecho (seria calculado com API real)
+      const flightTime = 2;
       const flightCost = flightTime * hourlyRate;
-      const airportFees = 1000; // Taxa padrão
+      const airportFees = 1000;
       
-      // Verificar pernoite
-      const hasOvernight = stop.stayDuration > 12 || 
-        (stop.arrivalTime > '22:00' && stop.departureTime < '08:00');
-      const overnightCost = hasOvernight ? 800 : 0;
-      
-      const segmentCost = flightCost + airportFees + overnightCost;
+      const segmentCost = flightCost + airportFees;
       totalCost += segmentCost;
       
       segments.push({
@@ -102,8 +137,8 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
         flightTime,
         flightCost,
         airportFees,
-        overnightCost,
-        hasOvernight,
+        overnightCost: 0,
+        hasOvernight: false,
         total: segmentCost
       });
       
@@ -131,18 +166,16 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
       });
     }
 
+    // Adicionar taxa de pernoite ao total
+    totalCost += overnightFee;
+
     onCostCalculation({
       segments,
       totalCost,
+      overnightFee,
+      overnightCount,
       totalFlightTime: segments.reduce((acc, seg) => acc + seg.flightTime, 0)
     });
-  };
-
-  const getCompleteRoute = () => {
-    const completeRoute = [baseLocation];
-    route.forEach(stop => completeRoute.push(stop.destination));
-    if (route.length > 0) completeRoute.push(baseLocation);
-    return completeRoute;
   };
 
   return (
@@ -151,26 +184,78 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <MapPin className="h-5 w-5" />
-            <span>Definição da Rota</span>
+            <span>Definição da Rota e Horários</span>
           </CardTitle>
           <CardDescription>
-            Base: {baseLocation} (retorno obrigatório)
+            Base: {baseLocation} (saída e retorno obrigatórios)
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
+        <CardContent className="space-y-6">
+          {/* Controle de Horários da Base */}
+          <div className="bg-blue-50 p-4 rounded-lg border border-blue-200">
+            <h4 className="font-medium mb-4 flex items-center space-x-2">
+              <Clock className="h-4 w-4" />
+              <span>Horários da Base</span>
+            </h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="flight-date">Data do Voo</Label>
+                <Input
+                  id="flight-date"
+                  type="date"
+                  value={flightDate}
+                  onChange={(e) => setFlightDate(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="departure-base">Saída da Base</Label>
+                <Input
+                  id="departure-base"
+                  type="time"
+                  value={departureFromBase}
+                  onChange={(e) => setDepartureFromBase(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="return-base">Retorno à Base</Label>
+                <Input
+                  id="return-base"
+                  type="time"
+                  value={returnToBase}
+                  onChange={(e) => setReturnToBase(e.target.value)}
+                />
+              </div>
+            </div>
+            
+            {/* Alerta de Pernoite */}
+            {checkForOvernight() && (
+              <Alert className="mt-4 border-amber-200 bg-amber-50">
+                <Moon className="h-4 w-4" />
+                <AlertDescription className="text-amber-800">
+                  <strong>Pernoite Detectada!</strong> O retorno após meia-noite gera taxa adicional de R$ 1.500,00 por noite.
+                  {calculateOvernightDays() > 0 && (
+                    <span className="block mt-1">
+                      Noites: {calculateOvernightDays()} × R$ 1.500,00 = R$ {(calculateOvernightDays() * 1500).toFixed(2)}
+                    </span>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+          </div>
+
           {/* Visualização da rota atual */}
           {route.length > 0 && (
-            <div className="bg-blue-50 p-4 rounded-lg">
-              <h4 className="font-medium mb-3">Rota Atual:</h4>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <h4 className="font-medium mb-3">Rota Programada:</h4>
               <div className="flex items-center space-x-2 flex-wrap">
-                <Badge variant="outline" className="text-aviation-blue border-aviation-blue">
-                  {baseLocation}
+                <Badge variant="outline" className="text-green-600 border-green-600">
+                  {baseLocation} ({departureFromBase})
                 </Badge>
                 {route.map((stop, index) => (
                   <React.Fragment key={stop.id}>
                     <ArrowRight className="h-4 w-4 text-gray-400" />
                     <Badge variant="outline" className="relative group">
-                      {stop.destination}
+                      {stop.destination} ({stop.arrivalTime}-{stop.departureTime})
                       <Button
                         variant="ghost"
                         size="sm"
@@ -183,51 +268,54 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                   </React.Fragment>
                 ))}
                 <ArrowRight className="h-4 w-4 text-gray-400" />
-                <Badge variant="outline" className="text-green-600 border-green-600">
-                  {baseLocation} (retorno)
+                <Badge variant="outline" className="text-blue-600 border-blue-600">
+                  {baseLocation} ({returnToBase})
                 </Badge>
               </div>
             </div>
           )}
 
           {/* Formulário para adicionar parada */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="destination">Destino</Label>
-              <Input
-                id="destination"
-                value={newDestination}
-                onChange={(e) => setNewDestination(e.target.value)}
-                placeholder="Ex: São Paulo (GRU)"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="arrival">Chegada</Label>
-              <Input
-                id="arrival"
-                type="time"
-                value={arrivalTime}
-                onChange={(e) => setArrivalTime(e.target.value)}
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="departure">Saída</Label>
-              <Input
-                id="departure"
-                type="time"
-                value={departureTime}
-                onChange={(e) => setDepartureTime(e.target.value)}
-              />
-            </div>
-            <div className="flex items-end">
-              <Button 
-                onClick={addStop} 
-                className="w-full bg-aviation-gradient hover:opacity-90"
-                disabled={!newDestination || !arrivalTime || !departureTime}
-              >
-                <Plus className="h-4 w-4 mr-2" />
-                Adicionar
-              </Button>
+          <div className="space-y-4">
+            <h4 className="font-medium">Adicionar Escala:</h4>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="destination">Destino</Label>
+                <Input
+                  id="destination"
+                  value={newDestination}
+                  onChange={(e) => setNewDestination(e.target.value)}
+                  placeholder="Ex: São Paulo (GRU)"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="arrival">Chegada</Label>
+                <Input
+                  id="arrival"
+                  type="time"
+                  value={arrivalTime}
+                  onChange={(e) => setArrivalTime(e.target.value)}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="departure">Saída</Label>
+                <Input
+                  id="departure"
+                  type="time"
+                  value={departureTime}
+                  onChange={(e) => setDepartureTime(e.target.value)}
+                />
+              </div>
+              <div className="flex items-end">
+                <Button 
+                  onClick={addStop} 
+                  className="w-full bg-aviation-gradient hover:opacity-90"
+                  disabled={!newDestination || !arrivalTime || !departureTime}
+                >
+                  <Plus className="h-4 w-4 mr-2" />
+                  Adicionar
+                </Button>
+              </div>
             </div>
           </div>
 
@@ -236,7 +324,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
             <div className="space-y-2">
               <h4 className="font-medium">Escalas Programadas:</h4>
               {route.map((stop, index) => (
-                <div key={stop.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                <div key={stop.id} className="flex items-center justify-between p-3 bg-white rounded-lg border">
                   <div className="flex items-center space-x-4">
                     <Badge variant="secondary">{index + 1}</Badge>
                     <div>
