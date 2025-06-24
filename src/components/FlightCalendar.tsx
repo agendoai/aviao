@@ -1,5 +1,4 @@
 
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -39,6 +38,27 @@ const localizer = dateFnsLocalizer({
     'pt-BR': ptBR,
   },
 });
+
+// Define formats for the calendar
+const formats = {
+  dateFormat: 'dd',
+  dayFormat: (date: Date, culture?: string, localizer?: any) => 
+    localizer.format(date, 'dd', culture),
+  dayRangeHeaderFormat: ({ start, end }: { start: Date; end: Date }, culture?: string, localizer?: any) =>
+    `${localizer.format(start, 'dd/MM', culture)} - ${localizer.format(end, 'dd/MM', culture)}`,
+  dayHeaderFormat: (date: Date, culture?: string, localizer?: any) =>
+    localizer.format(date, 'EEEE dd/MM', culture),
+  monthHeaderFormat: (date: Date, culture?: string, localizer?: any) =>
+    localizer.format(date, 'MMMM yyyy', culture),
+  agendaHeaderFormat: ({ start, end }: { start: Date; end: Date }, culture?: string, localizer?: any) =>
+    `${localizer.format(start, 'dd/MM/yyyy', culture)} - ${localizer.format(end, 'dd/MM/yyyy', culture)}`,
+  agendaDateFormat: (date: Date, culture?: string, localizer?: any) =>
+    localizer.format(date, 'EEEE dd/MM', culture),
+  agendaTimeFormat: (date: Date, culture?: string, localizer?: any) =>
+    localizer.format(date, 'HH:mm', culture),
+  agendaTimeRangeFormat: ({ start, end }: { start: Date; end: Date }, culture?: string, localizer?: any) =>
+    `${localizer.format(start, 'HH:mm', culture)} - ${localizer.format(end, 'HH:mm', culture)}`,
+};
 
 // Messages for the calendar
 const messages = {
@@ -247,6 +267,7 @@ const FlightCalendar: React.FC<FlightCalendarProps> = ({ selectedAircraft, onDat
               defaultView="month"
               culture="pt-BR"
               messages={messages}
+              formats={formats}
             />
           </div>
         </CardContent>
@@ -301,4 +322,3 @@ const FlightCalendar: React.FC<FlightCalendarProps> = ({ selectedAircraft, onDat
 };
 
 export default FlightCalendar;
-
