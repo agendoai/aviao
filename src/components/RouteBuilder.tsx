@@ -226,7 +226,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
   };
 
   const isReturnTimeFeasible = (): boolean => {
-    if (route.length === 0 || useCalculatedReturn) return true;
+    if (route.length === 0) return true;
     
     const calculatedReturn = calculateReturnTimeToBase();
     const desiredReturnDateTime = new Date(`${desiredReturnDate}T${desiredReturnTime}`);
@@ -236,7 +236,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
   };
 
   const getTimeDifference = (): number => {
-    if (route.length === 0 || useCalculatedReturn) return 0;
+    if (route.length === 0) return 0;
     
     const calculatedReturn = calculateReturnTimeToBase();
     const desiredReturnDateTime = new Date(`${desiredReturnDate}T${desiredReturnTime}`);
