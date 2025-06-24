@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Calendar } from '@/components/ui/calendar';
-import { MapPin, Plus, X, ArrowRight, Clock, Moon, AlertTriangle, Plane, Calculator, Calendar as CalendarIcon } from 'lucide-react';
+import { MapPin, Plus, X, ArrowRight, Clock, Moon, AlertTriangle, Plane } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -56,7 +56,6 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
   const [departureFromBase, setDepartureFromBase] = useState('08:00');
   const [desiredReturnTime, setDesiredReturnTime] = useState('18:00');
   const [desiredReturnDate, setDesiredReturnDate] = useState('');
-  const [useCalculatedReturn, setUseCalculatedReturn] = useState(true);
   
   // Estados para disponibilidade da aeronave
   const [occupiedDates, setOccupiedDates] = useState<Date[]>([]);
@@ -72,7 +71,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
     if (selectedDate && flightDate) {
       calculateTimingAndNotify();
     }
-  }, [departureFromBase, desiredReturnTime, desiredReturnDate, flightDate, route, useCalculatedReturn, selectedDate]);
+  }, [departureFromBase, desiredReturnTime, desiredReturnDate, flightDate, route, selectedDate]);
 
   const fetchOccupiedDates = async () => {
     if (!selectedAircraftId) return;
@@ -175,14 +174,10 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
   };
 
   const getEffectiveReturnDateTime = (): { time: string; date: string } => {
-    if (useCalculatedReturn) {
-      return calculateReturnTimeToBase();
-    } else {
-      return {
-        time: desiredReturnTime,
-        date: desiredReturnDate
-      };
-    }
+    return {
+      time: desiredReturnTime,
+      date: desiredReturnDate
+    };
   };
 
   const calculateTimingAndNotify = () => {
@@ -389,36 +384,46 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
               <h3 className="text-lg font-semibold">Selecione a Data da Missão</h3>
             </div>
             
-            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Calendário */}
-              <div className="lg:col-span-2">
-                <Calendar
-                  mode="single"
-                  selected={selectedDate}
-                  onSelect={handleDateSelect}
-                  className="rounded-lg border bg-white shadow-sm w-full max-w-none pointer-events-auto"
-                  disabled={(date) => date < new Date() || isDateOccupied(date)}
-                  modifiers={{
-                    occupied: occupiedDates,
-                    available: (date) => !isDateOccupied(date) && date >= new Date()
-                  }}
-                  modifiersStyles={{
-                    occupied: {
-                      backgroundColor: '#fee2e2',
-                      color: '#dc2626',
-                      textDecoration: 'line-through',
-                      fontWeight: 'bold'
-                    },
-                    available: {
-                      backgroundColor: '#dcfce7',
-                      color: '#16a34a',
-                      fontWeight: 'bold'
-                    }
-                  }}
-                />
+            <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+              {/* Calendário - Aumentado para ocupar mais espaço */}
+              <div className="lg:col-span-3">
+                {selectedAircraftId ? (
+                  <Calendar
+                    mode="single"
+                    selected={selectedDate}
+                    onSelect={handleDateSelect}
+                    className="rounded-lg border bg-white shadow-sm w-full max-w-none pointer-events-auto text-lg"
+                    disabled={(date) => date < new Date() || isDateOccupied(date)}
+                    modifiers={{
+                      occupied: occupiedDates,
+                      available: (date) => !isDateOccupied(date) && date >= new Date()
+                    }}
+                    modifiersStyles={{
+                      occupied: {
+                        backgroundColor: '#fee2e2',
+                        color: '#dc2626',
+                        textDecoration: 'line-through',
+                        fontWeight: 'bold'
+                      },
+                      available: {
+                        backgroundColor: '#dcfce7',
+                        color: '#16a34a',
+                        fontWeight: 'bold'
+                      }
+                    }}
+                  />
+                ) : (
+                  <div className="flex items-center justify-center h-80 bg-gray-50 rounded-lg border">
+                    <div className="text-center text-gray-500">
+                      <Plane className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+                      <p className="text-lg font-medium">Selecione uma aeronave primeiro</p>
+                      <p className="text-sm">A aeronave é selecionada no início do fluxo de reserva</p>
+                    </div>
+                  </div>
+                )}
               </div>
               
-              {/* Painel de Status */}
+              {/* Painel de Status - Reduzido */}
               <div className="space-y-4">
                 <div className="bg-gray-50 p-4 rounded-lg">
                   <h4 className="font-medium text-sm mb-3">Status das Datas</h4>
@@ -485,40 +490,28 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Tipo de Retorno</Label>
-                  <div className="flex space-x-2">
-                    <Button
-                      variant={useCalculatedReturn ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setUseCalculatedReturn(true)}
-                      className="flex-1"
-                    >
-                      <Calculator className="h-3 w-3 mr-1" />
-                      Auto
-                    </Button>
-                    <Button
-                      variant={!useCalculatedReturn ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setUseCalculatedReturn(false)}
-                      className="flex-1"
-                    >
-                      <Clock className="h-3 w-3 mr-1" />
-                      Manual
-                    </Button>
-                  </div>
-                </div>
-
-                {!useCalculatedReturn && (
-                  <div className="space-y-2">
-                    <Label htmlFor="return-time">Retorno Desejado</Label>
+                  <Label htmlFor="return-time">Retorno à Base</Label>
+                  <div className="relative">
                     <Input
                       id="return-time"
                       type="time"
                       value={desiredReturnTime}
                       onChange={(e) => setDesiredReturnTime(e.target.value)}
+                      className="pl-10"
                     />
+                    <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
                   </div>
-                )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="return-date">Data de Retorno</Label>
+                  <Input
+                    id="return-date"
+                    type="date"
+                    value={desiredReturnDate}
+                    onChange={(e) => setDesiredReturnDate(e.target.value)}
+                  />
+                </div>
               </div>
 
               {/* Resumo dos Horários */}
@@ -535,9 +528,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                   </div>
                   <div>
                     <span className="text-gray-600">Retorno:</span>
-                    <div className="font-medium">
-                      {useCalculatedReturn ? "Automático" : desiredReturnTime}
-                    </div>
+                    <div className="font-medium">{desiredReturnTime}</div>
                   </div>
                   <div>
                     <span className="text-gray-600">Escalas:</span>
