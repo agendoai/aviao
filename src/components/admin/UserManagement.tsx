@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
-import { UserPlus, Search, Edit, Ban } from 'lucide-react';
+import { UserPlus, Search, Edit, Ban, Shield, Crown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import type { ProfileWithRole } from '@/types/supabase-extended';
@@ -73,6 +72,8 @@ const UserManagement: React.FC = () => {
     return matchesSearch && matchesRole;
   });
 
+  const adminUsers = users.filter(user => user.role === 'admin');
+
   const getRoleBadgeColor = (role: string) => {
     switch (role) {
       case 'admin': return 'destructive';
@@ -102,6 +103,50 @@ const UserManagement: React.FC = () => {
 
   return (
     <div className="space-y-6">
+      {/* Card destacando administradores */}
+      <Card className="aviation-card border-red-200 bg-red-50">
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2 text-red-800">
+            <Shield className="h-5 w-5" />
+            <span>Usuários Administradores</span>
+          </CardTitle>
+          <CardDescription className="text-red-600">
+            {adminUsers.length === 0 
+              ? "Nenhum administrador encontrado no sistema"
+              : `${adminUsers.length} administrador(es) ativo(s) no sistema`
+            }
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {adminUsers.length > 0 ? (
+            <div className="space-y-2">
+              {adminUsers.map((admin) => (
+                <div key={admin.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-red-200">
+                  <div className="flex items-center space-x-3">
+                    <div className="w-10 h-10 bg-red-100 rounded-full flex items-center justify-center">
+                      <Crown className="h-5 w-5 text-red-600" />
+                    </div>
+                    <div>
+                      <div className="font-medium text-gray-900">{admin.name}</div>
+                      <div className="text-sm text-gray-600">{admin.email}</div>
+                    </div>
+                  </div>
+                  <Badge variant="destructive">
+                    Administrador
+                  </Badge>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div className="text-center py-4 text-red-600">
+              <Shield className="h-12 w-12 mx-auto mb-2 opacity-50" />
+              <p>Nenhum usuário com privilégios de administrador encontrado.</p>
+              <p className="text-sm mt-1">Considere promover um usuário para administrador.</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <Card className="aviation-card">
         <CardHeader>
           <CardTitle>Gestão de Usuários</CardTitle>
