@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Calendar } from '@/components/ui/calendar';
-import { MapPin, Plus, X, ArrowRight, Clock, Moon, AlertTriangle, Plane } from 'lucide-react';
+import { MapPin, Plus, X, ArrowRight, Clock, Moon, AlertTriangle, Plane, Play } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -150,6 +150,49 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
         month: 'long', 
         day: 'numeric' 
       })} selecionada com sucesso!`,
+    });
+  };
+
+  const loadExampleMission = () => {
+    // Configurar data para hoje se nenhuma estiver selecionada
+    if (!selectedDate) {
+      const today = new Date();
+      setSelectedDate(today);
+      setFlightDate(today.toISOString().split('T')[0]);
+    }
+
+    // Configurar horários do exemplo
+    setDepartureFromBase('08:00');
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    setDesiredReturnDate(tomorrow.toISOString().split('T')[0]);
+    setDesiredReturnTime('07:00');
+
+    // Configurar escalas do exemplo
+    const exampleRoute: RouteStop[] = [
+      {
+        id: 'example-1',
+        destination: 'São Paulo (GRU)',
+        arrivalTime: '09:30',
+        departureTime: '18:00',
+        stayDuration: 8.5
+      },
+      {
+        id: 'example-2',
+        destination: 'Mato Grosso (VGF)',
+        arrivalTime: '20:00',
+        departureTime: '06:00',
+        stayDuration: 10
+      }
+    ];
+
+    setRoute(exampleRoute);
+    onRouteChange(exampleRoute);
+    calculateRouteCosts(exampleRoute);
+
+    toast({
+      title: "Exemplo Carregado!",
+      description: "Missão de exemplo configurada: Araçatuba → São Paulo → Mato Grosso → Araçatuba",
     });
   };
 
@@ -376,6 +419,43 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-8">
+
+          {/* EXEMPLO DE MISSÃO */}
+          <div className="bg-gradient-to-r from-green-50 to-emerald-50 border-2 border-green-200 rounded-lg p-6">
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h3 className="text-lg font-semibold text-green-800">Exemplo de Missão</h3>
+                <p className="text-sm text-green-700">
+                  Voo saindo de Araçatuba às 8h → São Paulo (9:30-18h) → Mato Grosso (20h-6h) → Retorno às 7h
+                </p>
+              </div>
+              <Button 
+                onClick={loadExampleMission}
+                className="bg-green-600 hover:bg-green-700"
+              >
+                <Play className="h-4 w-4 mr-2" />
+                Carregar Exemplo
+              </Button>
+            </div>
+            
+            <div className="flex items-center space-x-2 text-sm text-green-700">
+              <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
+                Araçatuba (08:00)
+              </Badge>
+              <ArrowRight className="h-4 w-4" />
+              <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
+                São Paulo (09:30-18:00)
+              </Badge>
+              <ArrowRight className="h-4 w-4" />
+              <Badge variant="outline" className="bg-purple-100 text-purple-800 border-purple-300">
+                Mato Grosso (20:00-06:00)
+              </Badge>
+              <ArrowRight className="h-4 w-4" />
+              <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
+                Araçatuba (07:00)
+              </Badge>
+            </div>
+          </div>
           
           {/* PASSO 1: Seleção de Data */}
           <div className="space-y-4">
