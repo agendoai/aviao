@@ -6,9 +6,11 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Calendar } from '@/components/ui/calendar';
-import { MapPin, Plus, X, ArrowRight, Clock, Moon, AlertTriangle, Plane, Play } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { MapPin, Plus, X, ArrowRight, Clock, Moon, AlertTriangle, Plane, Play, Calculator } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { getFlightTime, getDistance, calculateArrivalTime, formatFlightTime, airports, suggestDestinations } from '@/utils/flightCalculations';
 
 interface RouteStop {
   id: string;
@@ -16,6 +18,10 @@ interface RouteStop {
   arrivalTime: string;
   departureTime: string;
   stayDuration: number;
+  arrivalDate?: string;
+  departureDate?: string;
+  flightTimeFromPrevious?: number;
+  distanceFromPrevious?: number;
 }
 
 interface RouteBuilderProps {
@@ -49,6 +55,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
   const [newDestination, setNewDestination] = useState('');
   const [arrivalTime, setArrivalTime] = useState('');
   const [departureTime, setDepartureTime] = useState('');
+  const [stayDuration, setStayDuration] = useState<number>(2); // Duração da permanência em horas
   
   // Estados do calendário e horários
   const [selectedDate, setSelectedDate] = useState<Date | undefined>(undefined);
@@ -168,23 +175,40 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
     setDesiredReturnDate(tomorrow.toISOString().split('T')[0]);
     setDesiredReturnTime('07:00');
 
-    // Configurar escalas do exemplo
-    const exampleRoute: RouteStop[] = [
-      {
-        id: 'example-1',
-        destination: 'São Paulo (GRU)',
-        arrivalTime: '09:30',
-        departureTime: '18:00',
-        stayDuration: 8.5
-      },
-      {
-        id: 'example-2',
-        destination: 'Mato Grosso (VGF)',
-        arrivalTime: '20:00',
-        departureTime: '06:00',
-        stayDuration: 10
-      }
-    ];
+    // Configurar escalas do exemplo com cálculos automáticos
+    const exampleRoute: RouteStop[] = [];
+    
+    // Primeira escala: Araçatuba → São Paulo
+    const spFlightTime = getFlightTime(baseLocation, 'São Paulo (GRU)');
+    const spArrival = calculateArrivalTime('08:00', spFlightTime, flightDate);
+    
+    exampleRoute.push({
+      id: 'example-1',
+      destination: 'São Paulo (GRU)',
+      arrivalTime: spArrival.time,
+      arrivalDate: spArrival.date,
+      departureTime: '18:00',
+      departureDate: spArrival.date,
+      stayDuration: 8.5,
+      flightTimeFromPrevious: spFlightTime,
+      distanceFromPrevious: getDistance(baseLocation, 'São Paulo (GRU)')
+    });
+
+    // Segunda escala: São Paulo → Mato Grosso
+    const mgFlightTime = getFlightTime('São Paulo (GRU)', 'Mato Grosso (VGF)');
+    const mgArrival = calculateArrivalTime('18:00', mgFlightTime, spArrival.date);
+    
+    exampleRoute.push({
+      id: 'example-2',
+      destination: 'Mato Grosso (VGF)',
+      arrivalTime: mgArrival.time,
+      arrivalDate: mgArrival.date,
+      departureTime: '06:00',
+      departureDate: tomorrow.toISOString().split('T')[0],
+      stayDuration: 10,
+      flightTimeFromPrevious: mgFlightTime,
+      distanceFromPrevious: getDistance('São Paulo (GRU)', 'Mato Grosso (VGF)')
+    });
 
     setRoute(exampleRoute);
     onRouteChange(exampleRoute);
@@ -192,7 +216,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
 
     toast({
       title: "Exemplo Carregado!",
-      description: "Missão de exemplo configurada: Araçatuba → São Paulo → Mato Grosso → Araçatuba",
+      description: "Missão configurada com horários calculados automaticamente baseados em distâncias reais.",
     });
   };
 
@@ -294,15 +318,28 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
   };
 
   const addStop = () => {
-    if (!newDestination || !arrivalTime || !departureTime) return;
+    if (!newDestination || !departureTime || !stayDuration) return;
     
-    const stayDuration = calculateStayDuration(arrivalTime, departureTime);
+    // Determinar ponto de partida (base ou última escala)
+    const previousLocation = route.length === 0 ? baseLocation : route[route.length - 1].destination;
+    const previousDeparture = route.length === 0 ? departureFromBase : route[route.length - 1].departureTime;
+    const previousDate = route.length === 0 ? flightDate : route[route.length - 1].departureDate || flightDate;
+    
+    // Calcular tempo de voo e chegada
+    const flightTime = getFlightTime(previousLocation, newDestination);
+    const distance = getDistance(previousLocation, newDestination);
+    const arrival = calculateArrivalTime(previousDeparture, flightTime, previousDate);
+    
     const newStop: RouteStop = {
       id: Date.now().toString(),
       destination: newDestination,
-      arrivalTime,
+      arrivalTime: arrival.time,
+      arrivalDate: arrival.date,
       departureTime,
-      stayDuration
+      departureDate: arrival.date, // Assumindo partida no mesmo dia por padrão
+      stayDuration,
+      flightTimeFromPrevious: flightTime,
+      distanceFromPrevious: distance
     };
 
     const updatedRoute = [...route, newStop];
@@ -311,11 +348,16 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
     
     // Reset form
     setNewDestination('');
-    setArrivalTime('');
     setDepartureTime('');
+    setStayDuration(2);
     
     // Calculate costs
     calculateRouteCosts(updatedRoute);
+
+    toast({
+      title: "Escala Adicionada",
+      description: `${newDestination} - Voo de ${formatFlightTime(flightTime)} (${distance}km). Chegada calculada: ${arrival.time}`,
+    });
   };
 
   const removeStop = (stopId: string) => {
@@ -348,7 +390,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
     let previousLocation = baseLocation;
     
     routeStops.forEach((stop, index) => {
-      const flightTime = 2;
+      const flightTime = stop.flightTimeFromPrevious || 2;
       const flightCost = flightTime * hourlyRate;
       const airportFees = 1000;
       
@@ -361,6 +403,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
         flightTime,
         flightCost,
         airportFees,
+        distance: stop.distanceFromPrevious || 0,
         overnightCost: 0,
         hasOvernight: false,
         total: segmentCost
@@ -371,7 +414,8 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
 
     // Adicionar trecho de retorno à base
     if (routeStops.length > 0) {
-      const returnFlightTime = 2;
+      const returnFlightTime = getFlightTime(previousLocation, baseLocation);
+      const returnDistance = getDistance(previousLocation, baseLocation);
       const returnFlightCost = returnFlightTime * hourlyRate;
       const returnAirportFees = 600;
       const returnSegmentCost = returnFlightCost + returnAirportFees;
@@ -384,6 +428,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
         flightTime: returnFlightTime,
         flightCost: returnFlightCost,
         airportFees: returnAirportFees,
+        distance: returnDistance,
         overnightCost: 0,
         hasOvernight: false,
         total: returnSegmentCost,
@@ -412,10 +457,10 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
         <CardHeader>
           <CardTitle className="flex items-center space-x-2">
             <MapPin className="h-5 w-5" />
-            <span>Planejamento de Voo</span>
+            <span>Planejamento de Voo Inteligente</span>
           </CardTitle>
           <CardDescription>
-            Base: {baseLocation} - Selecione a data e configure sua missão
+            Base: {baseLocation} - Horários calculados automaticamente baseados em distâncias reais
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-8">
@@ -426,7 +471,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
               <div>
                 <h3 className="text-lg font-semibold text-green-800">Exemplo de Missão</h3>
                 <p className="text-sm text-green-700">
-                  Voo saindo de Araçatuba às 8h → São Paulo (9:30-18h) → Mato Grosso (20h-6h) → Retorno às 7h
+                  Voo com horários calculados automaticamente baseados em distâncias reais
                 </p>
               </div>
               <Button 
@@ -440,20 +485,10 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
             
             <div className="flex items-center space-x-2 text-sm text-green-700">
               <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
-                Araçatuba (08:00)
+                <Calculator className="h-3 w-3 mr-1" />
+                Cálculo Automático
               </Badge>
-              <ArrowRight className="h-4 w-4" />
-              <Badge variant="outline" className="bg-blue-100 text-blue-800 border-blue-300">
-                São Paulo (09:30-18:00)
-              </Badge>
-              <ArrowRight className="h-4 w-4" />
-              <Badge variant="outline" className="bg-purple-100 text-purple-800 border-purple-300">
-                Mato Grosso (20:00-06:00)
-              </Badge>
-              <ArrowRight className="h-4 w-4" />
-              <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
-                Araçatuba (07:00)
-              </Badge>
+              <span className="text-xs">Horários baseados em tempo de voo real</span>
             </div>
           </div>
           
@@ -630,12 +665,12 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
             </div>
           )}
 
-          {/* PASSO 3: Escalas (Opcional) */}
+          {/* PASSO 3: Escalas com Cálculo Automático */}
           {selectedDate && (
             <div className="space-y-4 border-t pt-6">
               <div className="flex items-center space-x-2 mb-4">
                 <div className="w-8 h-8 bg-gray-400 text-white rounded-full flex items-center justify-center text-sm font-bold">3</div>
-                <h3 className="text-lg font-semibold">Adicionar Escalas (Opcional)</h3>
+                <h3 className="text-lg font-semibold">Adicionar Escalas com Cálculo Automático</h3>
               </div>
 
               {/* Visualização da rota atual */}
@@ -668,61 +703,110 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                 </div>
               </div>
 
-              {/* Formulário para nova escala */}
-              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="destination">Destino</Label>
-                  <Input
-                    id="destination"
-                    value={newDestination}
-                    onChange={(e) => setNewDestination(e.target.value)}
-                    placeholder="Ex: São Paulo (GRU)"
-                  />
+              {/* Formulário para nova escala com cálculo automático */}
+              <div className="bg-blue-50 p-4 rounded-lg">
+                <h4 className="font-medium mb-3 flex items-center space-x-2">
+                  <Calculator className="h-4 w-4" />
+                  <span>Nova Escala (Horário de Chegada Calculado Automaticamente)</span>
+                </h4>
+                
+                <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="destination">Destino</Label>
+                    <Select value={newDestination} onValueChange={setNewDestination}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Selecione o destino" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {airports.filter(airport => airport.name !== baseLocation).map(airport => (
+                          <SelectItem key={airport.code} value={airport.name}>
+                            {airport.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="stay-duration">Permanência (horas)</Label>
+                    <Input
+                      id="stay-duration"
+                      type="number"
+                      min="0.5"
+                      step="0.5"
+                      value={stayDuration}
+                      onChange={(e) => setStayDuration(parseFloat(e.target.value) || 2)}
+                    />
+                  </div>
+                  
+                  <div className="space-y-2">
+                    <Label htmlFor="departure">Horário de Saída</Label>
+                    <Input
+                      id="departure"
+                      type="time"
+                      value={departureTime}
+                      onChange={(e) => setDepartureTime(e.target.value)}
+                    />
+                  </div>
+                  
+                  <div className="flex items-end">
+                    <Button 
+                      onClick={addStop} 
+                      className="w-full"
+                      disabled={!newDestination || !departureTime}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      Calcular e Adicionar
+                    </Button>
+                  </div>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="arrival">Chegada</Label>
-                  <Input
-                    id="arrival"
-                    type="time"
-                    value={arrivalTime}
-                    onChange={(e) => setArrivalTime(e.target.value)}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="departure">Saída</Label>
-                  <Input
-                    id="departure"
-                    type="time"
-                    value={departureTime}
-                    onChange={(e) => setDepartureTime(e.target.value)}
-                  />
-                </div>
-                <div className="flex items-end">
-                  <Button 
-                    onClick={addStop} 
-                    className="w-full"
-                    disabled={!newDestination || !arrivalTime || !departureTime}
-                  >
-                    <Plus className="h-4 w-4 mr-2" />
-                    Adicionar
-                  </Button>
-                </div>
+
+                {/* Preview do cálculo */}
+                {newDestination && (
+                  <div className="mt-4 p-3 bg-white rounded border">
+                    <h5 className="text-sm font-medium mb-2">Preview do Cálculo:</h5>
+                    <div className="text-sm text-gray-600 space-y-1">
+                      <div>
+                        Distância: {getDistance(
+                          route.length === 0 ? baseLocation : route[route.length - 1].destination, 
+                          newDestination
+                        )}km
+                      </div>
+                      <div>
+                        Tempo de voo: {formatFlightTime(getFlightTime(
+                          route.length === 0 ? baseLocation : route[route.length - 1].destination, 
+                          newDestination
+                        ))}
+                      </div>
+                      <div>
+                        Partida de: {route.length === 0 ? baseLocation : route[route.length - 1].destination} 
+                        às {route.length === 0 ? departureFromBase : route[route.length - 1].departureTime}
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
 
-              {/* Lista de escalas */}
+              {/* Lista de escalas com detalhes de voo */}
               {route.length > 0 && (
                 <div className="space-y-2">
-                  <h4 className="font-medium">Escalas Confirmadas:</h4>
+                  <h4 className="font-medium">Escalas Confirmadas com Detalhes de Voo:</h4>
                   {route.map((stop, index) => (
-                    <div key={stop.id} className="flex items-center justify-between p-3 bg-white rounded-lg border">
+                    <div key={stop.id} className="flex items-center justify-between p-4 bg-white rounded-lg border">
                       <div className="flex items-center space-x-4">
                         <Badge variant="secondary">{index + 1}</Badge>
-                        <div>
+                        <div className="space-y-1">
                           <p className="font-medium">{stop.destination}</p>
-                          <p className="text-sm text-gray-600">
-                            {stop.arrivalTime} - {stop.departureTime} 
-                            ({stop.stayDuration.toFixed(1)}h de permanência)
-                          </p>
+                          <div className="text-sm text-gray-600 space-y-0.5">
+                            <div>
+                              🛫 Chegada: {stop.arrivalTime} | 🛬 Saída: {stop.departureTime}
+                            </div>
+                            <div>
+                              ⏱️ Voo: {formatFlightTime(stop.flightTimeFromPrevious || 0)} | 
+                              📏 Distância: {stop.distanceFromPrevious}km | 
+                              🕐 Permanência: {stop.stayDuration.toFixed(1)}h
+                            </div>
+                          </div>
                         </div>
                       </div>
                       <Button
