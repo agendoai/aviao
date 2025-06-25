@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -146,7 +147,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
 
     setSelectedDate(date);
     setFlightDate(date.toISOString().split('T')[0]);
-    setDesiredReturnDate(date.toISOString().split('T')[0]);
+    // Não definir mais a data de retorno automaticamente - será calculada
 
     toast({
       title: "Data Selecionada",
@@ -169,9 +170,6 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
 
     // Configurar horários do exemplo
     setDepartureFromBase('08:00');
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
-    setDesiredReturnDate(tomorrow.toISOString().split('T')[0]);
     setDesiredReturnTime('07:00');
 
     // Configurar escalas do exemplo com cálculos automáticos
@@ -180,14 +178,15 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
     // Primeira escala: Araçatuba → São Paulo
     const spFlightTime = getFlightTime(baseLocation, 'São Paulo (GRU)');
     const spArrival = calculateArrivalTime('08:00', spFlightTime, flightDate);
-    const spStayDuration = calculateStayDuration(spArrival.time, '18:00');
+    const spDepartureTime = '18:00';
+    const spStayDuration = calculateStayDuration(spArrival.time, spDepartureTime);
     
     exampleRoute.push({
       id: 'example-1',
       destination: 'São Paulo (GRU)',
       arrivalTime: spArrival.time,
       arrivalDate: spArrival.date,
-      departureTime: '18:00',
+      departureTime: spDepartureTime,
       departureDate: spArrival.date,
       stayDuration: spStayDuration,
       flightTimeFromPrevious: spFlightTime,
@@ -196,16 +195,21 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
 
     // Segunda escala: São Paulo → Mato Grosso
     const mgFlightTime = getFlightTime('São Paulo (GRU)', 'Mato Grosso (VGF)');
-    const mgArrival = calculateArrivalTime('18:00', mgFlightTime, spArrival.date);
-    const mgStayDuration = calculateStayDuration(mgArrival.time, '06:00');
+    const mgArrival = calculateArrivalTime(spDepartureTime, mgFlightTime, spArrival.date);
+    const mgDepartureTime = '06:00';
+    // Calcular se a saída é no dia seguinte
+    const mgDepartureDate = mgArrival.time > mgDepartureTime ? 
+      new Date(new Date(mgArrival.date).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0] : 
+      mgArrival.date;
+    const mgStayDuration = calculateStayDurationWithDates(mgArrival.time, mgArrival.date, mgDepartureTime, mgDepartureDate);
     
     exampleRoute.push({
       id: 'example-2',
       destination: 'Mato Grosso (VGF)',
       arrivalTime: mgArrival.time,
       arrivalDate: mgArrival.date,
-      departureTime: '06:00',
-      departureDate: tomorrow.toISOString().split('T')[0],
+      departureTime: mgDepartureTime,
+      departureDate: mgDepartureDate,
       stayDuration: mgStayDuration,
       flightTimeFromPrevious: mgFlightTime,
       distanceFromPrevious: getDistance('São Paulo (GRU)', 'Mato Grosso (VGF)')
@@ -215,9 +219,12 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
     onRouteChange(exampleRoute);
     calculateRouteCosts(exampleRoute);
 
+    // Definir data de retorno baseada na última escala
+    setDesiredReturnDate(mgDepartureDate);
+
     toast({
       title: "Exemplo Carregado!",
-      description: "Missão configurada com permanências calculadas automaticamente baseadas nos horários.",
+      description: "Missão configurada com datas calculadas automaticamente baseadas no itinerário.",
     });
   };
 
@@ -229,23 +236,29 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
     
     // Pegar a última escala
     const lastStop = route[route.length - 1];
-    const lastDepartureTime = new Date(`${flightDate}T${lastStop.departureTime}`);
+    const lastDepartureDateTime = new Date(`${lastStop.departureDate}T${lastStop.departureTime}`);
     
-    // Assumir 2 horas de voo de volta à base
-    const estimatedFlightDuration = 2; // horas
-    const returnDateTime = new Date(lastDepartureTime.getTime() + (estimatedFlightDuration * 60 * 60 * 1000));
+    // Calcular tempo de voo de volta à base
+    const returnFlightTime = getFlightTime(lastStop.destination, baseLocation);
+    const returnArrival = calculateArrivalTime(lastStop.departureTime, returnFlightTime, lastStop.departureDate);
     
     return {
-      time: returnDateTime.toTimeString().slice(0, 5),
-      date: returnDateTime.toISOString().split('T')[0]
+      time: returnArrival.time,
+      date: returnArrival.date
     };
   };
 
   const getEffectiveReturnDateTime = (): { time: string; date: string } => {
-    return {
-      time: desiredReturnTime,
-      date: desiredReturnDate
-    };
+    // Se não há rota, usar valores desejados
+    if (route.length === 0) {
+      return {
+        time: desiredReturnTime,
+        date: desiredReturnDate || flightDate
+      };
+    }
+    
+    // Calcular retorno baseado na última escala
+    return calculateReturnTimeToBase();
   };
 
   const calculateTimingAndNotify = () => {
@@ -253,6 +266,12 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
     const effectiveReturn = getEffectiveReturnDateTime();
     const hasOvernight = checkForOvernight(effectiveReturn.time, effectiveReturn.date);
     const overnightCount = calculateOvernightDays(effectiveReturn.date);
+    
+    // Atualizar automaticamente a data de retorno desejada baseada no cálculo
+    if (route.length > 0) {
+      setDesiredReturnDate(calculatedReturn.date);
+      setDesiredReturnTime(calculatedReturn.time);
+    }
     
     if (onTimingChange) {
       onTimingChange({
@@ -264,8 +283,8 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
         overnightCount,
         calculatedReturnTime: calculatedReturn.time,
         calculatedReturnDate: calculatedReturn.date,
-        desiredReturnTime,
-        desiredReturnDate
+        desiredReturnTime: effectiveReturn.time,
+        desiredReturnDate: effectiveReturn.date
       });
     }
   };
@@ -275,10 +294,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
     const checkDate = returnDate || getEffectiveReturnDateTime().date;
     
     // Se a data de retorno é diferente da data de saída, é pernoite
-    if (checkDate !== flightDate) return true;
-    
-    // Se mesmo dia, mas horário de retorno é menor que o de saída, passou da meia-noite
-    return checkTime < departureFromBase;
+    return checkDate !== flightDate;
   };
 
   const calculateOvernightDays = (returnDate?: string): number => {
@@ -293,29 +309,17 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
     return Math.max(0, daysDiff);
   };
 
-  const isReturnTimeFeasible = (): boolean => {
-    if (route.length === 0) return true;
-    
-    const calculatedReturn = calculateReturnTimeToBase();
-    const desiredReturnDateTime = new Date(`${desiredReturnDate}T${desiredReturnTime}`);
-    const calculatedReturnDateTime = new Date(`${calculatedReturn.date}T${calculatedReturn.time}`);
-    
-    return desiredReturnDateTime >= calculatedReturnDateTime;
-  };
-
-  const getTimeDifference = (): number => {
-    if (route.length === 0) return 0;
-    
-    const calculatedReturn = calculateReturnTimeToBase();
-    const desiredReturnDateTime = new Date(`${desiredReturnDate}T${desiredReturnTime}`);
-    const calculatedReturnDateTime = new Date(`${calculatedReturn.date}T${calculatedReturn.time}`);
-    
-    return (desiredReturnDateTime.getTime() - calculatedReturnDateTime.getTime()) / (1000 * 60); // em minutos
-  };
-
   const formatDateTime = (date: string, time: string): string => {
     const dateObj = new Date(`${date}T${time}`);
     return dateObj.toLocaleDateString('pt-BR') + ' às ' + time;
+  };
+
+  // Função para calcular permanência considerando datas
+  const calculateStayDurationWithDates = (arrivalTime: string, arrivalDate: string, departureTime: string, departureDate: string): number => {
+    const arrivalDateTime = new Date(`${arrivalDate}T${arrivalTime}`);
+    const departureDateTime = new Date(`${departureDate}T${departureTime}`);
+    
+    return (departureDateTime.getTime() - arrivalDateTime.getTime()) / (1000 * 60 * 60);
   };
 
   // New function to calculate stay duration preview
@@ -331,8 +335,13 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
     const flightTime = getFlightTime(previousLocation, newDestination);
     const arrival = calculateArrivalTime(previousDeparture, flightTime, previousDate);
     
-    // Calcular permanência baseada na chegada e saída
-    return calculateStayDuration(arrival.time, departureTime);
+    // Determinar data de saída (se horário de saída for menor que chegada, é no dia seguinte)
+    const departureDate = arrival.time > departureTime ? 
+      new Date(new Date(arrival.date).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0] : 
+      arrival.date;
+    
+    // Calcular permanência baseada na chegada e saída com datas
+    return calculateStayDurationWithDates(arrival.time, arrival.date, departureTime, departureDate);
   };
 
   const addStop = () => {
@@ -348,8 +357,13 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
     const distance = getDistance(previousLocation, newDestination);
     const arrival = calculateArrivalTime(previousDeparture, flightTime, previousDate);
     
-    // Calcular permanência automaticamente baseada na chegada e saída
-    const stayDuration = calculateStayDuration(arrival.time, departureTime);
+    // Determinar data de saída baseada no horário
+    const departureDate = arrival.time > departureTime ? 
+      new Date(new Date(arrival.date).getTime() + 24 * 60 * 60 * 1000).toISOString().split('T')[0] : 
+      arrival.date;
+    
+    // Calcular permanência automaticamente baseada na chegada e saída com datas
+    const stayDuration = calculateStayDurationWithDates(arrival.time, arrival.date, departureTime, departureDate);
     
     const newStop: RouteStop = {
       id: Date.now().toString(),
@@ -357,7 +371,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
       arrivalTime: arrival.time,
       arrivalDate: arrival.date,
       departureTime,
-      departureDate: arrival.date, // Assumindo partida no mesmo dia por padrão
+      departureDate,
       stayDuration,
       flightTimeFromPrevious: flightTime,
       distanceFromPrevious: distance
@@ -376,7 +390,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
 
     toast({
       title: "Escala Adicionada",
-      description: `${newDestination} - Voo de ${formatFlightTime(flightTime)} (${distance}km). Permanência: ${formatFlightTime(stayDuration)}`,
+      description: `${newDestination} - Chegada: ${arrival.date} ${arrival.time}, Saída: ${departureDate} ${departureTime}. Permanência: ${formatFlightTime(stayDuration)}`,
     });
   };
 
@@ -481,7 +495,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
             <span>Planejamento de Voo Inteligente</span>
           </CardTitle>
           <CardDescription>
-            Base: {baseLocation} - Permanências calculadas automaticamente baseadas nos horários
+            Base: {baseLocation} - Datas calculadas automaticamente baseadas no itinerário
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-8">
@@ -492,7 +506,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
               <div>
                 <h3 className="text-lg font-semibold text-green-800">Exemplo de Missão</h3>
                 <p className="text-sm text-green-700">
-                  Voo com permanências calculadas automaticamente baseadas nos horários
+                  Voo com datas de retorno calculadas automaticamente baseadas no itinerário
                 </p>
               </div>
               <Button 
@@ -507,9 +521,9 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
             <div className="flex items-center space-x-2 text-sm text-green-700">
               <Badge variant="outline" className="bg-green-100 text-green-800 border-green-300">
                 <Calculator className="h-3 w-3 mr-1" />
-                Cálculo Automático
+                Cálculo Automático de Datas
               </Badge>
-              <span className="text-xs">Permanência calculada automaticamente</span>
+              <span className="text-xs">Datas de chegada e saída calculadas automaticamente</span>
             </div>
           </div>
           
@@ -517,7 +531,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
           <div className="space-y-4">
             <div className="flex items-center space-x-2 mb-4">
               <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">1</div>
-              <h3 className="text-lg font-semibold">Selecione a Data da Missão</h3>
+              <h3 className="text-lg font-semibold">Selecione a Data de Início da Missão</h3>
             </div>
             
             <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
@@ -581,7 +595,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                 
                 {selectedDate && (
                   <div className="bg-green-50 p-4 rounded-lg border border-green-200">
-                    <h4 className="font-medium text-sm mb-2 text-green-800">Data Selecionada</h4>
+                    <h4 className="font-medium text-sm mb-2 text-green-800">Data de Início</h4>
                     <p className="text-sm font-medium text-green-700">
                       {selectedDate.toLocaleDateString('pt-BR', { 
                         weekday: 'long', 
@@ -607,10 +621,10 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
             <div className="space-y-4 border-t pt-6">
               <div className="flex items-center space-x-2 mb-4">
                 <div className="w-8 h-8 bg-blue-500 text-white rounded-full flex items-center justify-center text-sm font-bold">2</div>
-                <h3 className="text-lg font-semibold">Configure os Horários</h3>
+                <h3 className="text-lg font-semibold">Configure o Horário de Saída</h3>
               </div>
               
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 bg-blue-50 p-6 rounded-lg">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 bg-blue-50 p-6 rounded-lg">
                 <div className="space-y-2">
                   <Label htmlFor="departure-time">Saída da Base</Label>
                   <div className="relative">
@@ -626,27 +640,16 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                 </div>
 
                 <div className="space-y-2">
-                  <Label htmlFor="return-time">Retorno à Base</Label>
+                  <Label className="text-gray-600">Retorno à Base (Calculado Automaticamente)</Label>
                   <div className="relative">
                     <Input
-                      id="return-time"
-                      type="time"
-                      value={desiredReturnTime}
-                      onChange={(e) => setDesiredReturnTime(e.target.value)}
-                      className="pl-10"
+                      type="text"
+                      value={`${getEffectiveReturnDateTime().time} - ${new Date(getEffectiveReturnDateTime().date).toLocaleDateString('pt-BR')}`}
+                      readOnly
+                      className="pl-10 bg-gray-100"
                     />
                     <Clock className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-500" />
                   </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="return-date">Data de Retorno</Label>
-                  <Input
-                    id="return-date"
-                    type="date"
-                    value={desiredReturnDate}
-                    onChange={(e) => setDesiredReturnDate(e.target.value)}
-                  />
                 </div>
               </div>
 
@@ -655,7 +658,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                 <h4 className="font-medium text-sm mb-3">Resumo da Missão</h4>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div>
-                    <span className="text-gray-600">Data:</span>
+                    <span className="text-gray-600">Data de Início:</span>
                     <div className="font-medium">{selectedDate.toLocaleDateString('pt-BR')}</div>
                   </div>
                   <div>
@@ -664,7 +667,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                   </div>
                   <div>
                     <span className="text-gray-600">Retorno:</span>
-                    <div className="font-medium">{desiredReturnTime}</div>
+                    <div className="font-medium">{getEffectiveReturnDateTime().time}</div>
                   </div>
                   <div>
                     <span className="text-gray-600">Escalas:</span>
@@ -691,7 +694,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
             <div className="space-y-4 border-t pt-6">
               <div className="flex items-center space-x-2 mb-4">
                 <div className="w-8 h-8 bg-gray-400 text-white rounded-full flex items-center justify-center text-sm font-bold">3</div>
-                <h3 className="text-lg font-semibold">Adicionar Escalas - Permanência Calculada Automaticamente</h3>
+                <h3 className="text-lg font-semibold">Adicionar Escalas - Datas Calculadas Automaticamente</h3>
               </div>
 
               {/* Visualização da rota atual */}
@@ -699,13 +702,13 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                 <h4 className="font-medium mb-3">Rota Programada:</h4>
                 <div className="flex items-center space-x-2 flex-wrap">
                   <Badge variant="outline" className="text-green-600 border-green-600">
-                    {baseLocation} ({departureFromBase})
+                    {baseLocation} ({selectedDate.toLocaleDateString('pt-BR')} {departureFromBase})
                   </Badge>
                   {route.map((stop, index) => (
                     <React.Fragment key={stop.id}>
                       <ArrowRight className="h-4 w-4 text-gray-400" />
                       <Badge variant="outline" className="relative group">
-                        {stop.destination} ({stop.arrivalTime}-{stop.departureTime})
+                        {stop.destination} ({new Date(stop.arrivalDate!).toLocaleDateString('pt-BR')} {stop.arrivalTime} - {new Date(stop.departureDate!).toLocaleDateString('pt-BR')} {stop.departureTime})
                         <Button
                           variant="ghost"
                           size="sm"
@@ -719,7 +722,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                   ))}
                   <ArrowRight className="h-4 w-4 text-gray-400" />
                   <Badge variant="outline" className="text-blue-600 border-blue-600">
-                    {baseLocation} ({getEffectiveReturnDateTime().time})
+                    {baseLocation} ({new Date(getEffectiveReturnDateTime().date).toLocaleDateString('pt-BR')} {getEffectiveReturnDateTime().time})
                   </Badge>
                 </div>
               </div>
@@ -728,7 +731,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
               <div className="bg-blue-50 p-4 rounded-lg">
                 <h4 className="font-medium mb-3 flex items-center space-x-2">
                   <Calculator className="h-4 w-4" />
-                  <span>Nova Escala (Permanência Calculada Automaticamente)</span>
+                  <span>Nova Escala (Datas Calculadas Automaticamente)</span>
                 </h4>
                 
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
@@ -804,7 +807,7 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
               {/* Lista de escalas com detalhes de voo */}
               {route.length > 0 && (
                 <div className="space-y-2">
-                  <h4 className="font-medium">Escalas Confirmadas com Permanências Calculadas:</h4>
+                  <h4 className="font-medium">Escalas Confirmadas com Datas Calculadas Automaticamente:</h4>
                   {route.map((stop, index) => (
                     <div key={stop.id} className="flex items-center justify-between p-4 bg-white rounded-lg border">
                       <div className="flex items-center space-x-4">
@@ -813,7 +816,8 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                           <p className="font-medium">{stop.destination}</p>
                           <div className="text-sm text-gray-600 space-y-0.5">
                             <div>
-                              🛫 Chegada: {stop.arrivalTime} | 🛬 Saída: {stop.departureTime}
+                              🛫 Chegada: {new Date(stop.arrivalDate!).toLocaleDateString('pt-BR')} {stop.arrivalTime} | 
+                              🛬 Saída: {new Date(stop.departureDate!).toLocaleDateString('pt-BR')} {stop.departureTime}
                             </div>
                             <div>
                               ⏱️ Voo: {formatFlightTime(stop.flightTimeFromPrevious || 0)} | 
