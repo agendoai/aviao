@@ -318,6 +318,23 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
     return dateObj.toLocaleDateString('pt-BR') + ' às ' + time;
   };
 
+  // New function to calculate stay duration preview
+  const getStayDurationPreview = (): number | null => {
+    if (!newDestination || !departureTime) return null;
+    
+    // Determinar ponto de partida (base ou última escala)
+    const previousLocation = route.length === 0 ? baseLocation : route[route.length - 1].destination;
+    const previousDeparture = route.length === 0 ? departureFromBase : route[route.length - 1].departureTime;
+    const previousDate = route.length === 0 ? flightDate : route[route.length - 1].departureDate || flightDate;
+    
+    // Calcular tempo de voo e chegada
+    const flightTime = getFlightTime(previousLocation, newDestination);
+    const arrival = calculateArrivalTime(previousDeparture, flightTime, previousDate);
+    
+    // Calcular permanência baseada na chegada e saída
+    return calculateStayDuration(arrival.time, departureTime);
+  };
+
   const addStop = () => {
     if (!newDestination || !departureTime) return;
     
