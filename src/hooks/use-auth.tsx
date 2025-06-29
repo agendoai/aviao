@@ -76,27 +76,27 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       } else {
         console.log('No profile found, creating default profile');
         // Create a default profile if none exists
-        const defaultProfile: Partial<Profile> = {
+        const newProfile = {
           id: userId,
           name: user?.email || 'Usuário',
           email: user?.email || '',
           balance: 0,
           priority_position: 999,
           role: 'client',
-          membership_tier: 'basic',
-          monthly_fee_status: 'pending'
+          membership_tier: 'basic' as const,
+          monthly_fee_status: 'pending' as const
         };
         
-        const { data: newProfile, error: createError } = await supabase
+        const { data: createdProfile, error: createError } = await supabase
           .from('profiles')
-          .insert([defaultProfile])
+          .insert(newProfile)
           .select()
           .single();
           
         if (createError) {
           console.error('Error creating profile:', createError);
-        } else if (newProfile) {
-          setProfile(newProfile);
+        } else if (createdProfile) {
+          setProfile(createdProfile);
         }
       }
     } catch (error) {
