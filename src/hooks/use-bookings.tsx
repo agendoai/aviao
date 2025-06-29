@@ -12,7 +12,6 @@ export const useBookings = () => {
   const { user } = useAuth();
   const queryClient = useQueryClient();
 
-  // Fetch user's bookings
   const {
     data: bookings = [],
     isLoading,
@@ -48,7 +47,6 @@ export const useBookings = () => {
     enabled: !!user,
   });
 
-  // Create new booking
   const createBookingMutation = useMutation({
     mutationFn: async (bookingData: BookingInsert) => {
       console.log('Creating booking:', bookingData);
@@ -77,7 +75,6 @@ export const useBookings = () => {
     },
   });
 
-  // Cancel booking
   const cancelBookingMutation = useMutation({
     mutationFn: async (bookingId: string) => {
       console.log('Cancelling booking:', bookingId);

@@ -51,7 +51,6 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
   const [newArrivalTime, setNewArrivalTime] = useState('');
   const [newDepartureTime, setNewDepartureTime] = useState('');
 
-  // Distâncias aproximadas entre cidades (em km)
   const cityDistances: { [key: string]: number } = {
     'São Paulo': 500,
     'Rio de Janeiro': 800,
@@ -67,11 +66,10 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
   };
 
   const getDistance = (destination: string): number => {
-    return cityDistances[destination] || 500; // Distância padrão
+    return cityDistances[destination] || 500;
   };
 
   const calculateFlightTime = (distance: number): number => {
-    // Velocidade média de cruzeiro: ~400 km/h
     return Math.round((distance / 400) * 10) / 10;
   };
 
@@ -82,7 +80,6 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
       const arrival = new Date(`2024-01-01T${arrivalTime}`);
       const departure = new Date(`2024-01-01T${departureTime}`);
       
-      // Se a saída é no dia seguinte (após meia-noite)
       if (departure < arrival) {
         departure.setDate(departure.getDate() + 1);
       }
@@ -99,19 +96,21 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
   const addStop = () => {
     if (!newDestination || !newArrivalTime || !newDepartureTime) return;
 
+    const stayDurationStr = getStayDurationPreview(newArrivalTime, newDepartureTime);
+    const stayDuration = parseFloat(stayDurationStr.replace('h', '')) || 0;
+
     const newStop: RouteStop = {
       id: Date.now().toString(),
       destination: newDestination,
       arrivalTime: newArrivalTime,
       departureTime: newDepartureTime,
-      stayDuration: parseFloat(getStayDurationPreview(newArrivalTime, newDepartureTime).replace('h', '')) || 0
+      stayDuration
     };
 
     const updatedRoute = [...route, newStop];
     setRoute(updatedRoute);
     onRouteChange(updatedRoute);
 
-    // Reset form
     setNewDestination('');
     setNewArrivalTime('');
     setNewDepartureTime('');
@@ -127,8 +126,8 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
     if (route.length === 0) return;
 
     const segments: CostSegment[] = [];
-    const hourlyRate = 5000; // R$ 5.000 por hora
-    const baseAirportFee = 300; // Taxa base do aeroporto
+    const hourlyRate = 5000;
+    const baseAirportFee = 300;
     let totalCost = 0;
     let totalFlightTime = 0;
     let overnightFee = 0;
@@ -165,7 +164,6 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
       const flightTime = calculateFlightTime(distance);
       const flightCost = flightTime * hourlyRate;
 
-      // Verificar se há pernoite (passagem da meia-noite)
       const departureTime = new Date(`2024-01-01T${currentStop.departureTime}`);
       const arrivalTime = new Date(`2024-01-01T${nextStop.arrivalTime}`);
       
@@ -199,13 +197,12 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
       totalFlightTime += flightTime;
     }
 
-    // Último trecho: Último destino → Base (OBRIGATÓRIO)
+    // Último trecho: Último destino → Base
     const lastDestination = route[route.length - 1];
     const returnDistance = getDistance(lastDestination.destination);
     const returnFlightTime = calculateFlightTime(returnDistance);
     const returnFlightCost = returnFlightTime * hourlyRate;
 
-    // Calcular horário de retorno estimado (saída da última escala + tempo de voo)
     const lastDeparture = new Date(`2024-01-01T${lastDestination.departureTime}`);
     const returnArrival = new Date(lastDeparture.getTime() + (returnFlightTime * 60 * 60 * 1000));
     const calculatedReturnTime = returnArrival.toTimeString().slice(0, 5);
@@ -264,7 +261,6 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
       </CardHeader>
       <CardContent className="space-y-6">
         
-        {/* Ponto de Partida */}
         <div className="bg-blue-50 p-4 rounded-lg">
           <div className="flex items-center space-x-2 mb-2">
             <Home className="h-5 w-5 text-blue-600" />
@@ -274,7 +270,6 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
           <p className="text-sm text-blue-600">Ponto de partida e retorno obrigatório</p>
         </div>
 
-        {/* Rota Atual */}
         {route.length > 0 && (
           <div className="space-y-3">
             <h4 className="font-medium">Rota Planejada:</h4>
@@ -307,7 +302,6 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
 
         <Separator />
 
-        {/* Adicionar Nova Escala */}
         <div className="space-y-4">
           <h4 className="font-medium">Adicionar Nova Escala:</h4>
           
@@ -362,7 +356,6 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
           </Button>
         </div>
 
-        {/* Exemplo de Missão */}
         <div className="bg-amber-50 p-4 rounded-lg border border-amber-200">
           <h5 className="font-medium text-amber-800 mb-2">💡 Exemplo de Missão Completa:</h5>
           <div className="text-sm text-amber-700 space-y-1">
