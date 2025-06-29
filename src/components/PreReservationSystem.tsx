@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -7,7 +8,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { CalendarDays, Clock, MapPin, Users, Star, AlertCircle, CheckCircle, XCircle } from 'lucide-react';
+import { CalendarDays, Clock, MapPin, Users, Star, AlertCircle, CheckCircle, XCircle, Plane } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
@@ -54,11 +55,7 @@ const PreReservationSystem: React.FC = () => {
         setAircraftList(data);
       }
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro ao carregar aeronaves.",
-        variant: "destructive"
-      });
+      toast.error("Erro ao carregar aeronaves.");
     }
   };
 
@@ -77,11 +74,7 @@ const PreReservationSystem: React.FC = () => {
         setPreReservations(data);
       }
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro ao carregar pré-reservas.",
-        variant: "destructive"
-      });
+      toast.error("Erro ao carregar pré-reservas.");
     }
   };
 
@@ -114,27 +107,23 @@ const PreReservationSystem: React.FC = () => {
     e.preventDefault();
 
     if (!profile) {
-      toast({
-        title: "Erro",
-        description: "Usuário não autenticado.",
-        variant: "destructive"
-      });
+      toast.error("Usuário não autenticado.");
       return;
     }
 
     const validationError = validateForm();
     if (validationError) {
-      toast({
-        title: "Erro de Validação",
-        description: validationError,
-        variant: "destructive"
-      });
+      toast.error(validationError);
       return;
     }
 
     setIsSubmitting(true);
 
     try {
+      // Calculate flight hours and total cost
+      const flightHours = 2; // Default value, should be calculated properly
+      const totalCost = selectedAircraft!.hourly_rate * flightHours;
+
       const { data, error } = await supabase
         .from('pre_reservations')
         .insert({
@@ -147,18 +136,18 @@ const PreReservationSystem: React.FC = () => {
           origin: sanitizeInput(formData.origin),
           destination: sanitizeInput(formData.destination),
           passengers: formData.passengers,
-          notes: formData.notes ? sanitizeInput(formData.notes) : null,
-          status: 'pending'
+          flight_hours: flightHours,
+          total_cost: totalCost,
+          priority_position: profile.priority_position || 1,
+          expires_at: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), // 24 hours from now
+          status: 'waiting'
         })
         .select('*')
         .single();
 
       if (error) throw error;
 
-      toast({
-        title: "Pré-Reserva Criada!",
-        description: "Sua pré-reserva foi criada com sucesso. Aguarde a confirmação.",
-      });
+      toast.success("Pré-reserva criada com sucesso! Aguarde a confirmação.");
 
       // Reset form
       setFormData({
@@ -176,11 +165,7 @@ const PreReservationSystem: React.FC = () => {
 
       await fetchUserPreReservations();
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro ao criar pré-reserva. Tente novamente.",
-        variant: "destructive"
-      });
+      toast.error("Erro ao criar pré-reserva. Tente novamente.");
     } finally {
       setIsSubmitting(false);
     }
@@ -188,18 +173,18 @@ const PreReservationSystem: React.FC = () => {
 
   const getStatusColor = (status: string) => {
     switch (status) {
-      case 'approved': return 'text-green-600 bg-green-50';
-      case 'pending': return 'text-yellow-600 bg-yellow-50';
-      case 'rejected': return 'text-red-600 bg-red-50';
+      case 'confirmed': return 'text-green-600 bg-green-50';
+      case 'waiting': return 'text-yellow-600 bg-yellow-50';
+      case 'expired': return 'text-red-600 bg-red-50';
       default: return 'text-gray-600 bg-gray-50';
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
-      case 'approved': return <CheckCircle className="h-4 w-4 mr-1" />;
-      case 'pending': return <Star className="h-4 w-4 mr-1" />;
-      case 'rejected': return <XCircle className="h-4 w-4 mr-1" />;
+      case 'confirmed': return <CheckCircle className="h-4 w-4 mr-1" />;
+      case 'waiting': return <Star className="h-4 w-4 mr-1" />;
+      case 'expired': return <XCircle className="h-4 w-4 mr-1" />;
       default: return <AlertCircle className="h-4 w-4 mr-1" />;
     }
   };
@@ -372,9 +357,9 @@ const PreReservationSystem: React.FC = () => {
                     </div>
                     <span className={`px-3 py-1 rounded-full text-sm font-medium flex items-center ${getStatusColor(reservation.status)}`}>
                       {getStatusIcon(reservation.status)}
-                      {reservation.status === 'pending' ? 'Pendente' :
-                        reservation.status === 'approved' ? 'Aprovado' :
-                          'Rejeitado'}
+                      {reservation.status === 'waiting' ? 'Aguardando' :
+                        reservation.status === 'confirmed' ? 'Confirmado' :
+                          'Expirado'}
                     </span>
                   </div>
 
@@ -388,13 +373,6 @@ const PreReservationSystem: React.FC = () => {
                       <p className="font-medium">{new Date(reservation.created_at).toLocaleDateString('pt-BR')}</p>
                     </div>
                   </div>
-
-                  {reservation.notes && (
-                    <div className="mt-3">
-                      <span className="text-gray-500 text-sm">Observações:</span>
-                      <p className="text-sm">{reservation.notes}</p>
-                    </div>
-                  )}
                 </div>
               ))}
             </div>

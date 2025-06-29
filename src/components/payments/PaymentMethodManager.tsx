@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,29 +10,19 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { CreditCard, Plus, Trash2, Edit3, Shield, CheckCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
-import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import type { Tables } from '@/integrations/supabase/types';
 
-interface PaymentMethod {
-  id: string;
-  card_number: string;
-  exp_month: number;
-  exp_year: number;
-  cvc: string;
-  is_default: boolean;
-  created_at: string;
-}
+type PaymentMethod = Tables<'payment_methods'>;
 
 const PaymentMethodManager: React.FC = () => {
   const { profile } = useAuth();
-  const { toast } = useToast();
-
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [newCard, setNewCard] = useState({
-    card_number: '',
-    exp_month: 1,
-    exp_year: new Date().getFullYear(),
-    cvc: '',
+    type: 'credit_card',
+    card_holder_name: '',
+    card_number_last_four: '',
+    card_brand: 'visa',
     is_default: false
   });
   const [editingCardId, setEditingCardId] = useState<string | null>(null);
@@ -53,17 +44,13 @@ const PaymentMethodManager: React.FC = () => {
       if (error) throw error;
       setPaymentMethods(data || []);
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro ao carregar métodos de pagamento",
-        variant: "destructive"
-      });
+      toast.error("Erro ao carregar métodos de pagamento");
     } finally {
       setLoading(false);
     }
   };
 
-  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { id, value } = e.target;
     setNewCard(prev => ({ ...prev, [id]: value }));
   };
@@ -71,12 +58,8 @@ const PaymentMethodManager: React.FC = () => {
   const addPaymentMethod = async () => {
     try {
       // Basic validation
-      if (!newCard.card_number || !newCard.exp_month || !newCard.exp_year || !newCard.cvc) {
-        toast({
-          title: "Erro",
-          description: "Preencha todos os campos do cartão.",
-          variant: "destructive"
-        });
+      if (!newCard.card_holder_name || !newCard.card_number_last_four) {
+        toast.error("Preencha todos os campos do cartão.");
         return;
       }
 
@@ -84,10 +67,10 @@ const PaymentMethodManager: React.FC = () => {
         .from('payment_methods')
         .insert({
           user_id: profile?.id,
-          card_number: newCard.card_number,
-          exp_month: parseInt(newCard.exp_month),
-          exp_year: parseInt(newCard.exp_year),
-          cvc: newCard.cvc,
+          type: newCard.type,
+          card_holder_name: newCard.card_holder_name,
+          card_number_last_four: newCard.card_number_last_four,
+          card_brand: newCard.card_brand,
           is_default: newCard.is_default
         })
         .select();
@@ -95,24 +78,17 @@ const PaymentMethodManager: React.FC = () => {
       if (error) throw error;
 
       setNewCard({
-        card_number: '',
-        exp_month: 1,
-        exp_year: new Date().getFullYear(),
-        cvc: '',
+        type: 'credit_card',
+        card_holder_name: '',
+        card_number_last_four: '',
+        card_brand: 'visa',
         is_default: false
       });
       await fetchPaymentMethods();
 
-      toast({
-        title: "Sucesso",
-        description: "Cartão adicionado com sucesso!",
-      });
+      toast.success("Cartão adicionado com sucesso!");
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro ao adicionar método de pagamento",
-        variant: "destructive"
-      });
+      toast.error("Erro ao adicionar método de pagamento");
     }
   };
 
@@ -126,37 +102,30 @@ const PaymentMethodManager: React.FC = () => {
       if (error) throw error;
       await fetchPaymentMethods();
 
-      toast({
-        title: "Sucesso",
-        description: "Cartão removido com sucesso!",
-      });
+      toast.success("Cartão removido com sucesso!");
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro ao remover método de pagamento",
-        variant: "destructive"
-      });
+      toast.error("Erro ao remover método de pagamento");
     }
   };
 
   const startEdit = (card: PaymentMethod) => {
     setEditingCardId(card.id);
     setNewCard({
-      card_number: card.card_number,
-      exp_month: card.exp_month,
-      exp_year: card.exp_year,
-      cvc: card.cvc,
-      is_default: card.is_default
+      type: card.type,
+      card_holder_name: card.card_holder_name || '',
+      card_number_last_four: card.card_number_last_four || '',
+      card_brand: card.card_brand || 'visa',
+      is_default: card.is_default || false
     });
   };
 
   const cancelEdit = () => {
     setEditingCardId(null);
     setNewCard({
-      card_number: '',
-      exp_month: 1,
-      exp_year: new Date().getFullYear(),
-      cvc: '',
+      type: 'credit_card',
+      card_holder_name: '',
+      card_number_last_four: '',
+      card_brand: 'visa',
       is_default: false
     });
   };
@@ -168,10 +137,10 @@ const PaymentMethodManager: React.FC = () => {
       const { data, error } = await supabase
         .from('payment_methods')
         .update({
-          card_number: newCard.card_number,
-          exp_month: parseInt(newCard.exp_month),
-          exp_year: parseInt(newCard.exp_year),
-          cvc: newCard.cvc,
+          type: newCard.type,
+          card_holder_name: newCard.card_holder_name,
+          card_number_last_four: newCard.card_number_last_four,
+          card_brand: newCard.card_brand,
           is_default: newCard.is_default
         })
         .eq('id', editingCardId)
@@ -182,16 +151,9 @@ const PaymentMethodManager: React.FC = () => {
       await fetchPaymentMethods();
       cancelEdit();
 
-      toast({
-        title: "Sucesso",
-        description: "Cartão atualizado com sucesso!",
-      });
+      toast.success("Cartão atualizado com sucesso!");
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro ao atualizar método de pagamento",
-        variant: "destructive"
-      });
+      toast.error("Erro ao atualizar método de pagamento");
     }
   };
 
@@ -227,7 +189,7 @@ const PaymentMethodManager: React.FC = () => {
               <div key={card.id} className="flex items-center justify-between p-3 rounded-md border">
                 <div>
                   <CreditCard className="h-5 w-5 mr-2 inline-block" />
-                  <span className="font-medium">Cartão final {card.card_number.slice(-4)}</span>
+                  <span className="font-medium">Cartão final {card.card_number_last_four}</span>
                   {card.is_default && (
                     <Badge variant="default" className="ml-2">
                       <CheckCircle className="h-4 w-4 mr-1" />
@@ -283,49 +245,39 @@ const PaymentMethodManager: React.FC = () => {
           <h4 className="text-sm font-medium">Adicionar Novo Cartão</h4>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
             <div>
-              <Label htmlFor="card_number">Número do Cartão</Label>
+              <Label htmlFor="card_holder_name">Nome do Portador</Label>
               <Input
                 type="text"
-                id="card_number"
-                value={newCard.card_number}
+                id="card_holder_name"
+                value={newCard.card_holder_name}
                 onChange={handleInputChange}
-                placeholder="0000 0000 0000 0000"
+                placeholder="Nome como no cartão"
               />
             </div>
             <div>
-              <Label>Data de Expiração</Label>
-              <div className="flex space-x-2">
-                <Select value={String(newCard.exp_month)} onValueChange={(value) => setNewCard(prev => ({ ...prev, exp_month: parseInt(value) }))}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue placeholder="Mês" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
-                      <SelectItem key={month} value={String(month)}>{month}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Select value={String(newCard.exp_year)} onValueChange={(value) => setNewCard(prev => ({ ...prev, exp_year: parseInt(value) }))}>
-                  <SelectTrigger className="w-32">
-                    <SelectValue placeholder="Ano" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() + i).map(year => (
-                      <SelectItem key={year} value={String(year)}>{year}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <div>
-              <Label htmlFor="cvc">CVC</Label>
+              <Label htmlFor="card_number_last_four">Últimos 4 Dígitos</Label>
               <Input
                 type="text"
-                id="cvc"
-                value={newCard.cvc}
+                id="card_number_last_four"
+                value={newCard.card_number_last_four}
                 onChange={handleInputChange}
-                placeholder="CVC"
+                placeholder="0000"
+                maxLength={4}
               />
+            </div>
+            <div>
+              <Label>Bandeira</Label>
+              <Select value={newCard.card_brand} onValueChange={(value) => setNewCard(prev => ({ ...prev, card_brand: value }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Bandeira" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="visa">Visa</SelectItem>
+                  <SelectItem value="mastercard">Mastercard</SelectItem>
+                  <SelectItem value="elo">Elo</SelectItem>
+                  <SelectItem value="amex">American Express</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div className="flex items-center">
               <Label htmlFor="is_default" className="mr-2">
