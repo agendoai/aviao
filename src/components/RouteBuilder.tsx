@@ -8,10 +8,10 @@ import { Badge } from '@/components/ui/badge';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Calendar } from '@/components/ui/calendar';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { MapPin, Plus, X, ArrowRight, Clock, Moon, AlertTriangle, Plane, Play, Calculator } from 'lucide-react';
+import { MapPin, Plus, X, ArrowRight, Clock, Moon, Plane, Play } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { getFlightTime, getDistance, calculateArrivalTime, formatFlightTime, airports, suggestDestinations } from '@/utils/flightCalculations';
+import { getFlightTime, getDistance, calculateArrivalTime, formatFlightTime, airports } from '@/utils/flightCalculations';
 
 interface RouteStop {
   id: string;
@@ -218,10 +218,12 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
 
   const calculateReturnTimeToBase = (): { time: string; date: string } => {
     if (route.length === 0) {
-      // Se não há escalas, retorno direto - assumir retorno às 18:00 do mesmo dia
+      // Se não há escalas, calcular retorno direto de uma viagem simples (ida e volta no mesmo dia)
+      const directFlightTime = getFlightTime(baseLocation, baseLocation); // Default flight time
+      const returnArrival = calculateArrivalTime(departureFromBase, directFlightTime * 2, flightDate);
       return { 
-        time: '18:00', 
-        date: flightDate 
+        time: returnArrival.time, 
+        date: returnArrival.date 
       };
     }
     
@@ -284,8 +286,8 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
     return (departureDateTime.getTime() - arrivalDateTime.getTime()) / (1000 * 60 * 60);
   };
 
-  const getStayDurationPreview = (): number | null => {
-    if (!newDestination || !departureTime) return null;
+  const getStayDurationPreview = (): number => {
+    if (!newDestination || !departureTime) return 0;
     
     // Determinar ponto de partida (base ou última escala)
     const previousLocation = route.length === 0 ? baseLocation : route[route.length - 1].destination;
@@ -665,11 +667,9 @@ const RouteBuilder: React.FC<RouteBuilderProps> = ({
                           newDestination
                         ) * 5000 + 1000).toLocaleString('pt-BR')}
                       </div>
-                      {getStayDurationPreview() && (
-                        <div className="font-medium text-blue-600">
-                          Permanência: {formatFlightTime(getStayDurationPreview()!)}
-                        </div>
-                      )}
+                      <div className="font-medium text-blue-600">
+                        Permanência: {formatFlightTime(getStayDurationPreview())}
+                      </div>
                     </div>
                   </div>
                 )}

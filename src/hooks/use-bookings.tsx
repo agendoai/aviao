@@ -1,141 +1,110 @@
 
-import { useState, useEffect } from 'react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from './use-auth';
-import { useToast } from './use-toast';
+import { useAuth } from '@/hooks/use-auth';
+import { useToast } from '@/hooks/use-toast';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Booking = Tables<'bookings'>;
-type PreReservation = Tables<'pre_reservations'>;
+type BookingInsert = Omit<Booking, 'id' | 'created_at' | 'updated_at'>;
 
 export const useBookings = () => {
-  const { profile } = useAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
-  const [bookings, setBookings] = useState<Booking[]>([]);
-  const [preReservations, setPreReservations] = useState<PreReservation[]>([]);
-  const [loading, setLoading] = useState(false);
+  const queryClient = useQueryClient();
 
-  useEffect(() => {
-    if (profile?.id) {
-      fetchBookings();
-      fetchPreReservations();
-    }
-  }, [profile?.id]);
-
-  const fetchBookings = async () => {
-    try {
-      setLoading(true);
+  // Fetch user's bookings
+  const {
+    data: bookings = [],
+    isLoading,
+    error
+  } = useQuery({
+    queryKey: ['bookings', user?.id],
+    queryFn: async () => {
+      if (!user) return [];
+      
       const { data, error } = await supabase
         .from('bookings')
         .select(`
           *,
-          aircraft:aircraft_id (name, model, registration)
+          aircraft:aircraft_id (
+            name,
+            model,
+            registration
+          )
         `)
-        .eq('user_id', profile?.id)
+        .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setBookings(data || []);
-    } catch (error) {
-      console.error('Error fetching bookings:', error);
-      toast({
-        title: "Erro",
-        description: "Erro ao carregar reservas",
-        variant: "destructive"
-      });
-    } finally {
-      setLoading(false);
-    }
-  };
+      return data || [];
+    },
+    enabled: !!user,
+  });
 
-  const fetchPreReservations = async () => {
-    try {
+  // Create new booking
+  const createBookingMutation = useMutation({
+    mutationFn: async (bookingData: BookingInsert) => {
       const { data, error } = await supabase
-        .from('pre_reservations')
-        .select(`
-          *,
-          aircraft:aircraft_id (name, model, registration)
-        `)
-        .eq('user_id', profile?.id)
-        .order('created_at', { ascending: false });
+        .from('bookings')
+        .insert([bookingData])
+        .select()
+        .single();
 
       if (error) throw error;
-      setPreReservations(data || []);
-    } catch (error) {
-      console.error('Error fetching pre-reservations:', error);
-    }
-  };
-
-  const createPreReservation = async (reservationData: any) => {
-    try {
-      const { data, error } = await supabase.rpc('create_pre_reservation', {
-        p_aircraft_id: reservationData.aircraftId,
-        p_departure_date: reservationData.departureDate,
-        p_departure_time: reservationData.departureTime,
-        p_return_date: reservationData.returnDate,
-        p_return_time: reservationData.returnTime,
-        p_origin: reservationData.origin,
-        p_destination: reservationData.destination,
-        p_passengers: reservationData.passengers,
-        p_flight_hours: reservationData.flightHours,
-        p_total_cost: reservationData.totalCost
-      });
-
-      if (error) throw error;
-
-      toast({
-        title: "Pré-reserva Criada",
-        description: "Sua pré-reserva foi criada com sucesso",
-      });
-
-      fetchPreReservations();
       return data;
-    } catch (error) {
-      console.error('Error creating pre-reservation:', error);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
+      toast({
+        title: "Reserva Criada",
+        description: "Sua reserva foi criada com sucesso!",
+      });
+    },
+    onError: (error) => {
+      console.error('Error creating booking:', error);
       toast({
         title: "Erro",
-        description: "Erro ao criar pré-reserva",
-        variant: "destructive"
+        description: "Erro ao criar reserva. Tente novamente.",
+        variant: "destructive",
       });
-      throw error;
-    }
-  };
+    },
+  });
 
-  const confirmPreReservation = async (preReservationId: string, paymentMethod: string) => {
-    try {
-      const { data, error } = await supabase.rpc('confirm_pre_reservation', {
-        p_pre_reservation_id: preReservationId,
-        p_payment_method: paymentMethod
-      });
+  // Cancel booking
+  const cancelBookingMutation = useMutation({
+    mutationFn: async (bookingId: string) => {
+      const { error } = await supabase
+        .from('bookings')
+        .update({ status: 'cancelled' })
+        .eq('id', bookingId);
 
       if (error) throw error;
-
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['bookings'] });
       toast({
-        title: "Reserva Confirmada",
-        description: "Sua reserva foi confirmada com sucesso",
+        title: "Reserva Cancelada",
+        description: "Sua reserva foi cancelada com sucesso.",
       });
-
-      fetchBookings();
-      fetchPreReservations();
-      return data;
-    } catch (error) {
-      console.error('Error confirming pre-reservation:', error);
+    },
+    onError: (error) => {
+      console.error('Error cancelling booking:', error);
       toast({
         title: "Erro",
-        description: "Erro ao confirmar reserva",
-        variant: "destructive"
+        description: "Erro ao cancelar reserva. Tente novamente.",
+        variant: "destructive",
       });
-      throw error;
-    }
-  };
+    },
+  });
 
   return {
     bookings,
-    preReservations,
-    loading,
-    createPreReservation,
-    confirmPreReservation,
-    fetchBookings,
-    fetchPreReservations
+    isLoading,
+    error,
+    createBooking: createBookingMutation.mutate,
+    cancelBooking: cancelBookingMutation.mutate,
+    isCreating: createBookingMutation.isPending,
+    isCancelling: cancelBookingMutation.isPending,
   };
 };
