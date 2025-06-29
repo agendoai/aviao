@@ -5,40 +5,37 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { CreditCard, Plus, Trash2, Edit } from 'lucide-react';
+import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
+import { CreditCard, Plus, Trash2, Edit3, Shield, CheckCircle } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
+import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import type { Tables } from '@/integrations/supabase/types';
-
-type PaymentMethodRow = Tables<'payment_methods'>;
 
 interface PaymentMethod {
   id: string;
-  type: 'credit_card' | 'debit_card' | 'pix' | 'bank_transfer';
-  card_number_last_four?: string;
-  card_brand?: string;
-  card_holder_name?: string;
-  pix_key?: string;
+  card_number: string;
+  exp_month: number;
+  exp_year: number;
+  cvc: string;
   is_default: boolean;
-  is_active: boolean;
+  created_at: string;
 }
 
 const PaymentMethodManager: React.FC = () => {
   const { profile } = useAuth();
   const { toast } = useToast();
+
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [isDialogOpen, setIsDialogOpen] = useState(false);
-  const [formData, setFormData] = useState({
-    type: 'credit_card' as PaymentMethod['type'],
-    cardNumber: '',
-    cardBrand: '',
-    cardHolderName: '',
-    pixKey: '',
-    isDefault: false
+  const [newCard, setNewCard] = useState({
+    card_number: '',
+    exp_month: 1,
+    exp_year: new Date().getFullYear(),
+    cvc: '',
+    is_default: false
   });
+  const [editingCardId, setEditingCardId] = useState<string | null>(null);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     if (profile?.id) {
@@ -51,25 +48,10 @@ const PaymentMethodManager: React.FC = () => {
       const { data, error } = await supabase
         .from('payment_methods')
         .select('*')
-        .eq('user_id', profile?.id)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
+        .eq('user_id', profile?.id);
 
       if (error) throw error;
-      
-      // Transform data to match our interface
-      const transformedData: PaymentMethod[] = (data || []).map((item: PaymentMethodRow) => ({
-        id: item.id,
-        type: item.type as PaymentMethod['type'],
-        card_number_last_four: item.card_number_last_four || undefined,
-        card_brand: item.card_brand || undefined,
-        card_holder_name: item.card_holder_name || undefined,
-        pix_key: item.pix_key || undefined,
-        is_default: item.is_default || false,
-        is_active: item.is_active || false
-      }));
-      
-      setPaymentMethods(transformedData);
+      setPaymentMethods(data || []);
     } catch (error) {
       toast({
         title: "Erro",
@@ -81,54 +63,50 @@ const PaymentMethodManager: React.FC = () => {
     }
   };
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    
-    try {
-      const paymentMethodData = {
-        user_id: profile?.id,
-        type: formData.type,
-        ...(formData.type === 'credit_card' || formData.type === 'debit_card' ? {
-          card_number_last_four: formData.cardNumber.slice(-4),
-          card_brand: formData.cardBrand,
-          card_holder_name: formData.cardHolderName
-        } : {}),
-        ...(formData.type === 'pix' ? {
-          pix_key: formData.pixKey
-        } : {}),
-        is_default: formData.isDefault || paymentMethods.length === 0
-      };
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) => {
+    const { id, value } = e.target;
+    setNewCard(prev => ({ ...prev, [id]: value }));
+  };
 
-      const { error } = await supabase
+  const addPaymentMethod = async () => {
+    try {
+      // Basic validation
+      if (!newCard.card_number || !newCard.exp_month || !newCard.exp_year || !newCard.cvc) {
+        toast({
+          title: "Erro",
+          description: "Preencha todos os campos do cartão.",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      const { data, error } = await supabase
         .from('payment_methods')
-        .insert([paymentMethodData]);
+        .insert({
+          user_id: profile?.id,
+          card_number: newCard.card_number,
+          exp_month: parseInt(newCard.exp_month),
+          exp_year: parseInt(newCard.exp_year),
+          cvc: newCard.cvc,
+          is_default: newCard.is_default
+        })
+        .select();
 
       if (error) throw error;
 
-      // Se for definido como padrão, remover padrão dos outros
-      if (formData.isDefault) {
-        await supabase
-          .from('payment_methods')
-          .update({ is_default: false })
-          .eq('user_id', profile?.id)
-          .neq('type', formData.type);
-      }
+      setNewCard({
+        card_number: '',
+        exp_month: 1,
+        exp_year: new Date().getFullYear(),
+        cvc: '',
+        is_default: false
+      });
+      await fetchPaymentMethods();
 
       toast({
         title: "Sucesso",
-        description: "Método de pagamento adicionado com sucesso"
+        description: "Cartão adicionado com sucesso!",
       });
-
-      setIsDialogOpen(false);
-      setFormData({
-        type: 'credit_card',
-        cardNumber: '',
-        cardBrand: '',
-        cardHolderName: '',
-        pixKey: '',
-        isDefault: false
-      });
-      fetchPaymentMethods();
     } catch (error) {
       toast({
         title: "Erro",
@@ -138,21 +116,20 @@ const PaymentMethodManager: React.FC = () => {
     }
   };
 
-  const handleDelete = async (id: string) => {
+  const deletePaymentMethod = async (id: string) => {
     try {
       const { error } = await supabase
         .from('payment_methods')
-        .update({ is_active: false })
+        .delete()
         .eq('id', id);
 
       if (error) throw error;
+      await fetchPaymentMethods();
 
       toast({
         title: "Sucesso",
-        description: "Método de pagamento removido"
+        description: "Cartão removido com sucesso!",
       });
-
-      fetchPaymentMethods();
     } catch (error) {
       toast({
         title: "Erro",
@@ -162,37 +139,59 @@ const PaymentMethodManager: React.FC = () => {
     }
   };
 
-  const getPaymentMethodIcon = (type: string) => {
-    return <CreditCard className="h-8 w-8 text-gray-400" />;
+  const startEdit = (card: PaymentMethod) => {
+    setEditingCardId(card.id);
+    setNewCard({
+      card_number: card.card_number,
+      exp_month: card.exp_month,
+      exp_year: card.exp_year,
+      cvc: card.cvc,
+      is_default: card.is_default
+    });
   };
 
-  const getPaymentMethodLabel = (method: PaymentMethod) => {
-    switch (method.type) {
-      case 'credit_card':
-        return `${method.card_brand} •••• ${method.card_number_last_four}`;
-      case 'debit_card':
-        return `${method.card_brand} •••• ${method.card_number_last_four}`;
-      case 'pix':
-        return `PIX: ${method.pix_key}`;
-      case 'bank_transfer':
-        return 'Transferência Bancária';
-      default:
-        return 'Método não identificado';
-    }
+  const cancelEdit = () => {
+    setEditingCardId(null);
+    setNewCard({
+      card_number: '',
+      exp_month: 1,
+      exp_year: new Date().getFullYear(),
+      cvc: '',
+      is_default: false
+    });
   };
 
-  const getPaymentMethodType = (type: string) => {
-    switch (type) {
-      case 'credit_card':
-        return 'Cartão de Crédito';
-      case 'debit_card':
-        return 'Cartão de Débito';
-      case 'pix':
-        return 'PIX';
-      case 'bank_transfer':
-        return 'Transferência Bancária';
-      default:
-        return type;
+  const updatePaymentMethod = async () => {
+    if (!editingCardId) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('payment_methods')
+        .update({
+          card_number: newCard.card_number,
+          exp_month: parseInt(newCard.exp_month),
+          exp_year: parseInt(newCard.exp_year),
+          cvc: newCard.cvc,
+          is_default: newCard.is_default
+        })
+        .eq('id', editingCardId)
+        .select();
+
+      if (error) throw error;
+
+      await fetchPaymentMethods();
+      cancelEdit();
+
+      toast({
+        title: "Sucesso",
+        description: "Cartão atualizado com sucesso!",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao atualizar método de pagamento",
+        variant: "destructive"
+      });
     }
   };
 
@@ -207,139 +206,145 @@ const PaymentMethodManager: React.FC = () => {
           <div>
             <CardTitle>Métodos de Pagamento</CardTitle>
             <CardDescription>
-              Gerencie seus cartões e formas de pagamento
+              Gerencie seus cartões de crédito
             </CardDescription>
           </div>
-          <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
-            <DialogTrigger asChild>
-              <Button variant="outline">
-                <Plus className="h-4 w-4 mr-2" />
-                Adicionar Método
-              </Button>
-            </DialogTrigger>
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Adicionar Método de Pagamento</DialogTitle>
-                <DialogDescription>
-                  Adicione um novo método de pagamento
-                </DialogDescription>
-              </DialogHeader>
-              <form onSubmit={handleSubmit} className="space-y-4">
-                <div className="space-y-2">
-                  <Label>Tipo de Pagamento</Label>
-                  <Select
-                    value={formData.type}
-                    onValueChange={(value) => setFormData({ ...formData, type: value as PaymentMethod['type'] })}
-                  >
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="credit_card">Cartão de Crédito</SelectItem>
-                      <SelectItem value="debit_card">Cartão de Débito</SelectItem>
-                      <SelectItem value="pix">PIX</SelectItem>
-                      <SelectItem value="bank_transfer">Transferência Bancária</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {(formData.type === 'credit_card' || formData.type === 'debit_card') && (
-                  <>
-                    <div className="space-y-2">
-                      <Label>Número do Cartão</Label>
-                      <Input
-                        placeholder="1234 5678 9012 3456"
-                        value={formData.cardNumber}
-                        onChange={(e) => setFormData({ ...formData, cardNumber: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Bandeira</Label>
-                      <Input
-                        placeholder="Visa, Mastercard, etc."
-                        value={formData.cardBrand}
-                        onChange={(e) => setFormData({ ...formData, cardBrand: e.target.value })}
-                        required
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Nome no Cartão</Label>
-                      <Input
-                        placeholder="Nome como aparece no cartão"
-                        value={formData.cardHolderName}
-                        onChange={(e) => setFormData({ ...formData, cardHolderName: e.target.value })}
-                        required
-                      />
-                    </div>
-                  </>
-                )}
-
-                {formData.type === 'pix' && (
-                  <div className="space-y-2">
-                    <Label>Chave PIX</Label>
-                    <Input
-                      placeholder="CPF, e-mail, telefone ou chave aleatória"
-                      value={formData.pixKey}
-                      onChange={(e) => setFormData({ ...formData, pixKey: e.target.value })}
-                      required
-                    />
-                  </div>
-                )}
-
-                <div className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id="isDefault"
-                    checked={formData.isDefault}
-                    onChange={(e) => setFormData({ ...formData, isDefault: e.target.checked })}
-                  />
-                  <Label htmlFor="isDefault">Definir como padrão</Label>
-                </div>
-
-                <Button type="submit" className="w-full bg-aviation-gradient hover:opacity-90">
-                  Adicionar Método
-                </Button>
-              </form>
-            </DialogContent>
-          </Dialog>
+          <Badge variant="secondary">
+            <Shield className="h-4 w-4 mr-2" />
+            Seguro e criptografado
+          </Badge>
         </div>
       </CardHeader>
-      <CardContent>
-        {paymentMethods.length > 0 ? (
-          <div className="space-y-4">
-            {paymentMethods.map((method) => (
-              <div key={method.id} className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center space-x-4">
-                  {getPaymentMethodIcon(method.type)}
-                  <div>
-                    <p className="font-medium">{getPaymentMethodLabel(method)}</p>
-                    <p className="text-sm text-gray-600">
-                      {getPaymentMethodType(method.type)}
-                    </p>
-                  </div>
-                  {method.is_default && (
-                    <Badge variant="outline">Padrão</Badge>
+      <CardContent className="space-y-4">
+        {paymentMethods.length === 0 ? (
+          <div className="text-center py-6">
+            <CreditCard className="h-10 w-10 mx-auto text-gray-400 mb-3" />
+            <p className="text-gray-500">Nenhum cartão cadastrado.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {paymentMethods.map((card) => (
+              <div key={card.id} className="flex items-center justify-between p-3 rounded-md border">
+                <div>
+                  <CreditCard className="h-5 w-5 mr-2 inline-block" />
+                  <span className="font-medium">Cartão final {card.card_number.slice(-4)}</span>
+                  {card.is_default && (
+                    <Badge variant="default" className="ml-2">
+                      <CheckCircle className="h-4 w-4 mr-1" />
+                      Padrão
+                    </Badge>
                   )}
                 </div>
-                <div className="flex space-x-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDelete(method.id)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                <div className="flex items-center space-x-2">
+                  {editingCardId === card.id ? (
+                    <>
+                      <Button variant="secondary" size="sm" onClick={updatePaymentMethod}>
+                        Salvar
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={cancelEdit}>
+                        Cancelar
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button variant="outline" size="sm" onClick={() => startEdit(card)}>
+                        <Edit3 className="h-4 w-4 mr-2" />
+                        Editar
+                      </Button>
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button variant="destructive" size="sm">
+                            <Trash2 className="h-4 w-4 mr-2" />
+                            Excluir
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Tem certeza?</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Esta ação é irreversível. O cartão será permanentemente removido.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                            <AlertDialogAction onClick={() => deletePaymentMethod(card.id)}>Excluir</AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </>
+                  )}
                 </div>
               </div>
             ))}
           </div>
-        ) : (
-          <div className="text-center py-8">
-            <CreditCard className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-            <p className="text-gray-600 mb-4">Nenhum método de pagamento cadastrado</p>
-          </div>
         )}
+
+        <div className="border-t py-4">
+          <h4 className="text-sm font-medium">Adicionar Novo Cartão</h4>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-3">
+            <div>
+              <Label htmlFor="card_number">Número do Cartão</Label>
+              <Input
+                type="text"
+                id="card_number"
+                value={newCard.card_number}
+                onChange={handleInputChange}
+                placeholder="0000 0000 0000 0000"
+              />
+            </div>
+            <div>
+              <Label>Data de Expiração</Label>
+              <div className="flex space-x-2">
+                <Select value={String(newCard.exp_month)} onValueChange={(value) => setNewCard(prev => ({ ...prev, exp_month: parseInt(value) }))}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue placeholder="Mês" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 12 }, (_, i) => i + 1).map(month => (
+                      <SelectItem key={month} value={String(month)}>{month}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Select value={String(newCard.exp_year)} onValueChange={(value) => setNewCard(prev => ({ ...prev, exp_year: parseInt(value) }))}>
+                  <SelectTrigger className="w-32">
+                    <SelectValue placeholder="Ano" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Array.from({ length: 10 }, (_, i) => new Date().getFullYear() + i).map(year => (
+                      <SelectItem key={year} value={String(year)}>{year}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+            <div>
+              <Label htmlFor="cvc">CVC</Label>
+              <Input
+                type="text"
+                id="cvc"
+                value={newCard.cvc}
+                onChange={handleInputChange}
+                placeholder="CVC"
+              />
+            </div>
+            <div className="flex items-center">
+              <Label htmlFor="is_default" className="mr-2">
+                <Input
+                  type="checkbox"
+                  id="is_default"
+                  checked={newCard.is_default}
+                  onChange={() => setNewCard(prev => ({ ...prev, is_default: !prev.is_default }))}
+                  className="mr-2"
+                />
+                Definir como padrão
+              </Label>
+            </div>
+          </div>
+          <Button className="mt-4 bg-aviation-gradient hover:opacity-90 text-white" onClick={addPaymentMethod}>
+            <Plus className="h-4 w-4 mr-2" />
+            Adicionar Cartão
+          </Button>
+        </div>
       </CardContent>
     </Card>
   );

@@ -99,10 +99,7 @@ const ReportsSection: React.FC = () => {
   };
 
   const exportReport = (format: 'pdf' | 'csv') => {
-    toast({
-      title: "Exportando Relatório",
-      description: `Preparando arquivo ${format.toUpperCase()}...`,
-    });
+    toast(`Preparando arquivo ${format.toUpperCase()}...`);
     // TODO: Implement actual export functionality
   };
 
