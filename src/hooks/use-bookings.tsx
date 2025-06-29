@@ -2,7 +2,7 @@
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/hooks/use-auth';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Booking = Tables<'bookings'>;
@@ -10,7 +10,6 @@ type BookingInsert = Omit<Booking, 'id' | 'created_at' | 'updated_at'>;
 
 export const useBookings = () => {
   const { user } = useAuth();
-  const { toast } = useToast();
   const queryClient = useQueryClient();
 
   // Fetch user's bookings
@@ -22,6 +21,8 @@ export const useBookings = () => {
     queryKey: ['bookings', user?.id],
     queryFn: async () => {
       if (!user) return [];
+      
+      console.log('Fetching bookings for user:', user.id);
       
       const { data, error } = await supabase
         .from('bookings')
@@ -36,7 +37,12 @@ export const useBookings = () => {
         .eq('user_id', user.id)
         .order('created_at', { ascending: false });
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error fetching bookings:', error);
+        throw error;
+      }
+      
+      console.log('Bookings fetched:', data);
       return data || [];
     },
     enabled: !!user,
@@ -45,56 +51,54 @@ export const useBookings = () => {
   // Create new booking
   const createBookingMutation = useMutation({
     mutationFn: async (bookingData: BookingInsert) => {
+      console.log('Creating booking:', bookingData);
+      
       const { data, error } = await supabase
         .from('bookings')
         .insert([bookingData])
         .select()
         .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error creating booking:', error);
+        throw error;
+      }
+      
+      console.log('Booking created:', data);
       return data;
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
-      toast({
-        title: "Reserva Criada",
-        description: "Sua reserva foi criada com sucesso!",
-      });
+      toast.success("Reserva criada com sucesso!");
     },
     onError: (error) => {
       console.error('Error creating booking:', error);
-      toast({
-        title: "Erro",
-        description: "Erro ao criar reserva. Tente novamente.",
-        variant: "destructive",
-      });
+      toast.error("Erro ao criar reserva. Tente novamente.");
     },
   });
 
   // Cancel booking
   const cancelBookingMutation = useMutation({
     mutationFn: async (bookingId: string) => {
+      console.log('Cancelling booking:', bookingId);
+      
       const { error } = await supabase
         .from('bookings')
         .update({ status: 'cancelled' })
         .eq('id', bookingId);
 
-      if (error) throw error;
+      if (error) {
+        console.error('Error cancelling booking:', error);
+        throw error;
+      }
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['bookings'] });
-      toast({
-        title: "Reserva Cancelada",
-        description: "Sua reserva foi cancelada com sucesso.",
-      });
+      toast.success("Reserva cancelada com sucesso.");
     },
     onError: (error) => {
       console.error('Error cancelling booking:', error);
-      toast({
-        title: "Erro",
-        description: "Erro ao cancelar reserva. Tente novamente.",
-        variant: "destructive",
-      });
+      toast.error("Erro ao cancelar reserva. Tente novamente.");
     },
   });
 
