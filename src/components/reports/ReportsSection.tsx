@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -10,8 +9,8 @@ import FlightAnalytics from './FlightAnalytics';
 import CostAnalytics from './CostAnalytics';
 import UsageStatistics from './UsageStatistics';
 import { supabase } from '@/integrations/supabase/client';
-import { useAuth } from '../AuthContext';
-import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
+import { toast } from 'sonner';
 import { DateRange } from 'react-day-picker';
 import { addDays, subDays } from 'date-fns';
 
@@ -23,7 +22,6 @@ interface ReportData {
 
 const ReportsSection: React.FC = () => {
   const { profile } = useAuth();
-  const { toast } = useToast();
   const [reportData, setReportData] = useState<ReportData>({
     bookings: [],
     transactions: [],
@@ -94,11 +92,7 @@ const ReportsSection: React.FC = () => {
 
     } catch (error) {
       console.error('Error fetching report data:', error);
-      toast({
-        title: "Erro",
-        description: "Erro ao carregar dados dos relatórios.",
-        variant: "destructive"
-      });
+      toast.error("Erro ao carregar dados dos relatórios.");
     } finally {
       setLoading(false);
     }

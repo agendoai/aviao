@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -6,8 +5,8 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Plane, DollarSign, Calendar, Settings, Users, TrendingUp } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
-import { useAuth } from '../AuthContext';
+import { toast } from 'sonner';
+import { useAuth } from '@/hooks/use-auth';
 
 interface Aircraft {
   id: string;
@@ -28,7 +27,6 @@ interface BookingStats {
 
 const OwnerDashboard: React.FC = () => {
   const { profile } = useAuth();
-  const { toast } = useToast();
   const [aircraft, setAircraft] = useState<Aircraft[]>([]);
   const [stats, setStats] = useState<BookingStats>({
     totalBookings: 0,
@@ -53,11 +51,7 @@ const OwnerDashboard: React.FC = () => {
       if (error) throw error;
       setAircraft(data || []);
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro ao carregar aeronaves",
-        variant: "destructive"
-      });
+      toast.error("Erro ao carregar aeronaves");
     } finally {
       setLoading(false);
     }
@@ -88,11 +82,7 @@ const OwnerDashboard: React.FC = () => {
         utilizationRate: Math.round((hoursFlown / (aircraft.length * 24 * 30)) * 100) || 0
       });
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro ao carregar estatísticas",
-        variant: "destructive"
-      });
+      toast.error("Erro ao carregar estatísticas");
     }
   };
 

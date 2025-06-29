@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,8 +5,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus, CreditCard } from 'lucide-react';
-import { useAuth } from '../AuthContext';
-import { useToast } from '@/hooks/use-toast';
+import { useAuth } from '@/hooks/use-auth';
+import { toast } from 'sonner';
 import { supabase } from '@/integrations/supabase/client';
 
 interface PaymentMethod {
@@ -21,7 +20,6 @@ interface PaymentMethod {
 
 const CreditRechargeManager: React.FC = () => {
   const { profile, updateProfile } = useAuth();
-  const { toast } = useToast();
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethod[]>([]);
   const [rechargeAmount, setRechargeAmount] = useState('');
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState('');
@@ -57,20 +55,12 @@ const CreditRechargeManager: React.FC = () => {
 
   const handleRecharge = async () => {
     if (!rechargeAmount || parseFloat(rechargeAmount) <= 0) {
-      toast({
-        title: "Erro",
-        description: "Valor inválido para recarga",
-        variant: "destructive"
-      });
+      toast.error("Valor inválido para recarga");
       return;
     }
 
     if (!selectedPaymentMethod) {
-      toast({
-        title: "Erro",
-        description: "Selecione um método de pagamento",
-        variant: "destructive"
-      });
+      toast.error("Selecione um método de pagamento");
       return;
     }
 
@@ -109,10 +99,7 @@ const CreditRechargeManager: React.FC = () => {
           await updateProfile({ balance: data.new_balance });
         }
 
-        toast({
-          title: "Sucesso",
-          description: `Recarga de R$ ${amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} realizada com sucesso`
-        });
+        toast.success(`Recarga de R$ ${amount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} realizada com sucesso`);
 
         setRechargeAmount('');
       } else {
@@ -120,11 +107,7 @@ const CreditRechargeManager: React.FC = () => {
       }
     } catch (error: any) {
       console.error('Erro ao processar recarga:', error);
-      toast({
-        title: "Erro",
-        description: error.message || "Erro ao processar recarga",
-        variant: "destructive"
-      });
+      toast.error(error.message || "Erro ao processar recarga");
     } finally {
       setProcessing(false);
     }

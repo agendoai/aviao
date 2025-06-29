@@ -1,17 +1,16 @@
 
 import React, { useState } from 'react';
-import { useAuth } from './AuthContext';
+import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plane, Mail, Lock, User } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 
 const LoginForm: React.FC = () => {
-  const { login, signup, isLoading } = useAuth();
-  const { toast } = useToast();
+  const { signIn, signUp, loading } = useAuth();
   
   const [loginData, setLoginData] = useState({
     email: '',
@@ -29,27 +28,16 @@ const LoginForm: React.FC = () => {
     e.preventDefault();
     
     if (!loginData.email || !loginData.password) {
-      toast({
-        title: "Erro de Validação",
-        description: "Por favor, preencha todos os campos.",
-        variant: "destructive"
-      });
+      toast.error("Por favor, preencha todos os campos.");
       return;
     }
 
-    const { error } = await login(loginData.email, loginData.password);
+    const { error } = await signIn(loginData.email, loginData.password);
     
     if (error) {
-      toast({
-        title: "Erro no Login",
-        description: error,
-        variant: "destructive"
-      });
+      toast.error(error.message || "Erro no login");
     } else {
-      toast({
-        title: "Login realizado com sucesso!",
-        description: "Bem-vindo ao E-Club A.",
-      });
+      toast.success("Login realizado com sucesso!");
     }
   };
 
@@ -57,45 +45,26 @@ const LoginForm: React.FC = () => {
     e.preventDefault();
     
     if (!signupData.name || !signupData.email || !signupData.password) {
-      toast({
-        title: "Erro de Validação",
-        description: "Por favor, preencha todos os campos.",
-        variant: "destructive"
-      });
+      toast.error("Por favor, preencha todos os campos.");
       return;
     }
 
     if (signupData.password !== signupData.confirmPassword) {
-      toast({
-        title: "Erro de Validação",
-        description: "As senhas não coincidem.",
-        variant: "destructive"
-      });
+      toast.error("As senhas não coincidem.");
       return;
     }
 
     if (signupData.password.length < 6) {
-      toast({
-        title: "Erro de Validação",
-        description: "A senha deve ter pelo menos 6 caracteres.",
-        variant: "destructive"
-      });
+      toast.error("A senha deve ter pelo menos 6 caracteres.");
       return;
     }
 
-    const { error } = await signup(signupData.email, signupData.password, signupData.name);
+    const { error } = await signUp(signupData.email, signupData.password);
     
     if (error) {
-      toast({
-        title: "Erro no Cadastro",
-        description: error,
-        variant: "destructive"
-      });
+      toast.error(error.message || "Erro no cadastro");
     } else {
-      toast({
-        title: "Cadastro realizado com sucesso!",
-        description: "Verifique seu email para confirmar a conta.",
-      });
+      toast.success("Cadastro realizado com sucesso! Verifique seu email para confirmar a conta.");
     }
   };
 
@@ -161,9 +130,9 @@ const LoginForm: React.FC = () => {
                   <Button 
                     type="submit" 
                     className="w-full bg-aviation-gradient hover:opacity-90 text-white"
-                    disabled={isLoading}
+                    disabled={loading}
                   >
-                    {isLoading ? 'Entrando...' : 'Entrar'}
+                    {loading ? 'Entrando...' : 'Entrar'}
                   </Button>
                 </form>
               </TabsContent>
@@ -237,9 +206,9 @@ const LoginForm: React.FC = () => {
                   <Button 
                     type="submit" 
                     className="w-full bg-aviation-gradient hover:opacity-90 text-white"
-                    disabled={isLoading}
+                    disabled={loading}
                   >
-                    {isLoading ? 'Criando conta...' : 'Criar Conta'}
+                    {loading ? 'Criando conta...' : 'Criar Conta'}
                   </Button>
                 </form>
               </TabsContent>

@@ -1,15 +1,15 @@
 
 import React from 'react';
-import { useAuth } from './AuthContext';
+import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Plane, LogOut, User, Wallet } from 'lucide-react';
 
 const Header: React.FC = () => {
-  const { profile, logout } = useAuth();
+  const { profile, signOut } = useAuth();
 
   const handleLogout = async () => {
-    await logout();
+    await signOut();
   };
 
   return (

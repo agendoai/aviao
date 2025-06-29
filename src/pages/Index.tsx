@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { useAuth } from '../components/AuthContext';
+import { useAuth } from '@/hooks/use-auth';
 import LoginForm from '../components/LoginForm';
 import Header from '../components/Header';
 import Dashboard from '../components/Dashboard';
@@ -16,10 +16,10 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { CalendarDays, BarChart3, Settings, Home, Users, Shield, Plane, CreditCard } from 'lucide-react';
 
 const Index = () => {
-  const { profile, isLoading } = useAuth();
+  const { profile, loading } = useAuth();
   const [activeTab, setActiveTab] = useState('dashboard');
 
-  if (isLoading) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-aviation-blue via-aviation-sky to-aviation-gold">
         <div className="text-center">

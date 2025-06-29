@@ -1,12 +1,11 @@
-
 import React, { useEffect, useState } from 'react';
-import { useAuth } from './AuthContext';
+import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/integrations/supabase/client';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { CalendarDays, Plane, CreditCard, Users, TrendingUp, Clock } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
 import type { Tables } from '@/integrations/supabase/types';
 import type { ProfileWithRole } from '@/types/supabase-extended';
 
@@ -15,7 +14,6 @@ type Booking = Tables<'bookings'>;
 
 const Dashboard: React.FC = () => {
   const { profile } = useAuth();
-  const { toast } = useToast();
   const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [recentBookings, setRecentBookings] = useState<Booking[]>([]);
   const [topProfiles, setTopProfiles] = useState<ProfileWithRole[]>([]);
@@ -57,11 +55,7 @@ const Dashboard: React.FC = () => {
         setRecentBookings(bookings);
       }
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro ao carregar atividades recentes.",
-        variant: "destructive"
-      });
+      toast.error("Erro ao carregar atividades recentes.");
     }
   };
 
@@ -79,11 +73,7 @@ const Dashboard: React.FC = () => {
         setTopProfiles(data as ProfileWithRole[]);
       }
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro ao carregar lista de prioridades.",
-        variant: "destructive"
-      });
+      toast.error("Erro ao carregar lista de prioridades.");
     }
   };
 
@@ -274,8 +264,12 @@ const Dashboard: React.FC = () => {
                 
                 {recentTransactions.slice(0, 2).map((transaction) => (
                   <div key={transaction.id} className="flex items-center space-x-4 p-3 bg-gray-50 rounded-lg">
-                    <div className="w-10 h-10 bg-blue-100 rounded-full flex items-center justify-center">
-                      <CreditCard className="h-5 w-5 text-blue-600" />
+                    <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
+                      transaction.type === 'credit' ? 'bg-green-100' : 'bg-red-100'
+                    }`}>
+                      <CreditCard className={`h-5 w-5 ${
+                        transaction.type === 'credit' ? 'text-green-600' : 'text-red-600'
+                      }`} />
                     </div>
                     <div className="flex-1">
                       <p className="font-medium">{transaction.description}</p>
