@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,7 +11,7 @@ import AircraftSeatingChart from './AircraftSeatingChart';
 import RouteBuilder from './RouteBuilder';
 import CostBreakdown from './CostBreakdown';
 import { useToast } from '@/hooks/use-toast';
-import { useAuth } from './AuthContext';
+import { useAuth } from '@/hooks/use-auth';
 import type { Tables } from '@/integrations/supabase/types';
 
 type Aircraft = Tables<'aircraft'>;

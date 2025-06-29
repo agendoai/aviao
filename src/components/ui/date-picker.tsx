@@ -1,22 +1,17 @@
 
 import * as React from "react"
 import { CalendarIcon } from "lucide-react"
-import { format } from "date-fns"
-import { ptBR } from "date-fns/locale"
 import { DateRange } from "react-day-picker"
-
 import { cn } from "@/lib/utils"
 import { Button } from "@/components/ui/button"
 import { Calendar } from "@/components/ui/calendar"
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "@/components/ui/popover"
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { format } from "date-fns"
+import { ptBR } from "date-fns/locale"
 
 interface DatePickerWithRangeProps {
-  date?: DateRange
-  onDateChange?: (date: DateRange | undefined) => void
+  date: DateRange | undefined
+  onDateChange: (date: DateRange | undefined) => void
   className?: string
 }
 
@@ -48,7 +43,7 @@ export function DatePickerWithRange({
                 format(date.from, "dd/MM/yyyy", { locale: ptBR })
               )
             ) : (
-              <span>Selecionar período</span>
+              <span>Selecione o período</span>
             )}
           </Button>
         </PopoverTrigger>
