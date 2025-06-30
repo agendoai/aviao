@@ -19,8 +19,9 @@ type Aircraft = Tables<'aircraft'>;
 interface RouteStop {
   id: string;
   destination: string;
-  arrivalTime: string;
   departureTime: string;
+  calculatedArrivalTime: string;
+  calculatedArrivalDate: string;
   stayDuration: number;
 }
 
@@ -395,7 +396,7 @@ const EnhancedBookingFlow: React.FC<EnhancedBookingFlowProps> = ({ selectedDate 
                       <div key={stop.id} className="flex justify-between text-sm">
                         <span>{stop.destination}</span>
                         <span className="text-gray-600">
-                          Chegada: {stop.arrivalTime} | Saída: {stop.departureTime}
+                          Chegada: {stop.calculatedArrivalTime} | Saída: {stop.departureTime}
                         </span>
                       </div>
                     ))}
