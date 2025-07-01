@@ -30,8 +30,8 @@ const ConversationalBookingFlow: React.FC = () => {
   const { profile } = useAuth();
   
   const [currentStep, setCurrentStep] = useState(1);
-  const [destination, setDestination] = useState('');
   const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null);
+  const [destination, setDestination] = useState('');
   const [departureDate, setDepartureDate] = useState('');
   const [returnDate, setReturnDate] = useState('');
   const [passengers, setPassengers] = useState('');
@@ -42,8 +42,8 @@ const ConversationalBookingFlow: React.FC = () => {
   const [availableReturnDays, setAvailableReturnDays] = useState<AvailableDay[]>([]);
 
   const steps: BookingStep[] = [
-    { step: 1, title: 'Destino', completed: destination !== '' },
-    { step: 2, title: 'Aeronave', completed: selectedAircraft !== null },
+    { step: 1, title: 'Aeronave', completed: selectedAircraft !== null },
+    { step: 2, title: 'Destino', completed: destination !== '' },
     { step: 3, title: 'Data de Ida', completed: departureDate !== '' },
     { step: 4, title: 'Data de Volta', completed: returnDate !== '' },
     { step: 5, title: 'Passageiros', completed: passengers !== '' },
@@ -83,6 +83,16 @@ const ConversationalBookingFlow: React.FC = () => {
     }
   };
 
+  const handleAircraftSelect = (aircraft: Aircraft) => {
+    setSelectedAircraft(aircraft);
+    setSelectedSeats([]); // Reset seats when aircraft changes
+    setCurrentStep(2);
+    toast({
+      title: "Aeronave selecionada",
+      description: `${aircraft.name} - ${aircraft.model}`,
+    });
+  };
+
   const handleDestinationSubmit = () => {
     if (!destination.trim()) {
       toast({
@@ -92,17 +102,7 @@ const ConversationalBookingFlow: React.FC = () => {
       });
       return;
     }
-    setCurrentStep(2);
-  };
-
-  const handleAircraftSelect = (aircraft: Aircraft) => {
-    setSelectedAircraft(aircraft);
-    setSelectedSeats([]); // Reset seats when aircraft changes
     setCurrentStep(3);
-    toast({
-      title: "Aeronave selecionada",
-      description: `${aircraft.name} - ${aircraft.model}`,
-    });
   };
 
   const handleDateSelect = (day: number, type: 'departure' | 'return') => {
@@ -264,11 +264,29 @@ const ConversationalBookingFlow: React.FC = () => {
       <Card className="aviation-card">
         <CardContent className="pt-6">
           {currentStep === 1 && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <Plane className="h-12 w-12 text-aviation-blue mx-auto mb-4" />
+                <h2 className="text-2xl font-bold mb-2">Selecione a aeronave</h2>
+                <p className="text-gray-600">Escolha a aeronave para sua viagem</p>
+              </div>
+              
+              <AircraftSelector 
+                onAircraftSelect={handleAircraftSelect}
+                selectedAircraftId={selectedAircraft?.id}
+              />
+            </div>
+          )}
+
+          {currentStep === 2 && (
             <div className="space-y-4">
               <div className="text-center">
                 <MapPin className="h-12 w-12 text-aviation-blue mx-auto mb-4" />
                 <h2 className="text-2xl font-bold mb-2">Qual seu destino?</h2>
                 <p className="text-gray-600">Ex: Paris, Nova York, Londres</p>
+                <Badge variant="outline" className="mt-2">
+                  Aeronave: {selectedAircraft?.name}
+                </Badge>
               </div>
               <div className="max-w-md mx-auto space-y-4">
                 <Input
@@ -285,21 +303,6 @@ const ConversationalBookingFlow: React.FC = () => {
                   Continuar
                 </Button>
               </div>
-            </div>
-          )}
-
-          {currentStep === 2 && (
-            <div className="space-y-6">
-              <div className="text-center">
-                <Plane className="h-12 w-12 text-aviation-blue mx-auto mb-4" />
-                <h2 className="text-2xl font-bold mb-2">Selecione a aeronave</h2>
-                <p className="text-gray-600">Escolha a aeronave para sua viagem para {destination}</p>
-              </div>
-              
-              <AircraftSelector 
-                onAircraftSelect={handleAircraftSelect}
-                selectedAircraftId={selectedAircraft?.id}
-              />
             </div>
           )}
 
@@ -425,10 +428,10 @@ const ConversationalBookingFlow: React.FC = () => {
               <div className="max-w-md mx-auto space-y-4">
                 <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
                   <div>
-                    <strong>Destino:</strong> {destination}
+                    <strong>Aeronave:</strong> {selectedAircraft?.name}
                   </div>
                   <div>
-                    <strong>Aeronave:</strong> {selectedAircraft?.name}
+                    <strong>Destino:</strong> {destination}
                   </div>
                   <div>
                     <strong>Ida:</strong> {departureDate}/{currentMonth.getFullYear()}
@@ -494,12 +497,12 @@ const ConversationalBookingFlow: React.FC = () => {
               <div className="max-w-lg mx-auto bg-gray-50 rounded-lg p-6 space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <span className="text-gray-600">Destino:</span>
-                    <p className="font-medium">{destination}</p>
+                    <span className="text-gray-600">Aeronave:</span>
+                    <p className="font-medium">{selectedAircraft?.name}</p>
                   </div>
                   <div>
-                    <span className="text-gray-600">Passageiros:</span>
-                    <p className="font-medium">{passengers}</p>
+                    <span className="text-gray-600">Destino:</span>
+                    <p className="font-medium">{destination}</p>
                   </div>
                   <div>
                     <span className="text-gray-600">Data de ida:</span>
@@ -510,8 +513,8 @@ const ConversationalBookingFlow: React.FC = () => {
                     <p className="font-medium">{returnDate}/{currentMonth.getFullYear()}</p>
                   </div>
                   <div>
-                    <span className="text-gray-600">Aeronave:</span>
-                    <p className="font-medium">{selectedAircraft?.name}</p>
+                    <span className="text-gray-600">Passageiros:</span>
+                    <p className="font-medium">{passengers}</p>
                   </div>
                   <div>
                     <span className="text-gray-600">Assentos:</span>
