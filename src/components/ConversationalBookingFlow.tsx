@@ -7,6 +7,11 @@ import { Badge } from '@/components/ui/badge';
 import { Calendar, ArrowRight, MapPin, Users, CheckCircle, Plane } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
+import AircraftSelector from './AircraftSelector';
+import AircraftSeatingChart from './AircraftSeatingChart';
+import type { Tables } from '@/integrations/supabase/types';
+
+type Aircraft = Tables<'aircraft'>;
 
 interface AvailableDay {
   day: number;
@@ -29,6 +34,9 @@ const ConversationalBookingFlow: React.FC = () => {
   const [departureDate, setDepartureDate] = useState('');
   const [returnDate, setReturnDate] = useState('');
   const [passengers, setPassengers] = useState('');
+  const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null);
+  const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
+  const [travelMode, setTravelMode] = useState<'solo' | 'shared'>('solo');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [availableDepartureDays, setAvailableDepartureDays] = useState<AvailableDay[]>([]);
   const [availableReturnDays, setAvailableReturnDays] = useState<AvailableDay[]>([]);
@@ -38,7 +46,9 @@ const ConversationalBookingFlow: React.FC = () => {
     { step: 2, title: 'Data de Ida', completed: departureDate !== '' },
     { step: 3, title: 'Data de Volta', completed: returnDate !== '' },
     { step: 4, title: 'Passageiros', completed: passengers !== '' },
-    { step: 5, title: 'Confirmação', completed: false }
+    { step: 5, title: 'Aeronave', completed: selectedAircraft !== null },
+    { step: 6, title: 'Assentos', completed: selectedSeats.length > 0 },
+    { step: 7, title: 'Confirmação', completed: false }
   ];
 
   useEffect(() => {
@@ -117,10 +127,42 @@ const ConversationalBookingFlow: React.FC = () => {
     setCurrentStep(5);
   };
 
+  const handleAircraftSelect = (aircraft: Aircraft) => {
+    setSelectedAircraft(aircraft);
+    setSelectedSeats([]); // Reset seats when aircraft changes
+    setCurrentStep(6);
+    toast({
+      title: "Aeronave selecionada",
+      description: `${aircraft.name} - ${aircraft.model}`,
+    });
+  };
+
+  const handleSeatSelect = (seatNumber: number) => {
+    setSelectedSeats(prev => {
+      if (prev.includes(seatNumber)) {
+        return prev.filter(seat => seat !== seatNumber);
+      } else {
+        return [...prev, seatNumber];
+      }
+    });
+  };
+
+  const handleSeatsConfirm = () => {
+    if (selectedSeats.length === 0) {
+      toast({
+        title: "Selecione os assentos",
+        description: "Por favor, selecione pelo menos um assento.",
+        variant: "destructive"
+      });
+      return;
+    }
+    setCurrentStep(7);
+  };
+
   const handleConfirmBooking = () => {
     toast({
       title: "✔️ Reservando sua viagem",
-      description: `GRU→${destination.toUpperCase()} (${departureDate}) e ${destination.toUpperCase()}→GRU (${returnDate}). Buscando opções...`,
+      description: `GRU→${destination.toUpperCase()} (${departureDate}) e ${destination.toUpperCase()}→GRU (${returnDate}). Processando reserva...`,
     });
     
     // Aqui integraria com o sistema de reservas existente
@@ -134,11 +176,6 @@ const ConversationalBookingFlow: React.FC = () => {
 
   const getMonthName = (date: Date) => {
     return date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
-  };
-
-  const getDayName = (day: number) => {
-    const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
-    return date.toLocaleDateString('pt-BR', { weekday: 'short' });
   };
 
   const renderCalendar = (days: AvailableDay[], type: 'departure' | 'return') => {
@@ -400,6 +437,50 @@ const ConversationalBookingFlow: React.FC = () => {
           {currentStep === 5 && (
             <div className="space-y-6">
               <div className="text-center">
+                <Plane className="h-12 w-12 text-aviation-blue mx-auto mb-4" />
+                <h2 className="text-2xl font-bold mb-2">Selecione a aeronave</h2>
+                <p className="text-gray-600">Escolha a aeronave para sua viagem</p>
+              </div>
+              
+              <AircraftSelector 
+                onAircraftSelect={handleAircraftSelect}
+                selectedAircraftId={selectedAircraft?.id}
+              />
+            </div>
+          )}
+
+          {currentStep === 6 && selectedAircraft && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <h2 className="text-2xl font-bold mb-2">Selecione seus assentos</h2>
+                <p className="text-gray-600">
+                  {selectedAircraft.name} - {selectedAircraft.model}
+                </p>
+              </div>
+              
+              <AircraftSeatingChart
+                aircraft={selectedAircraft}
+                onSeatSelect={handleSeatSelect}
+                selectedSeats={selectedSeats}
+                onTravelModeChange={setTravelMode}
+                selectedTravelMode={travelMode}
+              />
+              
+              <div className="text-center">
+                <Button 
+                  onClick={handleSeatsConfirm}
+                  className="bg-aviation-gradient hover:opacity-90 text-white text-lg py-3 px-8"
+                  disabled={selectedSeats.length === 0}
+                >
+                  Confirmar Assentos Selecionados
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {currentStep === 7 && (
+            <div className="space-y-6">
+              <div className="text-center">
                 <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
                 <h2 className="text-2xl font-bold mb-2">Confirme sua reserva</h2>
               </div>
@@ -422,11 +503,23 @@ const ConversationalBookingFlow: React.FC = () => {
                     <span className="text-gray-600">Data de volta:</span>
                     <p className="font-medium">{returnDate}/{currentMonth.getFullYear()}</p>
                   </div>
+                  <div>
+                    <span className="text-gray-600">Aeronave:</span>
+                    <p className="font-medium">{selectedAircraft?.name}</p>
+                  </div>
+                  <div>
+                    <span className="text-gray-600">Assentos:</span>
+                    <p className="font-medium">{selectedSeats.join(', ')}</p>
+                  </div>
                 </div>
                 
                 <div className="border-t pt-4">
                   <p className="text-sm text-gray-600 mb-4">
                     Resumo: <strong>GRU→{destination.toUpperCase()}</strong> ({departureDate}) e <strong>{destination.toUpperCase()}→GRU</strong> ({returnDate})
+                    <br />
+                    Aeronave: <strong>{selectedAircraft?.name}</strong> - Assentos: <strong>{selectedSeats.join(', ')}</strong>
+                    <br />
+                    Modo: <strong>{travelMode === 'solo' ? 'Individual' : 'Compartilhado'}</strong>
                   </p>
                   
                   <Button 
