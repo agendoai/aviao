@@ -2,15 +2,16 @@
 import React, { useState } from 'react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
-import { CalendarDays, Clock, Users, MessageCircle, Plane } from 'lucide-react';
+import { CalendarDays, Clock, Users, MessageCircle, Plane, Bot } from 'lucide-react';
 import FlightCalendar from './FlightCalendar';
 import FlightSharingChat from './FlightSharingChat';
 import PriorityQueue from './PriorityQueue';
 import EnhancedBookingFlow from './EnhancedBookingFlow';
+import ConversationalBookingFlow from './ConversationalBookingFlow';
 
 const EnhancedBookingSystem: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
-  const [activeTab, setActiveTab] = useState('enhanced');
+  const [activeTab, setActiveTab] = useState('conversational');
 
   const handleDateSelect = (date: Date) => {
     setSelectedDate(date);
@@ -25,16 +26,20 @@ const EnhancedBookingSystem: React.FC = () => {
             Sistema de Reservas Completo
           </CardTitle>
           <CardDescription className="text-lg">
-            Sistema integrado com seleção de aeronave, assentos, rotas e cálculo automático de custos
+            Sistema integrado com assistente conversacional e fluxo completo de reservas
           </CardDescription>
         </CardHeader>
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4">
+        <TabsList className="grid w-full grid-cols-5">
+          <TabsTrigger value="conversational" className="flex items-center space-x-2">
+            <Bot className="h-4 w-4" />
+            <span>Assistente</span>
+          </TabsTrigger>
           <TabsTrigger value="enhanced" className="flex items-center space-x-2">
             <Plane className="h-4 w-4" />
-            <span>Reserva Completa</span>
+            <span>Reserva Avançada</span>
           </TabsTrigger>
           <TabsTrigger value="calendar" className="flex items-center space-x-2">
             <CalendarDays className="h-4 w-4" />
@@ -49,6 +54,10 @@ const EnhancedBookingSystem: React.FC = () => {
             <span>Chat</span>
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="conversational" className="space-y-6">
+          <ConversationalBookingFlow />
+        </TabsContent>
 
         <TabsContent value="enhanced" className="space-y-6">
           <EnhancedBookingFlow selectedDate={selectedDate} />
@@ -83,32 +92,24 @@ const EnhancedBookingSystem: React.FC = () => {
       {/* Informações do Sistema Aprimorado */}
       <Card className="aviation-card bg-gradient-to-r from-blue-50 to-indigo-50 border-blue-200">
         <CardHeader>
-          <CardTitle className="text-blue-900">🚁 Sistema Aprimorado - Principais Funcionalidades</CardTitle>
+          <CardTitle className="text-blue-900">🤖 Novo Assistente Conversacional</CardTitle>
         </CardHeader>
         <CardContent className="grid grid-cols-1 md:grid-cols-2 gap-4 text-blue-800">
           <div>
-            <h4 className="font-semibold">✈️ Seleção Inteligente de Aeronave</h4>
-            <p className="text-sm">Visualização completa com capacidade, autonomia e custos por hora</p>
+            <h4 className="font-semibold">💬 Fluxo Conversacional</h4>
+            <p className="text-sm">Interface amigável que guia o usuário passo a passo</p>
           </div>
           <div>
-            <h4 className="font-semibold">🪑 Mapa de Assentos Interativo</h4>
-            <p className="text-sm">Seleção visual de assentos com status em tempo real</p>
+            <h4 className="font-semibold">📅 Calendário Visual</h4>
+            <p className="text-sm">Visualização clara de datas disponíveis com cores intuitivas</p>
           </div>
           <div>
-            <h4 className="font-semibold">🗺️ Construtor de Rotas</h4>
-            <p className="text-sm">Defina escalas com retorno automático à base</p>
+            <h4 className="font-semibold">✅ Disponibilidade em Tempo Real</h4>
+            <p className="text-sm">Status de assentos disponíveis, esgotados ou últimas vagas</p>
           </div>
           <div>
-            <h4 className="font-semibold">💰 Cálculo Automático de Custos</h4>
-            <p className="text-sm">Horas de voo, taxas aeroportuárias e pernoites automáticos</p>
-          </div>
-          <div>
-            <h4 className="font-semibold">🌙 Detecção de Pernoite</h4>
-            <p className="text-sm">Cobrança automática quando há passagem de meia-noite</p>
-          </div>
-          <div>
-            <h4 className="font-semibold">📊 Resumo Financeiro Detalhado</h4>
-            <p className="text-sm">Breakdown completo de custos por trecho e categoria</p>
+            <h4 className="font-semibold">🎯 Experiência Simplificada</h4>
+            <p className="text-sm">Processo de reserva intuitivo com confirmação clara</p>
           </div>
         </CardContent>
       </Card>
