@@ -31,10 +31,10 @@ const ConversationalBookingFlow: React.FC = () => {
   
   const [currentStep, setCurrentStep] = useState(1);
   const [destination, setDestination] = useState('');
+  const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null);
   const [departureDate, setDepartureDate] = useState('');
   const [returnDate, setReturnDate] = useState('');
   const [passengers, setPassengers] = useState('');
-  const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null);
   const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
   const [travelMode, setTravelMode] = useState<'solo' | 'shared'>('solo');
   const [currentMonth, setCurrentMonth] = useState(new Date());
@@ -43,22 +43,22 @@ const ConversationalBookingFlow: React.FC = () => {
 
   const steps: BookingStep[] = [
     { step: 1, title: 'Destino', completed: destination !== '' },
-    { step: 2, title: 'Data de Ida', completed: departureDate !== '' },
-    { step: 3, title: 'Data de Volta', completed: returnDate !== '' },
-    { step: 4, title: 'Passageiros', completed: passengers !== '' },
-    { step: 5, title: 'Aeronave', completed: selectedAircraft !== null },
+    { step: 2, title: 'Aeronave', completed: selectedAircraft !== null },
+    { step: 3, title: 'Data de Ida', completed: departureDate !== '' },
+    { step: 4, title: 'Data de Volta', completed: returnDate !== '' },
+    { step: 5, title: 'Passageiros', completed: passengers !== '' },
     { step: 6, title: 'Assentos', completed: selectedSeats.length > 0 },
     { step: 7, title: 'Confirmação', completed: false }
   ];
 
   useEffect(() => {
-    if (currentStep === 2 && destination) {
+    if (currentStep === 3 && destination && selectedAircraft) {
       generateAvailableDays('departure');
     }
-    if (currentStep === 3 && departureDate) {
+    if (currentStep === 4 && departureDate) {
       generateAvailableDays('return');
     }
-  }, [currentStep, destination, departureDate]);
+  }, [currentStep, destination, selectedAircraft, departureDate]);
 
   const generateAvailableDays = (type: 'departure' | 'return') => {
     // Simular disponibilidade de dias (em produção, isso viria de uma API)
@@ -95,19 +95,29 @@ const ConversationalBookingFlow: React.FC = () => {
     setCurrentStep(2);
   };
 
+  const handleAircraftSelect = (aircraft: Aircraft) => {
+    setSelectedAircraft(aircraft);
+    setSelectedSeats([]); // Reset seats when aircraft changes
+    setCurrentStep(3);
+    toast({
+      title: "Aeronave selecionada",
+      description: `${aircraft.name} - ${aircraft.model}`,
+    });
+  };
+
   const handleDateSelect = (day: number, type: 'departure' | 'return') => {
     const selectedDate = `${day.toString().padStart(2, '0')}/${(currentMonth.getMonth() + 1).toString().padStart(2, '0')}`;
     
     if (type === 'departure') {
       setDepartureDate(selectedDate);
-      setCurrentStep(3);
+      setCurrentStep(4);
       toast({
         title: "Data de ida selecionada",
         description: `${selectedDate}/${currentMonth.getFullYear()}`,
       });
     } else {
       setReturnDate(selectedDate);
-      setCurrentStep(4);
+      setCurrentStep(5);
       toast({
         title: "Data de volta selecionada",
         description: `${selectedDate}/${currentMonth.getFullYear()}`,
@@ -124,17 +134,7 @@ const ConversationalBookingFlow: React.FC = () => {
       });
       return;
     }
-    setCurrentStep(5);
-  };
-
-  const handleAircraftSelect = (aircraft: Aircraft) => {
-    setSelectedAircraft(aircraft);
-    setSelectedSeats([]); // Reset seats when aircraft changes
     setCurrentStep(6);
-    toast({
-      title: "Aeronave selecionada",
-      description: `${aircraft.name} - ${aircraft.model}`,
-    });
   };
 
   const handleSeatSelect = (seatNumber: number) => {
@@ -291,12 +291,30 @@ const ConversationalBookingFlow: React.FC = () => {
           {currentStep === 2 && (
             <div className="space-y-6">
               <div className="text-center">
+                <Plane className="h-12 w-12 text-aviation-blue mx-auto mb-4" />
+                <h2 className="text-2xl font-bold mb-2">Selecione a aeronave</h2>
+                <p className="text-gray-600">Escolha a aeronave para sua viagem para {destination}</p>
+              </div>
+              
+              <AircraftSelector 
+                onAircraftSelect={handleAircraftSelect}
+                selectedAircraftId={selectedAircraft?.id}
+              />
+            </div>
+          )}
+
+          {currentStep === 3 && (
+            <div className="space-y-6">
+              <div className="text-center">
                 <h2 className="text-2xl font-bold mb-2">
                   Confira as datas disponíveis para ida
                 </h2>
                 <p className="text-gray-600">
                   GRU → {destination.toUpperCase()}
                 </p>
+                <Badge variant="outline" className="mt-2">
+                  Aeronave: {selectedAircraft?.name}
+                </Badge>
               </div>
               
               <div className="max-w-2xl mx-auto">
@@ -348,7 +366,7 @@ const ConversationalBookingFlow: React.FC = () => {
             </div>
           )}
 
-          {currentStep === 3 && (
+          {currentStep === 4 && (
             <div className="space-y-6">
               <div className="text-center">
                 <h2 className="text-2xl font-bold mb-2">
@@ -396,7 +414,7 @@ const ConversationalBookingFlow: React.FC = () => {
             </div>
           )}
 
-          {currentStep === 4 && (
+          {currentStep === 5 && (
             <div className="space-y-4">
               <div className="text-center">
                 <Users className="h-12 w-12 text-aviation-blue mx-auto mb-4" />
@@ -408,6 +426,9 @@ const ConversationalBookingFlow: React.FC = () => {
                 <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
                   <div>
                     <strong>Destino:</strong> {destination}
+                  </div>
+                  <div>
+                    <strong>Aeronave:</strong> {selectedAircraft?.name}
                   </div>
                   <div>
                     <strong>Ida:</strong> {departureDate}/{currentMonth.getFullYear()}
@@ -431,21 +452,6 @@ const ConversationalBookingFlow: React.FC = () => {
                   Continuar
                 </Button>
               </div>
-            </div>
-          )}
-
-          {currentStep === 5 && (
-            <div className="space-y-6">
-              <div className="text-center">
-                <Plane className="h-12 w-12 text-aviation-blue mx-auto mb-4" />
-                <h2 className="text-2xl font-bold mb-2">Selecione a aeronave</h2>
-                <p className="text-gray-600">Escolha a aeronave para sua viagem</p>
-              </div>
-              
-              <AircraftSelector 
-                onAircraftSelect={handleAircraftSelect}
-                selectedAircraftId={selectedAircraft?.id}
-              />
             </div>
           )}
 
