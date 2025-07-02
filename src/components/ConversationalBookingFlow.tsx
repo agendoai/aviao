@@ -1,10 +1,9 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, ArrowRight, MapPin, Users, CheckCircle, Plane, Clock, CreditCard, Wallet } from 'lucide-react';
+import { Calendar, ArrowRight, MapPin, Users, CheckCircle, Plane, Clock, CreditCard, Wallet, UserPlus, Route } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,6 +18,12 @@ interface AvailableDay {
   day: number;
   available: boolean;
   lastSeats?: boolean;
+}
+
+interface PassengerInfo {
+  name: string;
+  document: string;
+  documentType: 'rg' | 'passaporte';
 }
 
 interface BookingStep {
@@ -47,8 +52,12 @@ const ConversationalBookingFlow: React.FC = () => {
   const [travelMode, setTravelMode] = useState<'solo' | 'shared'>('solo');
   const [destination, setDestination] = useState('');
   const [departureDate, setDepartureDate] = useState('');
+  const [departureTime, setDepartureTime] = useState('');
   const [returnDate, setReturnDate] = useState('');
-  const [passengers, setPassengers] = useState('');
+  const [returnTime, setReturnTime] = useState('');
+  const [passengersCount, setPassengersCount] = useState('');
+  const [passengersInfo, setPassengersInfo] = useState<PassengerInfo[]>([]);
+  const [stops, setStops] = useState('');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [availableDepartureDays, setAvailableDepartureDays] = useState<AvailableDay[]>([]);
   const [availableReturnDays, setAvailableReturnDays] = useState<AvailableDay[]>([]);
@@ -61,17 +70,21 @@ const ConversationalBookingFlow: React.FC = () => {
     { step: 2, title: 'Assentos', completed: selectedSeats.length > 0 },
     { step: 3, title: 'Destino', completed: destination !== '' },
     { step: 4, title: 'Data de Ida', completed: departureDate !== '' },
-    { step: 5, title: 'Data de Volta', completed: returnDate !== '' },
-    { step: 6, title: 'Passageiros', completed: passengers !== '' },
-    { step: 7, title: 'Pré-reserva', completed: preReservationData !== null },
-    { step: 8, title: 'Pagamento', completed: false }
+    { step: 5, title: 'Hora de Ida', completed: departureTime !== '' },
+    { step: 6, title: 'Escalas', completed: true }, // Optional step
+    { step: 7, title: 'Data de Volta', completed: returnDate !== '' },
+    { step: 8, title: 'Hora de Volta', completed: returnTime !== '' },
+    { step: 9, title: 'Passageiros', completed: passengersCount !== '' },
+    { step: 10, title: 'Dados dos Passageiros', completed: passengersInfo.length > 0 },
+    { step: 11, title: 'Pré-reserva', completed: preReservationData !== null },
+    { step: 12, title: 'Pagamento', completed: false }
   ];
 
   useEffect(() => {
     if (currentStep === 4 && destination && selectedAircraft) {
       generateAvailableDays('departure');
     }
-    if (currentStep === 5 && departureDate) {
+    if (currentStep === 7 && departureDate) {
       generateAvailableDays('return');
     }
   }, [currentStep, destination, selectedAircraft, departureDate]);
@@ -159,7 +172,7 @@ const ConversationalBookingFlow: React.FC = () => {
       });
     } else {
       setReturnDate(selectedDate);
-      setCurrentStep(6);
+      setCurrentStep(8);
       toast({
         title: "Data de volta selecionada",
         description: `${selectedDate}/${currentMonth.getFullYear()}`,
@@ -167,8 +180,41 @@ const ConversationalBookingFlow: React.FC = () => {
     }
   };
 
-  const handlePassengersSubmit = () => {
-    if (!passengers.trim()) {
+  const handleTimeSelect = (time: string, type: 'departure' | 'return') => {
+    if (type === 'departure') {
+      setDepartureTime(time);
+      setCurrentStep(6);
+      toast({
+        title: "Horário de ida selecionado",
+        description: `${time}`,
+      });
+    } else {
+      setReturnTime(time);
+      setCurrentStep(9);
+      toast({
+        title: "Horário de volta selecionado",
+        description: `${time}`,
+      });
+    }
+  };
+
+  const handleStopsSubmit = () => {
+    setCurrentStep(7);
+    if (stops.trim()) {
+      toast({
+        title: "Escalas definidas",
+        description: stops,
+      });
+    } else {
+      toast({
+        title: "Voo direto",
+        description: "Nenhuma escala adicionada.",
+      });
+    }
+  };
+
+  const handlePassengersCountSubmit = () => {
+    if (!passengersCount.trim()) {
       toast({
         title: "Campo obrigatório",
         description: "Por favor, informe o número de passageiros.",
@@ -176,7 +222,59 @@ const ConversationalBookingFlow: React.FC = () => {
       });
       return;
     }
-    setCurrentStep(7);
+    
+    const count = parseInt(passengersCount);
+    if (count <= 0) {
+      toast({
+        title: "Número inválido",
+        description: "O número de passageiros deve ser maior que zero.",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    // Initialize passengers info array
+    const newPassengersInfo: PassengerInfo[] = [];
+    for (let i = 0; i < count; i++) {
+      newPassengersInfo.push({
+        name: '',
+        document: '',
+        documentType: 'rg'
+      });
+    }
+    setPassengersInfo(newPassengersInfo);
+    setCurrentStep(10);
+  };
+
+  const handlePassengerInfoChange = (index: number, field: keyof PassengerInfo, value: string) => {
+    setPassengersInfo(prev => {
+      const updated = [...prev];
+      if (field === 'documentType') {
+        updated[index][field] = value as 'rg' | 'passaporte';
+      } else {
+        updated[index][field] = value;
+      }
+      return updated;
+    });
+  };
+
+  const handlePassengersInfoSubmit = () => {
+    const incompletePassengers = passengersInfo.some(p => !p.name.trim() || !p.document.trim());
+    
+    if (incompletePassengers) {
+      toast({
+        title: "Dados incompletos",
+        description: "Por favor, preencha nome e documento de todos os passageiros.",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setCurrentStep(11);
+    toast({
+      title: "Dados dos passageiros confirmados",
+      description: `${passengersInfo.length} passageiro(s) cadastrado(s)`,
+    });
   };
 
   const handleCreatePreReservation = async () => {
@@ -191,12 +289,12 @@ const ConversationalBookingFlow: React.FC = () => {
       const { data, error } = await supabase.rpc('create_pre_reservation', {
         p_aircraft_id: selectedAircraft.id,
         p_departure_date: `2024-${(currentMonth.getMonth() + 1).toString().padStart(2, '0')}-${departureDate.split('/')[0]}`,
-        p_departure_time: '10:00:00',
+        p_departure_time: departureTime + ':00',
         p_return_date: `2024-${(currentMonth.getMonth() + 1).toString().padStart(2, '0')}-${returnDate.split('/')[0]}`,
-        p_return_time: '18:00:00',
+        p_return_time: returnTime + ':00',
         p_origin: 'GRU',
         p_destination: destination,
-        p_passengers: parseInt(passengers) || 1,
+        p_passengers: parseInt(passengersCount) || 1,
         p_flight_hours: flightHours,
         p_total_cost: baseCost
       });
@@ -215,7 +313,7 @@ const ConversationalBookingFlow: React.FC = () => {
           overnight_fee: response.overnight_fee!,
           final_cost: response.final_cost!
         });
-        setCurrentStep(8);
+        setCurrentStep(12);
         
         if (response.can_confirm_immediately) {
           toast({
@@ -269,8 +367,12 @@ const ConversationalBookingFlow: React.FC = () => {
         setSelectedSeats([]);
         setDestination('');
         setDepartureDate('');
+        setDepartureTime('');
         setReturnDate('');
-        setPassengers('');
+        setReturnTime('');
+        setPassengersCount('');
+        setPassengersInfo([]);
+        setStops('');
         setPreReservationData(null);
       } else {
         throw new Error(response.error || 'Erro ao confirmar reserva');
@@ -335,6 +437,29 @@ const ConversationalBookingFlow: React.FC = () => {
     return calendarDays;
   };
 
+  const renderTimeSelector = (type: 'departure' | 'return') => {
+    const timeSlots = [
+      '06:00', '07:00', '08:00', '09:00', '10:00', '11:00',
+      '12:00', '13:00', '14:00', '15:00', '16:00', '17:00',
+      '18:00', '19:00', '20:00', '21:00', '22:00'
+    ];
+
+    return (
+      <div className="grid grid-cols-4 gap-3">
+        {timeSlots.map(time => (
+          <Button
+            key={time}
+            variant="outline"
+            onClick={() => handleTimeSelect(time, type)}
+            className="h-12 text-sm hover:bg-aviation-blue hover:text-white transition-colors"
+          >
+            {time}
+          </Button>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="max-w-4xl mx-auto space-y-6">
       {/* Progress Header */}
@@ -349,9 +474,9 @@ const ConversationalBookingFlow: React.FC = () => {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex items-center space-x-4 overflow-x-auto">
+          <div className="flex items-center space-x-2 overflow-x-auto pb-2">
             {steps.map((step, index) => (
-              <div key={step.step} className="flex items-center space-x-2">
+              <div key={step.step} className="flex items-center space-x-2 flex-shrink-0">
                 <div className={`flex items-center justify-center w-8 h-8 rounded-full text-sm font-medium ${
                   step.completed 
                     ? 'bg-green-500 text-white' 
@@ -361,11 +486,11 @@ const ConversationalBookingFlow: React.FC = () => {
                 }`}>
                   {step.completed ? <CheckCircle className="h-4 w-4" /> : step.step}
                 </div>
-                <span className={`text-sm ${currentStep === step.step ? 'font-medium' : ''}`}>
+                <span className={`text-xs whitespace-nowrap ${currentStep === step.step ? 'font-medium' : ''}`}>
                   {step.title}
                 </span>
                 {index < steps.length - 1 && (
-                  <ArrowRight className="h-4 w-4 text-gray-400" />
+                  <ArrowRight className="h-3 w-3 text-gray-400 flex-shrink-0" />
                 )}
               </div>
             ))}
@@ -525,6 +650,57 @@ const ConversationalBookingFlow: React.FC = () => {
           {currentStep === 5 && (
             <div className="space-y-6">
               <div className="text-center">
+                <Clock className="h-12 w-12 text-aviation-blue mx-auto mb-4" />
+                <h2 className="text-2xl font-bold mb-2">Selecione o horário de ida</h2>
+                <p className="text-gray-600">
+                  Data selecionada: {departureDate}/{currentMonth.getFullYear()}
+                </p>
+              </div>
+              
+              <div className="max-w-2xl mx-auto">
+                {renderTimeSelector('departure')}
+              </div>
+            </div>
+          )}
+
+          {currentStep === 6 && (
+            <div className="space-y-4">
+              <div className="text-center">
+                <Route className="h-12 w-12 text-aviation-blue mx-auto mb-4" />
+                <h2 className="text-2xl font-bold mb-2">Escalas (opcional)</h2>
+                <p className="text-gray-600">Adicione escalas ao seu voo se necessário</p>
+              </div>
+              
+              <div className="max-w-md mx-auto space-y-4">
+                <div className="grid grid-cols-2 gap-4 text-sm text-gray-600 mb-4">
+                  <div>
+                    <strong>Ida:</strong> {departureDate}/{currentMonth.getFullYear()} às {departureTime}
+                  </div>
+                  <div>
+                    <strong>Destino:</strong> {destination}
+                  </div>
+                </div>
+                
+                <Input
+                  value={stops}
+                  onChange={(e) => setStops(e.target.value)}
+                  placeholder="Ex: Madrid, Londres (opcional)"
+                  className="text-lg p-4"
+                  onKeyPress={(e) => e.key === 'Enter' && handleStopsSubmit()}
+                />
+                <Button 
+                  onClick={handleStopsSubmit}
+                  className="w-full bg-aviation-gradient hover:opacity-90 text-white text-lg py-3"
+                >
+                  Continuar
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {currentStep === 7 && (
+            <div className="space-y-6">
+              <div className="text-center">
                 <h2 className="text-2xl font-bold mb-2">
                   Agora, selecione a data de volta
                 </h2>
@@ -532,7 +708,7 @@ const ConversationalBookingFlow: React.FC = () => {
                   {destination.toUpperCase()} → GRU
                 </p>
                 <Badge variant="outline" className="mt-2">
-                  Ida selecionada: {departureDate}/{currentMonth.getFullYear()}
+                  Ida: {departureDate}/{currentMonth.getFullYear()} às {departureTime}
                 </Badge>
               </div>
               
@@ -570,45 +746,57 @@ const ConversationalBookingFlow: React.FC = () => {
             </div>
           )}
 
-          {currentStep === 6 && (
+          {currentStep === 8 && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <Clock className="h-12 w-12 text-aviation-blue mx-auto mb-4" />
+                <h2 className="text-2xl font-bold mb-2">Selecione o horário de volta</h2>
+                <p className="text-gray-600">
+                  Data selecionada: {returnDate}/{currentMonth.getFullYear()}
+                </p>
+              </div>
+              
+              <div className="max-w-2xl mx-auto">
+                {renderTimeSelector('return')}
+              </div>
+            </div>
+          )}
+
+          {currentStep === 9 && (
             <div className="space-y-4">
               <div className="text-center">
                 <Users className="h-12 w-12 text-aviation-blue mx-auto mb-4" />
                 <h2 className="text-2xl font-bold mb-2">Número de passageiros</h2>
-                <p className="text-gray-600">Ex: 2 adultos, 1 criança</p>
+                <p className="text-gray-600">Quantas pessoas viajarão?</p>
               </div>
               
               <div className="max-w-md mx-auto space-y-4">
                 <div className="grid grid-cols-2 gap-4 text-sm text-gray-600">
                   <div>
-                    <strong>Aeronave:</strong> {selectedAircraft?.name}
+                    <strong>Ida:</strong> {departureDate} às {departureTime}
+                  </div>
+                  <div>
+                    <strong>Volta:</strong> {returnDate} às {returnTime}
                   </div>
                   <div>
                     <strong>Destino:</strong> {destination}
                   </div>
                   <div>
-                    <strong>Ida:</strong> {departureDate}/{currentMonth.getFullYear()}
-                  </div>
-                  <div>
-                    <strong>Volta:</strong> {returnDate}/{currentMonth.getFullYear()}
-                  </div>
-                  <div>
                     <strong>Assentos:</strong> {selectedSeats.join(', ')}
-                  </div>
-                  <div>
-                    <strong>Modo:</strong> {travelMode === 'solo' ? 'Individual' : 'Compartilhado'}
                   </div>
                 </div>
                 
                 <Input
-                  value={passengers}
-                  onChange={(e) => setPassengers(e.target.value)}
-                  placeholder="Ex: 2 adultos, 1 criança"
+                  value={passengersCount}
+                  onChange={(e) => setPassengersCount(e.target.value)}
+                  placeholder="Ex: 2"
+                  type="number"
+                  min="1"
                   className="text-lg p-4"
-                  onKeyPress={(e) => e.key === 'Enter' && handlePassengersSubmit()}
+                  onKeyPress={(e) => e.key === 'Enter' && handlePassengersCountSubmit()}
                 />
                 <Button 
-                  onClick={handlePassengersSubmit}
+                  onClick={handlePassengersCountSubmit}
                   className="w-full bg-aviation-gradient hover:opacity-90 text-white text-lg py-3"
                 >
                   Continuar
@@ -617,7 +805,72 @@ const ConversationalBookingFlow: React.FC = () => {
             </div>
           )}
 
-          {currentStep === 7 && (
+          {currentStep === 10 && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <UserPlus className="h-12 w-12 text-aviation-blue mx-auto mb-4" />
+                <h2 className="text-2xl font-bold mb-2">Dados dos Passageiros</h2>
+                <p className="text-gray-600">Preencha as informações de cada passageiro</p>
+              </div>
+              
+              <div className="max-w-2xl mx-auto space-y-6">
+                {passengersInfo.map((passenger, index) => (
+                  <div key={index} className="bg-gray-50 p-4 rounded-lg space-y-4">
+                    <h3 className="font-medium text-lg">Passageiro {index + 1}</h3>
+                    
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Nome Completo
+                        </label>
+                        <Input
+                          value={passenger.name}
+                          onChange={(e) => handlePassengerInfoChange(index, 'name', e.target.value)}
+                          placeholder="Nome completo"
+                          className="w-full"
+                        />
+                      </div>
+                      
+                      <div>
+                        <label className="block text-sm font-medium text-gray-700 mb-1">
+                          Tipo de Documento
+                        </label>
+                        <select
+                          value={passenger.documentType}
+                          onChange={(e) => handlePassengerInfoChange(index, 'documentType', e.target.value)}
+                          className="w-full h-10 px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+                        >
+                          <option value="rg">RG</option>
+                          <option value="passaporte">Passaporte</option>
+                        </select>
+                      </div>
+                    </div>
+                    
+                    <div>
+                      <label className="block text-sm font-medium text-gray-700 mb-1">
+                        {passenger.documentType === 'rg' ? 'RG' : 'Passaporte'}
+                      </label>
+                      <Input
+                        value={passenger.document}
+                        onChange={(e) => handlePassengerInfoChange(index, 'document', e.target.value)}
+                        placeholder={passenger.documentType === 'rg' ? 'Ex: 12.345.678-9' : 'Ex: BR123456'}
+                        className="w-full"
+                      />
+                    </div>
+                  </div>
+                ))}
+                
+                <Button 
+                  onClick={handlePassengersInfoSubmit}
+                  className="w-full bg-aviation-gradient hover:opacity-90 text-white text-lg py-3"
+                >
+                  Continuar
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {currentStep === 11 && (
             <div className="space-y-6">
               <div className="text-center">
                 <Clock className="h-12 w-12 text-aviation-blue mx-auto mb-4" />
@@ -638,22 +891,29 @@ const ConversationalBookingFlow: React.FC = () => {
                     <p className="font-medium">{destination}</p>
                   </div>
                   <div>
-                    <span className="text-gray-600">Data de ida:</span>
-                    <p className="font-medium">{departureDate}/{currentMonth.getFullYear()}</p>
+                    <span className="text-gray-600">Ida:</span>
+                    <p className="font-medium">{departureDate} às {departureTime}</p>
                   </div>
                   <div>
-                    <span className="text-gray-600">Data de volta:</span>
-                    <p className="font-medium">{returnDate}/{currentMonth.getFullYear()}</p>
+                    <span className="text-gray-600">Volta:</span>
+                    <p className="font-medium">{returnDate} às {returnTime}</p>
                   </div>
                   <div>
                     <span className="text-gray-600">Passageiros:</span>
-                    <p className="font-medium">{passengers}</p>
+                    <p className="font-medium">{passengersCount}</p>
                   </div>
                   <div>
                     <span className="text-gray-600">Assentos:</span>
                     <p className="font-medium">{selectedSeats.join(', ')}</p>
                   </div>
                 </div>
+                
+                {stops && (
+                  <div>
+                    <span className="text-gray-600">Escalas:</span>
+                    <p className="font-medium">{stops}</p>
+                  </div>
+                )}
                 
                 <div className="border-t pt-4">
                   <div className="bg-blue-50 p-4 rounded-lg mb-4">
@@ -678,7 +938,7 @@ const ConversationalBookingFlow: React.FC = () => {
             </div>
           )}
 
-          {currentStep === 8 && preReservationData && (
+          {currentStep === 12 && preReservationData && (
             <div className="space-y-6">
               <div className="text-center">
                 <CreditCard className="h-12 w-12 text-aviation-blue mx-auto mb-4" />
