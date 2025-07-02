@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -31,31 +30,31 @@ const ConversationalBookingFlow: React.FC = () => {
   
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null);
+  const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
+  const [travelMode, setTravelMode] = useState<'solo' | 'shared'>('solo');
   const [destination, setDestination] = useState('');
   const [departureDate, setDepartureDate] = useState('');
   const [returnDate, setReturnDate] = useState('');
   const [passengers, setPassengers] = useState('');
-  const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
-  const [travelMode, setTravelMode] = useState<'solo' | 'shared'>('solo');
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [availableDepartureDays, setAvailableDepartureDays] = useState<AvailableDay[]>([]);
   const [availableReturnDays, setAvailableReturnDays] = useState<AvailableDay[]>([]);
 
   const steps: BookingStep[] = [
     { step: 1, title: 'Aeronave', completed: selectedAircraft !== null },
-    { step: 2, title: 'Destino', completed: destination !== '' },
-    { step: 3, title: 'Data de Ida', completed: departureDate !== '' },
-    { step: 4, title: 'Data de Volta', completed: returnDate !== '' },
-    { step: 5, title: 'Passageiros', completed: passengers !== '' },
-    { step: 6, title: 'Assentos', completed: selectedSeats.length > 0 },
+    { step: 2, title: 'Assentos', completed: selectedSeats.length > 0 },
+    { step: 3, title: 'Destino', completed: destination !== '' },
+    { step: 4, title: 'Data de Ida', completed: departureDate !== '' },
+    { step: 5, title: 'Data de Volta', completed: returnDate !== '' },
+    { step: 6, title: 'Passageiros', completed: passengers !== '' },
     { step: 7, title: 'Confirmação', completed: false }
   ];
 
   useEffect(() => {
-    if (currentStep === 3 && destination && selectedAircraft) {
+    if (currentStep === 4 && destination && selectedAircraft) {
       generateAvailableDays('departure');
     }
-    if (currentStep === 4 && departureDate) {
+    if (currentStep === 5 && departureDate) {
       generateAvailableDays('return');
     }
   }, [currentStep, destination, selectedAircraft, departureDate]);
@@ -93,50 +92,6 @@ const ConversationalBookingFlow: React.FC = () => {
     });
   };
 
-  const handleDestinationSubmit = () => {
-    if (!destination.trim()) {
-      toast({
-        title: "Campo obrigatório",
-        description: "Por favor, digite seu destino.",
-        variant: "destructive"
-      });
-      return;
-    }
-    setCurrentStep(3);
-  };
-
-  const handleDateSelect = (day: number, type: 'departure' | 'return') => {
-    const selectedDate = `${day.toString().padStart(2, '0')}/${(currentMonth.getMonth() + 1).toString().padStart(2, '0')}`;
-    
-    if (type === 'departure') {
-      setDepartureDate(selectedDate);
-      setCurrentStep(4);
-      toast({
-        title: "Data de ida selecionada",
-        description: `${selectedDate}/${currentMonth.getFullYear()}`,
-      });
-    } else {
-      setReturnDate(selectedDate);
-      setCurrentStep(5);
-      toast({
-        title: "Data de volta selecionada",
-        description: `${selectedDate}/${currentMonth.getFullYear()}`,
-      });
-    }
-  };
-
-  const handlePassengersSubmit = () => {
-    if (!passengers.trim()) {
-      toast({
-        title: "Campo obrigatório",
-        description: "Por favor, informe o número de passageiros.",
-        variant: "destructive"
-      });
-      return;
-    }
-    setCurrentStep(6);
-  };
-
   const handleSeatSelect = (seatNumber: number) => {
     setSelectedSeats(prev => {
       if (prev.includes(seatNumber)) {
@@ -152,6 +107,54 @@ const ConversationalBookingFlow: React.FC = () => {
       toast({
         title: "Selecione os assentos",
         description: "Por favor, selecione pelo menos um assento.",
+        variant: "destructive"
+      });
+      return;
+    }
+    setCurrentStep(3);
+    toast({
+      title: "Assentos selecionados",
+      description: `${selectedSeats.length} assento(s) selecionado(s) - Modo: ${travelMode === 'solo' ? 'Individual' : 'Compartilhado'}`,
+    });
+  };
+
+  const handleDestinationSubmit = () => {
+    if (!destination.trim()) {
+      toast({
+        title: "Campo obrigatório",
+        description: "Por favor, digite seu destino.",
+        variant: "destructive"
+      });
+      return;
+    }
+    setCurrentStep(4);
+  };
+
+  const handleDateSelect = (day: number, type: 'departure' | 'return') => {
+    const selectedDate = `${day.toString().padStart(2, '0')}/${(currentMonth.getMonth() + 1).toString().padStart(2, '0')}`;
+    
+    if (type === 'departure') {
+      setDepartureDate(selectedDate);
+      setCurrentStep(5);
+      toast({
+        title: "Data de ida selecionada",
+        description: `${selectedDate}/${currentMonth.getFullYear()}`,
+      });
+    } else {
+      setReturnDate(selectedDate);
+      setCurrentStep(6);
+      toast({
+        title: "Data de volta selecionada",
+        description: `${selectedDate}/${currentMonth.getFullYear()}`,
+      });
+    }
+  };
+
+  const handlePassengersSubmit = () => {
+    if (!passengers.trim()) {
+      toast({
+        title: "Campo obrigatório",
+        description: "Por favor, informe o número de passageiros.",
         variant: "destructive"
       });
       return;
@@ -278,15 +281,55 @@ const ConversationalBookingFlow: React.FC = () => {
             </div>
           )}
 
-          {currentStep === 2 && (
+          {currentStep === 2 && selectedAircraft && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <h2 className="text-2xl font-bold mb-2">Selecione seus assentos</h2>
+                <p className="text-gray-600">
+                  {selectedAircraft.name} - {selectedAircraft.model}
+                </p>
+                <Badge variant="outline" className="mt-2">
+                  Aeronave: {selectedAircraft.name}
+                </Badge>
+              </div>
+              
+              <AircraftSeatingChart
+                aircraft={selectedAircraft}
+                onSeatSelect={handleSeatSelect}
+                selectedSeats={selectedSeats}
+                onTravelModeChange={setTravelMode}
+                selectedTravelMode={travelMode}
+              />
+              
+              <div className="text-center">
+                <Button 
+                  onClick={handleSeatsConfirm}
+                  className="bg-aviation-gradient hover:opacity-90 text-white text-lg py-3 px-8"
+                  disabled={selectedSeats.length === 0}
+                >
+                  Continuar com Assentos Selecionados
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {currentStep === 3 && (
             <div className="space-y-4">
               <div className="text-center">
                 <MapPin className="h-12 w-12 text-aviation-blue mx-auto mb-4" />
                 <h2 className="text-2xl font-bold mb-2">Qual seu destino?</h2>
                 <p className="text-gray-600">Ex: Paris, Nova York, Londres</p>
-                <Badge variant="outline" className="mt-2">
-                  Aeronave: {selectedAircraft?.name}
-                </Badge>
+                <div className="flex flex-wrap justify-center gap-2 mt-2">
+                  <Badge variant="outline">
+                    Aeronave: {selectedAircraft?.name}
+                  </Badge>
+                  <Badge variant="outline">
+                    Assentos: {selectedSeats.join(', ')}
+                  </Badge>
+                  <Badge variant="outline">
+                    Modo: {travelMode === 'solo' ? 'Individual' : 'Compartilhado'}
+                  </Badge>
+                </div>
               </div>
               <div className="max-w-md mx-auto space-y-4">
                 <Input
@@ -306,7 +349,7 @@ const ConversationalBookingFlow: React.FC = () => {
             </div>
           )}
 
-          {currentStep === 3 && (
+          {currentStep === 4 && (
             <div className="space-y-6">
               <div className="text-center">
                 <h2 className="text-2xl font-bold mb-2">
@@ -316,7 +359,7 @@ const ConversationalBookingFlow: React.FC = () => {
                   GRU → {destination.toUpperCase()}
                 </p>
                 <Badge variant="outline" className="mt-2">
-                  Aeronave: {selectedAircraft?.name}
+                  Aeronave: {selectedAircraft?.name} | Assentos: {selectedSeats.join(', ')}
                 </Badge>
               </div>
               
@@ -369,7 +412,7 @@ const ConversationalBookingFlow: React.FC = () => {
             </div>
           )}
 
-          {currentStep === 4 && (
+          {currentStep === 5 && (
             <div className="space-y-6">
               <div className="text-center">
                 <h2 className="text-2xl font-bold mb-2">
@@ -417,7 +460,7 @@ const ConversationalBookingFlow: React.FC = () => {
             </div>
           )}
 
-          {currentStep === 5 && (
+          {currentStep === 6 && (
             <div className="space-y-4">
               <div className="text-center">
                 <Users className="h-12 w-12 text-aviation-blue mx-auto mb-4" />
@@ -439,6 +482,12 @@ const ConversationalBookingFlow: React.FC = () => {
                   <div>
                     <strong>Volta:</strong> {returnDate}/{currentMonth.getFullYear()}
                   </div>
+                  <div>
+                    <strong>Assentos:</strong> {selectedSeats.join(', ')}
+                  </div>
+                  <div>
+                    <strong>Modo:</strong> {travelMode === 'solo' ? 'Individual' : 'Compartilhado'}
+                  </div>
                 </div>
                 
                 <Input
@@ -453,35 +502,6 @@ const ConversationalBookingFlow: React.FC = () => {
                   className="w-full bg-aviation-gradient hover:opacity-90 text-white text-lg py-3"
                 >
                   Continuar
-                </Button>
-              </div>
-            </div>
-          )}
-
-          {currentStep === 6 && selectedAircraft && (
-            <div className="space-y-6">
-              <div className="text-center">
-                <h2 className="text-2xl font-bold mb-2">Selecione seus assentos</h2>
-                <p className="text-gray-600">
-                  {selectedAircraft.name} - {selectedAircraft.model}
-                </p>
-              </div>
-              
-              <AircraftSeatingChart
-                aircraft={selectedAircraft}
-                onSeatSelect={handleSeatSelect}
-                selectedSeats={selectedSeats}
-                onTravelModeChange={setTravelMode}
-                selectedTravelMode={travelMode}
-              />
-              
-              <div className="text-center">
-                <Button 
-                  onClick={handleSeatsConfirm}
-                  className="bg-aviation-gradient hover:opacity-90 text-white text-lg py-3 px-8"
-                  disabled={selectedSeats.length === 0}
-                >
-                  Confirmar Assentos Selecionados
                 </Button>
               </div>
             </div>
