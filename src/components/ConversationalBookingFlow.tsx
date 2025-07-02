@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -10,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import AircraftSelector from './AircraftSelector';
 import AircraftSeatingChart from './AircraftSeatingChart';
 import type { Tables } from '@/integrations/supabase/types';
+import type { PreReservationResponse, ConfirmReservationResponse } from '@/types/supabase-extended';
 
 type Aircraft = Tables<'aircraft'>;
 
@@ -201,11 +203,21 @@ const ConversationalBookingFlow: React.FC = () => {
 
       if (error) throw error;
 
-      if (data.success) {
-        setPreReservationData(data);
+      const response = data as PreReservationResponse;
+
+      if (response.success) {
+        setPreReservationData({
+          pre_reservation_id: response.pre_reservation_id!,
+          priority_position: response.priority_position!,
+          expires_at: response.expires_at!,
+          can_confirm_immediately: response.can_confirm_immediately!,
+          overnight_stays: response.overnight_stays!,
+          overnight_fee: response.overnight_fee!,
+          final_cost: response.final_cost!
+        });
         setCurrentStep(8);
         
-        if (data.can_confirm_immediately) {
+        if (response.can_confirm_immediately) {
           toast({
             title: "🎉 Confirmação Imediata Disponível!",
             description: "Como você é #1 na fila de prioridades, pode confirmar imediatamente.",
@@ -213,11 +225,11 @@ const ConversationalBookingFlow: React.FC = () => {
         } else {
           toast({
             title: "📋 Pré-reserva Criada",
-            description: `Posição #${data.priority_position} - Aguarde 12h para confirmação automática.`,
+            description: `Posição #${response.priority_position} - Aguarde 12h para confirmação automática.`,
           });
         }
       } else {
-        throw new Error(data.error || 'Erro ao criar pré-reserva');
+        throw new Error(response.error || 'Erro ao criar pré-reserva');
       }
     } catch (error) {
       console.error('Erro ao criar pré-reserva:', error);
@@ -243,10 +255,12 @@ const ConversationalBookingFlow: React.FC = () => {
 
       if (error) throw error;
 
-      if (data.success) {
+      const response = data as ConfirmReservationResponse;
+
+      if (response.success) {
         toast({
           title: "🎉 Reserva Confirmada!",
-          description: `Sua reserva foi confirmada com sucesso! Custo final: R$ ${data.final_cost.toFixed(2)}`,
+          description: `Sua reserva foi confirmada com sucesso! Custo final: R$ ${response.final_cost!.toFixed(2)}`,
         });
         
         // Reset form
@@ -259,7 +273,7 @@ const ConversationalBookingFlow: React.FC = () => {
         setPassengers('');
         setPreReservationData(null);
       } else {
-        throw new Error(data.error || 'Erro ao confirmar reserva');
+        throw new Error(response.error || 'Erro ao confirmar reserva');
       }
     } catch (error) {
       console.error('Erro ao confirmar reserva:', error);
