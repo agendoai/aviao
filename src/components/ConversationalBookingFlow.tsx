@@ -3,9 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Calendar, ArrowRight, MapPin, Users, CheckCircle, Plane } from 'lucide-react';
+import { Calendar, ArrowRight, MapPin, Users, CheckCircle, Plane, Clock, CreditCard, Wallet } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/hooks/use-auth';
+import { supabase } from '@/integrations/supabase/client';
 import AircraftSelector from './AircraftSelector';
 import AircraftSeatingChart from './AircraftSeatingChart';
 import type { Tables } from '@/integrations/supabase/types';
@@ -24,6 +25,16 @@ interface BookingStep {
   completed: boolean;
 }
 
+interface PreReservationData {
+  pre_reservation_id: string;
+  priority_position: number;
+  expires_at: string;
+  can_confirm_immediately: boolean;
+  overnight_stays: number;
+  overnight_fee: number;
+  final_cost: number;
+}
+
 const ConversationalBookingFlow: React.FC = () => {
   const { toast } = useToast();
   const { profile } = useAuth();
@@ -39,6 +50,9 @@ const ConversationalBookingFlow: React.FC = () => {
   const [currentMonth, setCurrentMonth] = useState(new Date());
   const [availableDepartureDays, setAvailableDepartureDays] = useState<AvailableDay[]>([]);
   const [availableReturnDays, setAvailableReturnDays] = useState<AvailableDay[]>([]);
+  const [preReservationData, setPreReservationData] = useState<PreReservationData | null>(null);
+  const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'balance' | 'card'>('balance');
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const steps: BookingStep[] = [
     { step: 1, title: 'Aeronave', completed: selectedAircraft !== null },
@@ -47,7 +61,8 @@ const ConversationalBookingFlow: React.FC = () => {
     { step: 4, title: 'Data de Ida', completed: departureDate !== '' },
     { step: 5, title: 'Data de Volta', completed: returnDate !== '' },
     { step: 6, title: 'Passageiros', completed: passengers !== '' },
-    { step: 7, title: 'Confirmação', completed: false }
+    { step: 7, title: 'Pré-reserva', completed: preReservationData !== null },
+    { step: 8, title: 'Pagamento', completed: false }
   ];
 
   useEffect(() => {
@@ -162,19 +177,100 @@ const ConversationalBookingFlow: React.FC = () => {
     setCurrentStep(7);
   };
 
-  const handleConfirmBooking = () => {
-    toast({
-      title: "✔️ Reservando sua viagem",
-      description: `GRU→${destination.toUpperCase()} (${departureDate}) e ${destination.toUpperCase()}→GRU (${returnDate}). Processando reserva...`,
-    });
-    
-    // Aqui integraria com o sistema de reservas existente
-    setTimeout(() => {
-      toast({
-        title: "Reserva confirmada!",
-        description: "Sua reserva foi processada com sucesso.",
+  const handleCreatePreReservation = async () => {
+    if (!selectedAircraft || !profile) return;
+
+    setIsProcessing(true);
+    try {
+      // Calcular horas de voo (simulado)
+      const flightHours = 2.5;
+      const baseCost = selectedAircraft.hourly_rate * flightHours;
+
+      const { data, error } = await supabase.rpc('create_pre_reservation', {
+        p_aircraft_id: selectedAircraft.id,
+        p_departure_date: `2024-${(currentMonth.getMonth() + 1).toString().padStart(2, '0')}-${departureDate.split('/')[0]}`,
+        p_departure_time: '10:00:00',
+        p_return_date: `2024-${(currentMonth.getMonth() + 1).toString().padStart(2, '0')}-${returnDate.split('/')[0]}`,
+        p_return_time: '18:00:00',
+        p_origin: 'GRU',
+        p_destination: destination,
+        p_passengers: parseInt(passengers) || 1,
+        p_flight_hours: flightHours,
+        p_total_cost: baseCost
       });
-    }, 2000);
+
+      if (error) throw error;
+
+      if (data.success) {
+        setPreReservationData(data);
+        setCurrentStep(8);
+        
+        if (data.can_confirm_immediately) {
+          toast({
+            title: "🎉 Confirmação Imediata Disponível!",
+            description: "Como você é #1 na fila de prioridades, pode confirmar imediatamente.",
+          });
+        } else {
+          toast({
+            title: "📋 Pré-reserva Criada",
+            description: `Posição #${data.priority_position} - Aguarde 12h para confirmação automática.`,
+          });
+        }
+      } else {
+        throw new Error(data.error || 'Erro ao criar pré-reserva');
+      }
+    } catch (error) {
+      console.error('Erro ao criar pré-reserva:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao criar pré-reserva. Tente novamente.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
+  const handleConfirmReservation = async () => {
+    if (!preReservationData) return;
+
+    setIsProcessing(true);
+    try {
+      const { data, error } = await supabase.rpc('confirm_pre_reservation', {
+        p_pre_reservation_id: preReservationData.pre_reservation_id,
+        p_payment_method: selectedPaymentMethod
+      });
+
+      if (error) throw error;
+
+      if (data.success) {
+        toast({
+          title: "🎉 Reserva Confirmada!",
+          description: `Sua reserva foi confirmada com sucesso! Custo final: R$ ${data.final_cost.toFixed(2)}`,
+        });
+        
+        // Reset form
+        setCurrentStep(1);
+        setSelectedAircraft(null);
+        setSelectedSeats([]);
+        setDestination('');
+        setDepartureDate('');
+        setReturnDate('');
+        setPassengers('');
+        setPreReservationData(null);
+      } else {
+        throw new Error(data.error || 'Erro ao confirmar reserva');
+      }
+    } catch (error) {
+      console.error('Erro ao confirmar reserva:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao confirmar reserva. Verifique seu saldo.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsProcessing(false);
+    }
   };
 
   const getMonthName = (date: Date) => {
@@ -510,8 +606,11 @@ const ConversationalBookingFlow: React.FC = () => {
           {currentStep === 7 && (
             <div className="space-y-6">
               <div className="text-center">
-                <CheckCircle className="h-12 w-12 text-green-500 mx-auto mb-4" />
-                <h2 className="text-2xl font-bold mb-2">Confirme sua reserva</h2>
+                <Clock className="h-12 w-12 text-aviation-blue mx-auto mb-4" />
+                <h2 className="text-2xl font-bold mb-2">Criar Pré-reserva</h2>
+                <p className="text-gray-600">
+                  Sua posição na fila de prioridades: #{profile?.priority_position}
+                </p>
               </div>
               
               <div className="max-w-lg mx-auto bg-gray-50 rounded-lg p-6 space-y-4">
@@ -543,21 +642,154 @@ const ConversationalBookingFlow: React.FC = () => {
                 </div>
                 
                 <div className="border-t pt-4">
-                  <p className="text-sm text-gray-600 mb-4">
-                    Resumo: <strong>GRU→{destination.toUpperCase()}</strong> ({departureDate}) e <strong>{destination.toUpperCase()}→GRU</strong> ({returnDate})
-                    <br />
-                    Aeronave: <strong>{selectedAircraft?.name}</strong> - Assentos: <strong>{selectedSeats.join(', ')}</strong>
-                    <br />
-                    Modo: <strong>{travelMode === 'solo' ? 'Individual' : 'Compartilhado'}</strong>
-                  </p>
+                  <div className="bg-blue-50 p-4 rounded-lg mb-4">
+                    <h4 className="font-medium text-blue-900 mb-2">🎯 Sistema de Prioridades</h4>
+                    <p className="text-sm text-blue-700">
+                      {profile?.priority_position === 1 
+                        ? "🎉 Você está em 1º lugar! Confirmação imediata após pagamento."
+                        : `⏰ Posição #${profile?.priority_position} - Aguarde 12h para confirmação automática após o pagamento.`
+                      }
+                    </p>
+                  </div>
                   
                   <Button 
-                    onClick={handleConfirmBooking}
+                    onClick={handleCreatePreReservation}
                     className="w-full bg-aviation-gradient hover:opacity-90 text-white text-lg py-3"
+                    disabled={isProcessing}
                   >
-                    ✔️ Confirmar Reserva
+                    {isProcessing ? 'Criando Pré-reserva...' : '📋 Criar Pré-reserva'}
                   </Button>
                 </div>
+              </div>
+            </div>
+          )}
+
+          {currentStep === 8 && preReservationData && (
+            <div className="space-y-6">
+              <div className="text-center">
+                <CreditCard className="h-12 w-12 text-aviation-blue mx-auto mb-4" />
+                <h2 className="text-2xl font-bold mb-2">Pagamento e Confirmação</h2>
+                <p className="text-gray-600">
+                  Pré-reserva criada com sucesso!
+                </p>
+              </div>
+              
+              <div className="max-w-lg mx-auto space-y-6">
+                {/* Priority Status */}
+                <div className={`p-4 rounded-lg ${
+                  preReservationData.can_confirm_immediately 
+                    ? 'bg-green-50 border border-green-200' 
+                    : 'bg-yellow-50 border border-yellow-200'
+                }`}>
+                  <div className="flex items-center space-x-2 mb-2">
+                    {preReservationData.can_confirm_immediately ? (
+                      <CheckCircle className="h-5 w-5 text-green-600" />
+                    ) : (
+                      <Clock className="h-5 w-5 text-yellow-600" />
+                    )}
+                    <span className="font-medium">
+                      {preReservationData.can_confirm_immediately 
+                        ? 'Confirmação Imediata Disponível' 
+                        : 'Aguardando Confirmação'
+                      }
+                    </span>
+                  </div>
+                  
+                  <p className="text-sm text-gray-600">
+                    {preReservationData.can_confirm_immediately 
+                      ? 'Como você está em 1º lugar na fila de prioridades, pode confirmar imediatamente após o pagamento.'
+                      : `Posição #${preReservationData.priority_position} na fila. Sua reserva será confirmada automaticamente em 12 horas se ninguém com prioridade maior solicitar.`
+                    }
+                  </p>
+                  
+                  {!preReservationData.can_confirm_immediately && (
+                    <p className="text-xs text-gray-500 mt-2">
+                      Expira em: {new Date(preReservationData.expires_at).toLocaleString('pt-BR')}
+                    </p>
+                  )}
+                </div>
+
+                {/* Cost Breakdown */}
+                <div className="bg-gray-50 p-4 rounded-lg">
+                  <h4 className="font-medium mb-3">Detalhes do Custo</h4>
+                  <div className="space-y-2 text-sm">
+                    <div className="flex justify-between">
+                      <span>Voo (2.5h × R$ {selectedAircraft?.hourly_rate})</span>
+                      <span>R$ {(selectedAircraft?.hourly_rate * 2.5).toFixed(2)}</span>
+                    </div>
+                    {preReservationData.overnight_stays > 0 && (
+                      <div className="flex justify-between">
+                        <span>Pernoite ({preReservationData.overnight_stays} noite(s))</span>
+                        <span>R$ {preReservationData.overnight_fee.toFixed(2)}</span>
+                      </div>
+                    )}
+                    <div className="border-t pt-2 flex justify-between font-medium">
+                      <span>Total</span>
+                      <span>R$ {preReservationData.final_cost.toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Payment Method Selection */}
+                <div className="space-y-3">
+                  <h4 className="font-medium">Método de Pagamento</h4>
+                  
+                  <div className="space-y-2">
+                    <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                      <input
+                        type="radio"
+                        name="payment"
+                        value="balance"
+                        checked={selectedPaymentMethod === 'balance'}
+                        onChange={() => setSelectedPaymentMethod('balance')}
+                        className="w-4 h-4 text-blue-600"
+                      />
+                      <Wallet className="h-5 w-5 text-gray-600" />
+                      <div className="flex-1">
+                        <div className="font-medium">Saldo em Conta</div>
+                        <div className="text-sm text-gray-600">
+                          Disponível: R$ {profile?.balance?.toFixed(2) || '0,00'}
+                        </div>
+                      </div>
+                    </label>
+                    
+                    <label className="flex items-center space-x-3 p-3 border rounded-lg cursor-pointer hover:bg-gray-50">
+                      <input
+                        type="radio"
+                        name="payment"
+                        value="card"
+                        checked={selectedPaymentMethod === 'card'}
+                        onChange={() => setSelectedPaymentMethod('card')}
+                        className="w-4 h-4 text-blue-600"
+                      />
+                      <CreditCard className="h-5 w-5 text-gray-600" />
+                      <div className="flex-1">
+                        <div className="font-medium">Cartão de Crédito</div>
+                        <div className="text-sm text-gray-600">
+                          + 2% taxa (R$ {(preReservationData.final_cost * 0.02).toFixed(2)})
+                        </div>
+                      </div>
+                    </label>
+                  </div>
+                </div>
+
+                {/* Confirm Button */}
+                <Button 
+                  onClick={handleConfirmReservation}
+                  className="w-full bg-aviation-gradient hover:opacity-90 text-white text-lg py-3"
+                  disabled={isProcessing || (selectedPaymentMethod === 'balance' && (profile?.balance || 0) < preReservationData.final_cost)}
+                >
+                  {isProcessing ? 'Processando...' : 
+                   preReservationData.can_confirm_immediately ? 
+                   '🎉 Confirmar Reserva Imediatamente' : 
+                   '⏰ Aguardar Confirmação (12h)'}
+                </Button>
+
+                {selectedPaymentMethod === 'balance' && (profile?.balance || 0) < preReservationData.final_cost && (
+                  <p className="text-red-600 text-sm text-center">
+                    Saldo insuficiente. Recarregue sua conta ou escolha outro método de pagamento.
+                  </p>
+                )}
               </div>
             </div>
           )}
