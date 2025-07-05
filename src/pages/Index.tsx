@@ -4,7 +4,7 @@ import { useAuth } from '@/hooks/use-auth';
 import LoginForm from '../components/LoginForm';
 import Header from '../components/Header';
 import Dashboard from '../components/Dashboard';
-import EnhancedBookingSystem from '../components/EnhancedBookingSystem';
+import MissionSystem from '../components/mission/MissionSystem';
 import PriorityQueue from '../components/PriorityQueue';
 import ReportsSection from '../components/reports/ReportsSection';
 import SettingsSection from '../components/settings/SettingsSection';
@@ -45,7 +45,7 @@ const Index = () => {
   const getUserTabs = () => {
     const baseTabs = [
       { id: 'dashboard', label: 'Dashboard', icon: Home },
-      { id: 'booking', label: 'Reservas', icon: CalendarDays },
+      { id: 'missions', label: 'Missões', icon: CalendarDays },
       { id: 'priority', label: 'Prioridades', icon: Users },
       { id: 'payments', label: 'Pagamentos', icon: CreditCard },
       { id: 'reports', label: 'Relatórios', icon: BarChart3 },
@@ -99,25 +99,15 @@ const Index = () => {
                   <p className="text-gray-600 mt-1">
                     {profile.role === 'admin' && 'Painel administrativo - Gerencie o sistema completo'}
                     {profile.role === 'owner' && 'Dashboard do proprietário - Gerencie suas aeronaves'}
-                    {profile.role === 'client' && 'Gerencie suas reservas e acompanhe sua posição de prioridade'}
+                    {profile.role === 'client' && 'Gerencie suas missões e acompanhe sua posição de prioridade'}
                   </p>
                 </div>
               </div>
               <Dashboard />
             </TabsContent>
 
-            <TabsContent value="booking" className="space-y-6 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-3xl font-bold text-gray-900">
-                    Sistema de Reservas
-                  </h1>
-                  <p className="text-gray-600 mt-1">
-                    Sistema completo com seleção de aeronave, assentos, rotas e cálculo automático de custos
-                  </p>
-                </div>
-              </div>
-              <EnhancedBookingSystem />
+            <TabsContent value="missions" className="space-y-6 p-6">
+              <MissionSystem />
             </TabsContent>
 
             <TabsContent value="priority" className="space-y-6 p-6">
