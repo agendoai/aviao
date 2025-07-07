@@ -23,6 +23,10 @@ interface Destination {
   name: string;
   arrival: Date;
   departure: Date;
+  airportFee: number;
+  isOvernight: boolean;
+  overnightFee: number;
+  flightTime: number; // em minutos
 }
 
 interface MissionCreationProps {
@@ -37,11 +41,11 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
   onBack 
 }) => {
   const [selectedAircraft, setSelectedAircraft] = useState(initialAircraft);
-  const [startDateTime, setStartDateTime] = useState(initialTimeSlot.start);
-  const [endDateTime, setEndDateTime] = useState(initialTimeSlot.end);
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [isValidating, setIsValidating] = useState(false);
+  const [missionEndTime, setMissionEndTime] = useState<Date>(initialTimeSlot.start);
+  const [totalCost, setTotalCost] = useState(0);
 
   const BASE_FBO = "Araçatuba-SBAU";
   
@@ -52,19 +56,20 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
 
   // Mock airports data - em produção viria do ROTAER
   const airports = [
-    { icao: 'SBMT', name: 'Campo Grande' },
-    { icao: 'SBSP', name: 'São Paulo/Congonhas' },
-    { icao: 'SBRJ', name: 'Rio de Janeiro/Santos Dumont' },
-    { icao: 'SBBR', name: 'Brasília' },
-    { icao: 'SBPA', name: 'Porto Alegre' },
-    { icao: 'SBSV', name: 'Salvador' },
-    { icao: 'SBRF', name: 'Recife' },
-    { icao: 'SBMN', name: 'Manaus' }
+    { icao: 'SBMT', name: 'Campo de Marte - São Paulo', flightTime: 90, airportFee: 200 },
+    { icao: 'SBMT', name: 'Campo Grande', flightTime: 120, airportFee: 150 },
+    { icao: 'SBSP', name: 'São Paulo/Congonhas', flightTime: 90, airportFee: 300 },
+    { icao: 'SBRJ', name: 'Rio de Janeiro/Santos Dumont', flightTime: 150, airportFee: 350 },
+    { icao: 'SBBR', name: 'Brasília', flightTime: 180, airportFee: 250 },
+    { icao: 'SBPA', name: 'Porto Alegre', flightTime: 240, airportFee: 200 },
+    { icao: 'SBSV', name: 'Salvador', flightTime: 300, airportFee: 200 },
+    { icao: 'SBRF', name: 'Recife', flightTime: 360, airportFee: 180 },
+    { icao: 'SBMN', name: 'Manaus', flightTime: 420, airportFee: 150 }
   ];
 
   useEffect(() => {
-    validateMission();
-  }, [selectedAircraft, startDateTime, endDateTime, destinations]);
+    recalculateMission();
+  }, [selectedAircraft, destinations]);
 
   const validateMission = async () => {
     setIsValidating(true);
@@ -84,12 +89,20 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
   };
 
   const addDestination = () => {
+    const lastDeparture = destinations.length > 0 
+      ? destinations[destinations.length - 1].departure 
+      : initialTimeSlot.start;
+    
     const newDestination: Destination = {
       id: Date.now().toString(),
       icao: '',
       name: '',
-      arrival: new Date(startDateTime.getTime() + (destinations.length + 1) * 2 * 60 * 60 * 1000), // +2h
-      departure: new Date(startDateTime.getTime() + (destinations.length + 1) * 3 * 60 * 60 * 1000) // +3h
+      arrival: new Date(lastDeparture.getTime() + 90 * 60 * 1000), // +1h30 padrão
+      departure: new Date(lastDeparture.getTime() + 2 * 60 * 60 * 1000), // +2h padrão
+      airportFee: 0,
+      isOvernight: false,
+      overnightFee: 0,
+      flightTime: 90
     };
     
     setDestinations([...destinations, newDestination]);
@@ -105,25 +118,63 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
     setDestinations(destinations.filter(dest => dest.id !== id));
   };
 
-  const recalculateTimes = () => {
-    // Recalcular tempos de voo entre destinos
-    // Em produção, usar dados reais de distância/velocidade
-    let currentTime = new Date(startDateTime);
-    
-    destinations.forEach((dest, index) => {
-      const flightTime = 2; // 2 horas de voo padrão
-      currentTime = new Date(currentTime.getTime() + flightTime * 60 * 60 * 1000);
+  const recalculateMission = () => {
+    if (destinations.length === 0) {
+      setMissionEndTime(initialTimeSlot.start);
+      setTotalCost(0);
+      return;
+    }
+
+    let currentTime = new Date(initialTimeSlot.start);
+    let totalFlightHours = 0;
+    let totalAirportFees = 0;
+    let totalOvernightFees = 0;
+
+    // Calcular cada destino
+    const updatedDestinations = destinations.map((dest, index) => {
+      // Calcular chegada baseado no tempo de voo
+      currentTime = new Date(currentTime.getTime() + dest.flightTime * 60 * 1000);
       
-      updateDestination(dest.id, 'arrival', new Date(currentTime));
+      // Verificar se é pernoite (passou da meia-noite)
+      const arrivalDay = currentTime.getDate();
+      const departureDay = dest.departure.getDate();
+      const isOvernight = departureDay > arrivalDay || 
+        (departureDay === arrivalDay && dest.departure.getHours() < currentTime.getHours());
       
-      // Tempo no destino (1h padrão)
-      currentTime = new Date(currentTime.getTime() + 60 * 60 * 1000);
-      updateDestination(dest.id, 'departure', new Date(currentTime));
+      const overnightFee = isOvernight ? 1500 : 0;
+      
+      totalFlightHours += dest.flightTime / 60;
+      totalAirportFees += dest.airportFee;
+      totalOvernightFees += overnightFee;
+      
+      currentTime = new Date(dest.departure.getTime());
+      
+      return {
+        ...dest,
+        arrival: new Date(currentTime.getTime() - (dest.departure.getTime() - currentTime.getTime())),
+        isOvernight,
+        overnightFee
+      };
     });
+
+    // Calcular voo de retorno (último destino para Araçatuba)
+    const lastDestination = updatedDestinations[updatedDestinations.length - 1];
+    const returnFlightTime = lastDestination.flightTime; // Mesmo tempo de volta
+    const finalArrival = new Date(lastDestination.departure.getTime() + returnFlightTime * 60 * 1000);
     
-    // Atualizar horário de fim
-    const returnFlightTime = 2; // Tempo de retorno à base
-    setEndDateTime(new Date(currentTime.getTime() + returnFlightTime * 60 * 60 * 1000));
+    // +3 horas para liberação da aeronave
+    const missionEnd = new Date(finalArrival.getTime() + 3 * 60 * 60 * 1000);
+    
+    totalFlightHours += returnFlightTime / 60;
+    
+    // Calcular custo total
+    const hourlyRate = selectedAircraft.id === '1' ? 2800 : 2400; // Baron vs Cessna
+    const flightCost = totalFlightHours * hourlyRate;
+    const total = flightCost + totalAirportFees + totalOvernightFees;
+    
+    setDestinations(updatedDestinations);
+    setMissionEndTime(missionEnd);
+    setTotalCost(total);
   };
 
   const confirmMission = async () => {
@@ -137,9 +188,10 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
 
     console.log('Confirmando missão:', {
       aircraft: selectedAircraft,
-      start: startDateTime,
-      end: endDateTime,
+      start: initialTimeSlot.start,
+      end: missionEndTime,
       destinations,
+      totalCost,
       base: BASE_FBO
     });
 
@@ -158,16 +210,26 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div className="flex items-center space-x-2 text-lg">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="flex items-center space-x-2">
               <MapPin className="h-5 w-5 text-aviation-blue" />
-              <span className="font-medium">Início da missão:</span>
-              <span>{BASE_FBO}</span>
+              <div>
+                <div className="font-medium">Saída:</div>
+                <div className="text-sm text-gray-600">{BASE_FBO}</div>
+                <div className="text-sm">{format(initialTimeSlot.start, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</div>
+              </div>
             </div>
-            <div className="flex items-center space-x-2 text-lg">
+            <div className="flex items-center space-x-2">
               <MapPin className="h-5 w-5 text-aviation-blue" />
-              <span className="font-medium">Fim da missão:</span>
-              <span>{BASE_FBO}</span>
+              <div>
+                <div className="font-medium">Retorno:</div>
+                <div className="text-sm text-gray-600">{BASE_FBO}</div>
+                <div className="text-sm">{format(missionEndTime, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}</div>
+              </div>
+            </div>
+            <div className="flex items-center space-x-2">
+              <div className="font-medium">Custo Total:</div>
+              <div className="text-lg font-bold text-aviation-blue">R$ {totalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div>
             </div>
           </div>
         </CardContent>
@@ -200,43 +262,6 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
         </CardContent>
       </Card>
 
-      {/* Definição do período */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Período da Missão</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label htmlFor="start">Data/Hora de Início</Label>
-              <Input
-                id="start"
-                type="datetime-local"
-                value={format(startDateTime, "yyyy-MM-dd'T'HH:mm")}
-                onChange={(e) => setStartDateTime(new Date(e.target.value))}
-              />
-            </div>
-            <div>
-              <Label htmlFor="end">Data/Hora de Fim</Label>
-              <Input
-                id="end"
-                type="datetime-local"
-                value={format(endDateTime, "yyyy-MM-dd'T'HH:mm")}
-                onChange={(e) => setEndDateTime(new Date(e.target.value))}
-              />
-            </div>
-          </div>
-          
-          <Button 
-            variant="outline" 
-            onClick={recalculateTimes}
-            className="flex items-center space-x-2"
-          >
-            <Clock className="h-4 w-4" />
-            <span>Recalcular Tempos</span>
-          </Button>
-        </CardContent>
-      </Card>
 
       {/* Destinos */}
       <Card>
@@ -273,6 +298,8 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
                       if (airport) {
                         updateDestination(destination.id, 'icao', value);
                         updateDestination(destination.id, 'name', airport.name);
+                        updateDestination(destination.id, 'flightTime', airport.flightTime);
+                        updateDestination(destination.id, 'airportFee', airport.airportFee);
                       }
                     }}
                   >
@@ -288,24 +315,35 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
                     </SelectContent>
                   </Select>
                 </div>
+
+                <div className="grid grid-cols-2 gap-4 text-sm bg-gray-50 p-3 rounded">
+                  <div>
+                    <span className="font-medium">Chegada:</span><br />
+                    {format(destination.arrival, "dd/MM 'às' HH:mm", { locale: ptBR })}
+                  </div>
+                  <div>
+                    <span className="font-medium">Tempo de voo:</span><br />
+                    {Math.floor(destination.flightTime / 60)}h {destination.flightTime % 60}min
+                  </div>
+                  <div>
+                    <span className="font-medium">Taxa aeroporto:</span><br />
+                    R$ {destination.airportFee}
+                  </div>
+                  {destination.isOvernight && (
+                    <div>
+                      <span className="font-medium text-orange-600">Pernoite:</span><br />
+                      <span className="text-orange-600">R$ {destination.overnightFee}</span>
+                    </div>
+                  )}
+                </div>
                 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label>Chegada</Label>
-                    <Input
-                      type="datetime-local"
-                      value={format(destination.arrival, "yyyy-MM-dd'T'HH:mm")}
-                      onChange={(e) => updateDestination(destination.id, 'arrival', new Date(e.target.value))}
-                    />
-                  </div>
-                  <div>
-                    <Label>Partida</Label>
-                    <Input
-                      type="datetime-local"
-                      value={format(destination.departure, "yyyy-MM-dd'T'HH:mm")}
-                      onChange={(e) => updateDestination(destination.id, 'departure', new Date(e.target.value))}
-                    />
-                  </div>
+                <div>
+                  <Label>Data/Hora de Partida deste destino</Label>
+                  <Input
+                    type="datetime-local"
+                    value={format(destination.departure, "yyyy-MM-dd'T'HH:mm")}
+                    onChange={(e) => updateDestination(destination.id, 'departure', new Date(e.target.value))}
+                  />
                 </div>
               </CardContent>
             </Card>
