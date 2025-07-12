@@ -59,7 +59,7 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
   // Mock airports data - em produção viria do ROTAER
   const airports = [
     { icao: 'SBMT', name: 'Campo de Marte - São Paulo', flightTime: 90, airportFee: 200 },
-    { icao: 'SBMT', name: 'Campo Grande', flightTime: 120, airportFee: 150 },
+    { icao: 'SBCG', name: 'Campo Grande', flightTime: 120, airportFee: 150 },
     { icao: 'SBSP', name: 'São Paulo/Congonhas', flightTime: 90, airportFee: 300 },
     { icao: 'SBRJ', name: 'Rio de Janeiro/Santos Dumont', flightTime: 150, airportFee: 350 },
     { icao: 'SBBR', name: 'Brasília', flightTime: 180, airportFee: 250 },
