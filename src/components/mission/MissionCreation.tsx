@@ -33,12 +33,14 @@ interface MissionCreationProps {
   aircraft: Aircraft;
   initialTimeSlot: { start: Date; end: Date };
   onBack: () => void;
+  onMissionCreated: (data: any) => void;
 }
 
 const MissionCreation: React.FC<MissionCreationProps> = ({ 
   aircraft: initialAircraft, 
   initialTimeSlot, 
-  onBack 
+  onBack,
+  onMissionCreated
 }) => {
   const [selectedAircraft, setSelectedAircraft] = useState(initialAircraft);
   const [destinations, setDestinations] = useState<Destination[]>([]);
@@ -180,23 +182,16 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
   const confirmMission = async () => {
     if (validationErrors.length > 0) return;
 
-    // Em produção:
-    // 1. Criar pré-reserva no Supabase
-    // 2. Iniciar contagem de 12h se prioridade > 1
-    // 3. Notificar membros de maior prioridade
-    // 4. Debitar saldo
-
-    console.log('Confirmando missão:', {
-      aircraft: selectedAircraft,
+    const missionData = {
+      aircraft: `${selectedAircraft.model} ${selectedAircraft.registration}`,
       start: initialTimeSlot.start,
       end: missionEndTime,
       destinations,
       totalCost,
       base: BASE_FBO
-    });
+    };
 
-    alert('Missão confirmada com sucesso!');
-    onBack();
+    onMissionCreated(missionData);
   };
 
   return (
@@ -385,10 +380,10 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
         </Button>
         <Button 
           onClick={confirmMission}
-          disabled={validationErrors.length > 0 || isValidating}
+          disabled={validationErrors.length > 0 || isValidating || destinations.length === 0}
           className="bg-aviation-gradient hover:opacity-90"
         >
-          Confirmar Missão
+          Prosseguir para Verificação
         </Button>
       </div>
     </div>
