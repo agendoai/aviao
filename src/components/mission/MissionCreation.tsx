@@ -91,20 +91,19 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
   };
 
   const addDestination = () => {
-    const lastDeparture = destinations.length > 0 
-      ? destinations[destinations.length - 1].departure 
-      : initialTimeSlot.start;
+    // Saída sempre é de Araçatuba ou do último destino
+    const departurePoint = destinations.length === 0 ? initialTimeSlot.start : destinations[destinations.length - 1].departure;
     
     const newDestination: Destination = {
       id: Date.now().toString(),
       icao: '',
       name: '',
-      arrival: new Date(lastDeparture.getTime() + 90 * 60 * 1000), // +1h30 padrão
-      departure: new Date(lastDeparture.getTime() + 2 * 60 * 60 * 1000), // +2h padrão
+      arrival: new Date(departurePoint.getTime() + 90 * 60 * 1000), // Chegada calculada baseada no tempo de voo
+      departure: new Date(departurePoint.getTime() + 4 * 60 * 60 * 1000), // Partida 4h depois por padrão
       airportFee: 0,
       isOvernight: false,
       overnightFee: 0,
-      flightTime: 90
+      flightTime: 90 // 1h30 padrão
     };
     
     setDestinations([...destinations, newDestination]);
@@ -127,21 +126,20 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
       return;
     }
 
-    let currentTime = new Date(initialTimeSlot.start);
+    let currentDepartureTime = new Date(initialTimeSlot.start);
     let totalFlightHours = 0;
     let totalAirportFees = 0;
     let totalOvernightFees = 0;
 
-    // Calcular cada destino
+    // Recalcular cada destino sequencialmente
     const updatedDestinations = destinations.map((dest, index) => {
-      // Calcular chegada baseado no tempo de voo
-      currentTime = new Date(currentTime.getTime() + dest.flightTime * 60 * 1000);
+      // Calcular horário de chegada baseado no ponto de partida + tempo de voo
+      const arrivalTime = new Date(currentDepartureTime.getTime() + dest.flightTime * 60 * 1000);
       
-      // Verificar se é pernoite (passou da meia-noite)
-      const arrivalDay = currentTime.getDate();
-      const departureDay = dest.departure.getDate();
-      const isOvernight = departureDay > arrivalDay || 
-        (departureDay === arrivalDay && dest.departure.getHours() < currentTime.getHours());
+      // Verificar se é pernoite (data de partida é diferente da data de chegada)
+      const arrivalDate = arrivalTime.getDate();
+      const departureDate = dest.departure.getDate();
+      const isOvernight = departureDate !== arrivalDate || dest.departure.getTime() > arrivalTime.getTime() + 24 * 60 * 60 * 1000;
       
       const overnightFee = isOvernight ? 1500 : 0;
       
@@ -149,11 +147,12 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
       totalAirportFees += dest.airportFee;
       totalOvernightFees += overnightFee;
       
-      currentTime = new Date(dest.departure.getTime());
+      // Próximo ponto de partida será a saída deste destino
+      currentDepartureTime = new Date(dest.departure.getTime());
       
       return {
         ...dest,
-        arrival: new Date(currentTime.getTime() - (dest.departure.getTime() - currentTime.getTime())),
+        arrival: arrivalTime,
         isOvernight,
         overnightFee
       };
@@ -295,6 +294,11 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
                         updateDestination(destination.id, 'name', airport.name);
                         updateDestination(destination.id, 'flightTime', airport.flightTime);
                         updateDestination(destination.id, 'airportFee', airport.airportFee);
+                        
+                        // Recalcular horário de chegada baseado no novo tempo de voo
+                        const previousDeparture = index === 0 ? initialTimeSlot.start : destinations[index - 1].departure;
+                        const newArrival = new Date(previousDeparture.getTime() + airport.flightTime * 60 * 1000);
+                        updateDestination(destination.id, 'arrival', newArrival);
                       }
                     }}
                   >
