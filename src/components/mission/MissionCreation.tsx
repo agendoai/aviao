@@ -42,7 +42,6 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
   onBack,
   onMissionCreated
 }) => {
-  const [selectedAircraft, setSelectedAircraft] = useState(initialAircraft);
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [isValidating, setIsValidating] = useState(false);
@@ -50,11 +49,6 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
   const [totalCost, setTotalCost] = useState(0);
 
   const BASE_FBO = "Araçatuba-SBAU";
-  
-  const availableAircraft = [
-    { id: '1', name: 'Baron E55', registration: 'PR-FOM', model: 'Baron E55' },
-    { id: '2', name: 'Cessna 172', registration: 'PR-ABC', model: 'Cessna 172' }
-  ];
 
   // Mock airports data - em produção viria do ROTAER
   const airports = [
@@ -71,7 +65,7 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
 
   useEffect(() => {
     recalculateMission();
-  }, [selectedAircraft, destinations]);
+  }, [destinations]);
 
   const validateMission = async () => {
     setIsValidating(true);
@@ -168,8 +162,8 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
     
     totalFlightHours += returnFlightTime / 60;
     
-    // Calcular custo total
-    const hourlyRate = selectedAircraft.id === '1' ? 2800 : 2400; // Baron vs Cessna
+    // Calcular custo total (usar hourly_rate da aeronave)
+    const hourlyRate = 2800; // Usar valor padrão ou pegar do banco
     const flightCost = totalFlightHours * hourlyRate;
     const total = flightCost + totalAirportFees + totalOvernightFees;
     
@@ -182,7 +176,7 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
     if (validationErrors.length > 0) return;
 
     const missionData = {
-      aircraft: `${selectedAircraft.model} ${selectedAircraft.registration}`,
+      aircraft: `${initialAircraft.model} ${initialAircraft.registration}`,
       start: initialTimeSlot.start,
       end: missionEndTime,
       destinations,
@@ -204,7 +198,15 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
           </CardTitle>
         </CardHeader>
         <CardContent className="p-6">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+            <div className="flex items-center space-x-2">
+              <Plane className="h-5 w-5 text-aviation-blue" />
+              <div>
+                <div className="font-medium">Aeronave:</div>
+                <div className="text-sm text-gray-600">{initialAircraft.model}</div>
+                <div className="text-sm">{initialAircraft.registration}</div>
+              </div>
+            </div>
             <div className="flex items-center space-x-2">
               <MapPin className="h-5 w-5 text-aviation-blue" />
               <div>
@@ -229,32 +231,6 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
         </CardContent>
       </Card>
 
-      {/* Seleção de aeronave */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Seleção da Aeronave</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Select 
-            value={selectedAircraft.id} 
-            onValueChange={(value) => {
-              const aircraft = availableAircraft.find(a => a.id === value);
-              if (aircraft) setSelectedAircraft(aircraft);
-            }}
-          >
-            <SelectTrigger>
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {availableAircraft.map(aircraft => (
-                <SelectItem key={aircraft.id} value={aircraft.id}>
-                  {aircraft.model} {aircraft.registration}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
-        </CardContent>
-      </Card>
 
 
       {/* Destinos */}
@@ -296,7 +272,8 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
                         updateDestination(destination.id, 'airportFee', airport.airportFee);
                         
                         // Recalcular horário de chegada baseado no novo tempo de voo
-                        const previousDeparture = index === 0 ? initialTimeSlot.start : destinations[index - 1].departure;
+                        const currentDestinations = destinations.map(d => d.id === destination.id ? { ...d, flightTime: airport.flightTime } : d);
+                        const previousDeparture = index === 0 ? initialTimeSlot.start : currentDestinations[index - 1].departure;
                         const newArrival = new Date(previousDeparture.getTime() + airport.flightTime * 60 * 1000);
                         updateDestination(destination.id, 'arrival', newArrival);
                       }
