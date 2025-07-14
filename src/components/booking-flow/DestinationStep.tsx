@@ -48,9 +48,6 @@ const DestinationStep: React.FC<DestinationStepProps> = ({
             </Badge>
           )}
           <Badge variant="outline">
-            Assentos: {selectedSeats.join(', ')}
-          </Badge>
-          <Badge variant="outline">
             Modo: {travelMode === 'solo' ? 'Individual' : 'Compartilhado'}
           </Badge>
         </div>
