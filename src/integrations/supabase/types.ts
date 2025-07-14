@@ -469,6 +469,44 @@ export type Database = {
         }
         Relationships: []
       }
+      pre_reservation_passengers: {
+        Row: {
+          created_at: string
+          document_number: string
+          document_type: string
+          id: string
+          name: string
+          pre_reservation_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          document_number: string
+          document_type: string
+          id?: string
+          name: string
+          pre_reservation_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          document_number?: string
+          document_type?: string
+          id?: string
+          name?: string
+          pre_reservation_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pre_reservation_passengers_pre_reservation_id_fkey"
+            columns: ["pre_reservation_id"]
+            isOneToOne: false
+            referencedRelation: "pre_reservations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       pre_reservations: {
         Row: {
           aircraft_id: string

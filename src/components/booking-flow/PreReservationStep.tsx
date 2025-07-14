@@ -14,7 +14,6 @@ interface PreReservationStepProps {
   returnDate: string;
   returnTime: string;
   passengersCount: string;
-  selectedSeats: number[];
   stops: string;
   currentMonth: Date;
   priorityPosition?: number;
@@ -30,7 +29,6 @@ const PreReservationStep: React.FC<PreReservationStepProps> = ({
   returnDate,
   returnTime,
   passengersCount,
-  selectedSeats,
   stops,
   currentMonth,
   priorityPosition,
@@ -70,8 +68,8 @@ const PreReservationStep: React.FC<PreReservationStepProps> = ({
             <p className="font-medium">{passengersCount}</p>
           </div>
           <div>
-            <span className="text-gray-600">Assentos:</span>
-            <p className="font-medium">{selectedSeats.join(', ')}</p>
+            <span className="text-gray-600">Aeronave completa:</span>
+            <p className="font-medium">Reserva integral</p>
           </div>
         </div>
         

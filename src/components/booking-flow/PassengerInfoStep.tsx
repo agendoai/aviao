@@ -18,7 +18,6 @@ interface PassengerCountStepProps {
   returnDate: string;
   returnTime: string;
   destination: string;
-  selectedSeats: number[];
   onPassengersCountChange: (count: string) => void;
   onContinue: () => void;
 }
@@ -36,7 +35,6 @@ export const PassengerCountStep: React.FC<PassengerCountStepProps> = ({
   returnDate,
   returnTime,
   destination,
-  selectedSeats,
   onPassengersCountChange,
   onContinue
 }) => {
@@ -85,7 +83,7 @@ export const PassengerCountStep: React.FC<PassengerCountStepProps> = ({
             <strong>Destino:</strong> {destination}
           </div>
           <div>
-            <strong>Assentos:</strong> {selectedSeats.join(', ')}
+            <strong>Reserva:</strong> Aeronave completa
           </div>
         </div>
         

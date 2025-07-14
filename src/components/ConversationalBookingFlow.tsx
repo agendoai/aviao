@@ -54,7 +54,6 @@ const ConversationalBookingFlow: React.FC = () => {
   
   const [currentStep, setCurrentStep] = useState(1);
   const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null);
-  const [selectedSeats, setSelectedSeats] = useState<number[]>([]);
   const [travelMode, setTravelMode] = useState<'solo' | 'shared'>('solo');
   const [destination, setDestination] = useState('');
   const [departureDate, setDepartureDate] = useState('');
@@ -73,17 +72,16 @@ const ConversationalBookingFlow: React.FC = () => {
 
   const steps: BookingStep[] = [
     { step: 1, title: 'Aeronave', completed: selectedAircraft !== null },
-    { step: 2, title: 'Assentos', completed: selectedSeats.length > 0 },
-    { step: 3, title: 'Destino', completed: destination !== '' },
-    { step: 4, title: 'Data de Ida', completed: departureDate !== '' },
-    { step: 5, title: 'Hora de Ida', completed: departureTime !== '' },
-    { step: 6, title: 'Escalas', completed: true }, // Optional step
-    { step: 7, title: 'Data de Volta', completed: returnDate !== '' },
-    { step: 8, title: 'Hora de Volta', completed: returnTime !== '' },
-    { step: 9, title: 'Passageiros', completed: passengersCount !== '' },
-    { step: 10, title: 'Dados dos Passageiros', completed: passengersInfo.length > 0 },
-    { step: 11, title: 'Pré-reserva', completed: preReservationData !== null },
-    { step: 12, title: 'Pagamento', completed: false }
+    { step: 2, title: 'Destino', completed: destination !== '' },
+    { step: 3, title: 'Data de Ida', completed: departureDate !== '' },
+    { step: 4, title: 'Hora de Ida', completed: departureTime !== '' },
+    { step: 5, title: 'Escalas', completed: true }, // Optional step
+    { step: 6, title: 'Data de Volta', completed: returnDate !== '' },
+    { step: 7, title: 'Hora de Volta', completed: returnTime !== '' },
+    { step: 8, title: 'Passageiros', completed: passengersCount !== '' },
+    { step: 9, title: 'Dados dos Passageiros', completed: passengersInfo.length > 0 },
+    { step: 10, title: 'Pré-reserva', completed: preReservationData !== null },
+    { step: 11, title: 'Pagamento', completed: false }
   ];
 
   useEffect(() => {
@@ -120,42 +118,17 @@ const ConversationalBookingFlow: React.FC = () => {
 
   const handleAircraftSelect = (aircraft: Aircraft) => {
     setSelectedAircraft(aircraft);
-    setSelectedSeats([]);
     setCurrentStep(2);
     toast({
       title: "Aeronave selecionada",
-      description: `${aircraft.name} - ${aircraft.model}`,
+      description: `${aircraft.name} - ${aircraft.model} (Reserva integral)`,
     });
   };
 
-  const handleSeatSelect = (seatNumber: number) => {
-    setSelectedSeats(prev => {
-      if (prev.includes(seatNumber)) {
-        return prev.filter(seat => seat !== seatNumber);
-      } else {
-        return [...prev, seatNumber];
-      }
-    });
-  };
-
-  const handleSeatsConfirm = () => {
-    if (selectedSeats.length === 0) {
-      toast({
-        title: "Selecione os assentos",
-        description: "Por favor, selecione pelo menos um assento.",
-        variant: "destructive"
-      });
-      return;
-    }
-    setCurrentStep(3);
-    toast({
-      title: "Assentos selecionados",
-      description: `${selectedSeats.length} assento(s) selecionado(s) - Modo: ${travelMode === 'solo' ? 'Individual' : 'Compartilhado'}`,
-    });
-  };
+  // Removed seat selection functions as aircraft is booked entirely
 
   const handleDestinationSubmit = () => {
-    setCurrentStep(4);
+    setCurrentStep(3);
   };
 
   const handleDateSelect = (day: number, type: 'departure' | 'return') => {
@@ -163,14 +136,14 @@ const ConversationalBookingFlow: React.FC = () => {
     
     if (type === 'departure') {
       setDepartureDate(selectedDate);
-      setCurrentStep(5);
+      setCurrentStep(4);
       toast({
         title: "Data de ida selecionada",
         description: `${selectedDate}/${currentMonth.getFullYear()}`,
       });
     } else {
       setReturnDate(selectedDate);
-      setCurrentStep(8);
+      setCurrentStep(7);
       toast({
         title: "Data de volta selecionada",
         description: `${selectedDate}/${currentMonth.getFullYear()}`,
@@ -181,14 +154,14 @@ const ConversationalBookingFlow: React.FC = () => {
   const handleTimeSelect = (time: string, type: 'departure' | 'return') => {
     if (type === 'departure') {
       setDepartureTime(time);
-      setCurrentStep(6);
+      setCurrentStep(5);
       toast({
         title: "Horário de ida selecionado",
         description: `${time}`,
       });
     } else {
       setReturnTime(time);
-      setCurrentStep(9);
+      setCurrentStep(8);
       toast({
         title: "Horário de volta selecionado",
         description: `${time}`,
@@ -197,7 +170,7 @@ const ConversationalBookingFlow: React.FC = () => {
   };
 
   const handleStopsSubmit = () => {
-    setCurrentStep(7);
+    setCurrentStep(6);
     if (stops.trim()) {
       toast({
         title: "Escalas definidas",
@@ -222,7 +195,7 @@ const ConversationalBookingFlow: React.FC = () => {
       });
     }
     setPassengersInfo(newPassengersInfo);
-    setCurrentStep(10);
+    setCurrentStep(9);
   };
 
   const handlePassengerInfoChange = (index: number, field: keyof PassengerInfo, value: string) => {
@@ -238,7 +211,7 @@ const ConversationalBookingFlow: React.FC = () => {
   };
 
   const handlePassengersInfoSubmit = () => {
-    setCurrentStep(11);
+    setCurrentStep(10);
     toast({
       title: "Dados dos passageiros confirmados",
       description: `${passengersInfo.length} passageiro(s) cadastrado(s)`,
@@ -281,7 +254,7 @@ const ConversationalBookingFlow: React.FC = () => {
           overnight_fee: response.overnight_fee!,
           final_cost: response.final_cost!
         });
-        setCurrentStep(12);
+        setCurrentStep(11);
         
         if (response.can_confirm_immediately) {
           toast({
@@ -332,7 +305,6 @@ const ConversationalBookingFlow: React.FC = () => {
         // Reset form
         setCurrentStep(1);
         setSelectedAircraft(null);
-        setSelectedSeats([]);
         setDestination('');
         setDepartureDate('');
         setDepartureTime('');
@@ -378,42 +350,29 @@ const ConversationalBookingFlow: React.FC = () => {
             />
           )}
 
-          {currentStep === 2 && selectedAircraft && (
-            <SeatSelectionStep
-              selectedAircraft={selectedAircraft}
-              selectedSeats={selectedSeats}
-              travelMode={travelMode}
-              onSeatSelect={handleSeatSelect}
-              onTravelModeChange={setTravelMode}
-              onContinue={handleSeatsConfirm}
-            />
-          )}
-
-          {currentStep === 3 && (
+          {currentStep === 2 && (
             <DestinationStep
               destination={destination}
               selectedAircraftName={selectedAircraft?.name}
-              selectedSeats={selectedSeats}
               travelMode={travelMode}
               onDestinationChange={setDestination}
               onContinue={handleDestinationSubmit}
             />
           )}
 
-          {currentStep === 4 && (
+          {currentStep === 3 && (
             <CalendarStep
               title="Confira as datas disponíveis para ida"
               subtitle={`GRU → ${destination.toUpperCase()}`}
               currentMonth={currentMonth}
               availableDays={availableDepartureDays}
               aircraftName={selectedAircraft?.name}
-              selectedSeats={selectedSeats}
               onMonthChange={handleMonthChange}
               onDateSelect={(day) => handleDateSelect(day, 'departure')}
             />
           )}
 
-          {currentStep === 5 && (
+          {currentStep === 4 && (
             <TimeSelectionStep
               title="Selecione o horário de ida"
               selectedDate={departureDate}
@@ -422,7 +381,7 @@ const ConversationalBookingFlow: React.FC = () => {
             />
           )}
 
-          {currentStep === 6 && (
+          {currentStep === 5 && (
             <StopsStep
               stops={stops}
               departureDate={departureDate}
@@ -434,7 +393,7 @@ const ConversationalBookingFlow: React.FC = () => {
             />
           )}
 
-          {currentStep === 7 && (
+          {currentStep === 6 && (
             <CalendarStep
               title="Agora, selecione a data de volta"
               subtitle={`${destination.toUpperCase()} → GRU`}
@@ -445,7 +404,7 @@ const ConversationalBookingFlow: React.FC = () => {
             />
           )}
 
-          {currentStep === 8 && (
+          {currentStep === 7 && (
             <TimeSelectionStep
               title="Selecione o horário de volta"
               selectedDate={returnDate}
@@ -454,7 +413,7 @@ const ConversationalBookingFlow: React.FC = () => {
             />
           )}
 
-          {currentStep === 9 && (
+          {currentStep === 8 && (
             <PassengerCountStep
               passengersCount={passengersCount}
               departureDate={departureDate}
@@ -462,13 +421,12 @@ const ConversationalBookingFlow: React.FC = () => {
               returnDate={returnDate}
               returnTime={returnTime}
               destination={destination}
-              selectedSeats={selectedSeats}
               onPassengersCountChange={setPassengersCount}
               onContinue={handlePassengersCountSubmit}
             />
           )}
 
-          {currentStep === 10 && (
+          {currentStep === 9 && (
             <PassengerDetailsStep
               passengersInfo={passengersInfo}
               onPassengerInfoChange={handlePassengerInfoChange}
@@ -476,7 +434,7 @@ const ConversationalBookingFlow: React.FC = () => {
             />
           )}
 
-          {currentStep === 11 && selectedAircraft && (
+          {currentStep === 10 && selectedAircraft && (
             <PreReservationStep
               selectedAircraft={selectedAircraft}
               destination={destination}
@@ -485,7 +443,6 @@ const ConversationalBookingFlow: React.FC = () => {
               returnDate={returnDate}
               returnTime={returnTime}
               passengersCount={passengersCount}
-              selectedSeats={selectedSeats}
               stops={stops}
               currentMonth={currentMonth}
               priorityPosition={profile?.priority_position}
@@ -494,7 +451,7 @@ const ConversationalBookingFlow: React.FC = () => {
             />
           )}
 
-          {currentStep === 12 && preReservationData && (
+          {currentStep === 11 && preReservationData && (
             <PaymentStep
               preReservationData={preReservationData}
               selectedPaymentMethod={selectedPaymentMethod}

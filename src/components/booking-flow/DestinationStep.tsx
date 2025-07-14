@@ -9,7 +9,6 @@ import { useToast } from '@/hooks/use-toast';
 interface DestinationStepProps {
   destination: string;
   selectedAircraftName?: string;
-  selectedSeats: number[];
   travelMode: 'solo' | 'shared';
   onDestinationChange: (destination: string) => void;
   onContinue: () => void;
@@ -18,7 +17,6 @@ interface DestinationStepProps {
 const DestinationStep: React.FC<DestinationStepProps> = ({
   destination,
   selectedAircraftName,
-  selectedSeats,
   travelMode,
   onDestinationChange,
   onContinue
