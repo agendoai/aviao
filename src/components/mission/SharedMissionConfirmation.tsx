@@ -35,7 +35,10 @@ const SharedMissionConfirmation: React.FC<SharedMissionConfirmationProps> = ({
   missionData,
   onFinish
 }) => {
-  const costPerSeat = missionData.totalCost / (missionData.availableSeats + 1);
+  // missionData.totalCost is now the owner's proportional share
+  const ownerCost = missionData.totalCost; 
+  const costPerSeat = ownerCost; // Same as owner cost since it's already calculated proportionally
+  const totalMissionCost = ownerCost * (missionData.availableSeats + 1);
   const departureDateTime = new Date(`${missionData.departureDate}T${missionData.departureTime}`);
   const returnDateTime = new Date(`${missionData.returnDate}T${missionData.returnTime}`);
 
@@ -148,8 +151,8 @@ const SharedMissionConfirmation: React.FC<SharedMissionConfirmationProps> = ({
               <div className="text-sm font-medium text-gray-700 mb-2">Custos:</div>
               <div className="space-y-2">
                 <div className="flex justify-between text-sm">
-                  <span>Custo total:</span>
-                  <span>R$ {missionData.totalCost.toLocaleString('pt-BR')}</span>
+                  <span>Custo total da viagem:</span>
+                  <span>R$ {totalMissionCost.toLocaleString('pt-BR')}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Custo por poltrona:</span>
@@ -158,9 +161,15 @@ const SharedMissionConfirmation: React.FC<SharedMissionConfirmationProps> = ({
                   </span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>Sua parte:</span>
-                  <span className="font-medium">
-                    R$ {costPerSeat.toLocaleString('pt-BR')}
+                  <span>Sua parte (como dono):</span>
+                  <span className="font-medium text-green-600">
+                    R$ {ownerCost.toLocaleString('pt-BR')}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span>Você economiza:</span>
+                  <span className="font-medium text-green-600">
+                    R$ {(totalMissionCost - ownerCost).toLocaleString('pt-BR')}
                   </span>
                 </div>
               </div>

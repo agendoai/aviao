@@ -103,6 +103,12 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
     return (flightHours * hourlyRate) + airportFees + overnightFee;
   };
 
+  const calculateOwnerCost = () => {
+    const totalMissionCost = calculateTotalCost();
+    const totalParticipants = missionData.availableSeats + 1; // +1 for owner
+    return totalMissionCost / totalParticipants;
+  };
+
   const validateForm = () => {
     if (!selectedAircraft) {
       toast({
@@ -157,7 +163,7 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
       stops: missionData.stops,
       notes: missionData.notes,
       availableSeats: missionData.availableSeats,
-      totalCost: calculateTotalCost()
+      totalCost: calculateOwnerCost() // Owner pays only their proportional share
     };
 
     onMissionCreated(sharedMissionData);
@@ -339,13 +345,19 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
                   <span>{calculateFlightHours().toFixed(1)}h</span>
                 </div>
                 <div className="flex justify-between text-sm">
-                  <span>Custo total estimado:</span>
+                  <span>Custo total da viagem:</span>
                   <span className="font-medium">R$ {calculateTotalCost().toLocaleString('pt-BR')}</span>
                 </div>
                 <div className="flex justify-between text-sm">
                   <span>Custo por poltrona:</span>
                   <span className="font-medium text-aviation-blue">
-                    R$ {(calculateTotalCost() / (missionData.availableSeats + 1)).toLocaleString('pt-BR')}
+                    R$ {calculateOwnerCost().toLocaleString('pt-BR')}
+                  </span>
+                </div>
+                <div className="flex justify-between text-sm">
+                  <span>Sua parte (como dono):</span>
+                  <span className="font-medium text-green-600">
+                    R$ {calculateOwnerCost().toLocaleString('pt-BR')}
                   </span>
                 </div>
               </div>
@@ -359,7 +371,7 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
                 <h3 className="font-medium text-blue-900">Importante sobre compartilhamento:</h3>
                 <ul className="text-sm text-blue-700 mt-1 space-y-1">
                   <li>• Você mantém o controle total da missão</li>
-                  <li>• Os custos são divididos igualmente entre todos os participantes</li>
+                  <li>• Você paga apenas sua parte proporcional dos custos</li>
                   <li>• Você pode cancelar ou modificar a viagem até 24h antes</li>
                   <li>• Os passageiros serão notificados sobre mudanças</li>
                 </ul>
