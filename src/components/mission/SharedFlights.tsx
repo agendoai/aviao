@@ -15,7 +15,6 @@ interface SharedFlight {
   destination: string;
   totalSeats: number;
   availableSeats: number;
-  pricePerSeat: number;
   owner: string;
   stops?: string[];
 }
@@ -37,7 +36,7 @@ const SharedFlights: React.FC<SharedFlightsProps> = ({ onBack, onSelectFlight })
       destination: 'São Paulo-SBMT',
       totalSeats: 6,
       availableSeats: 3,
-      pricePerSeat: 850,
+      
       owner: 'João Silva',
       stops: ['Campo Grande']
     },
@@ -50,7 +49,7 @@ const SharedFlights: React.FC<SharedFlightsProps> = ({ onBack, onSelectFlight })
       destination: 'Brasília-SBBR',
       totalSeats: 4,
       availableSeats: 2,
-      pricePerSeat: 1200,
+      
       owner: 'Maria Santos'
     }
   ]);
@@ -126,13 +125,6 @@ const SharedFlights: React.FC<SharedFlightsProps> = ({ onBack, onSelectFlight })
                 <div>
                   <div className="text-sm text-gray-500">Proprietário da missão</div>
                   <div className="font-medium">{flight.owner}</div>
-                </div>
-                
-                <div className="text-right">
-                  <div className="text-2xl font-bold text-aviation-blue">
-                    R$ {flight.pricePerSeat.toLocaleString('pt-BR')}
-                  </div>
-                  <div className="text-sm text-gray-500">por poltrona</div>
                 </div>
                 
                 <Button 
