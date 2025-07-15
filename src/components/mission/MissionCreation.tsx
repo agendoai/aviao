@@ -6,7 +6,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
-import { Plane, MapPin, Clock, Plus, Trash2, AlertCircle } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Plane, MapPin, Clock, Plus, Trash2, AlertCircle, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 
@@ -45,7 +46,9 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
   const [destinations, setDestinations] = useState<Destination[]>([]);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [isValidating, setIsValidating] = useState(false);
-  const [missionEndTime, setMissionEndTime] = useState<Date>(initialTimeSlot.start);
+  const [missionEndTime, setMissionEndTime] = useState<Date>(initialTimeSlot.end);
+  const [manualReturnTime, setManualReturnTime] = useState<Date>(initialTimeSlot.end);
+  const [useManualReturn, setUseManualReturn] = useState(false);
   const [totalCost, setTotalCost] = useState(0);
 
   const BASE_FBO = "Araçatuba-SBAU";
@@ -65,7 +68,7 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
 
   useEffect(() => {
     recalculateMission();
-  }, [destinations]);
+  }, [destinations, useManualReturn, manualReturnTime]);
 
   const validateMission = async () => {
     setIsValidating(true);
@@ -115,7 +118,8 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
 
   const recalculateMission = () => {
     if (destinations.length === 0) {
-      setMissionEndTime(initialTimeSlot.start);
+      const finalTime = useManualReturn ? manualReturnTime : initialTimeSlot.end;
+      setMissionEndTime(finalTime);
       setTotalCost(0);
       return;
     }
@@ -152,15 +156,28 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
       };
     });
 
-    // Calcular voo de retorno (último destino para Araçatuba)
-    const lastDestination = updatedDestinations[updatedDestinations.length - 1];
-    const returnFlightTime = lastDestination.flightTime; // Mesmo tempo de volta
-    const finalArrival = new Date(lastDestination.departure.getTime() + returnFlightTime * 60 * 1000);
+    let finalArrival: Date;
+    
+    if (useManualReturn) {
+      // Usar horário manual de retorno
+      finalArrival = new Date(manualReturnTime.getTime() - 3 * 60 * 60 * 1000); // -3h para calcular quando deve sair do último destino
+    } else {
+      // Calcular voo de retorno automaticamente (último destino para Araçatuba)
+      const lastDestination = updatedDestinations[updatedDestinations.length - 1];
+      const returnFlightTime = lastDestination.flightTime; // Mesmo tempo de volta
+      finalArrival = new Date(lastDestination.departure.getTime() + returnFlightTime * 60 * 1000);
+      totalFlightHours += returnFlightTime / 60;
+    }
+    
+    // Se usar horário manual, calcular o tempo de voo do último destino até a chegada
+    if (useManualReturn && updatedDestinations.length > 0) {
+      const lastDestination = updatedDestinations[updatedDestinations.length - 1];
+      const returnFlightTime = lastDestination.flightTime; // Mesmo tempo de volta
+      totalFlightHours += returnFlightTime / 60;
+    }
     
     // +3 horas para liberação da aeronave
     const missionEnd = new Date(finalArrival.getTime() + 3 * 60 * 60 * 1000);
-    
-    totalFlightHours += returnFlightTime / 60;
     
     // Calcular custo total (usar hourly_rate da aeronave)
     const hourlyRate = 2800; // Usar valor padrão ou pegar do banco
@@ -168,7 +185,7 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
     const total = flightCost + totalAirportFees + totalOvernightFees;
     
     setDestinations(updatedDestinations);
-    setMissionEndTime(missionEnd);
+    setMissionEndTime(useManualReturn ? manualReturnTime : missionEnd);
     setTotalCost(total);
   };
 
@@ -181,7 +198,9 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
       end: missionEndTime,
       destinations,
       totalCost,
-      base: BASE_FBO
+      base: BASE_FBO,
+      useManualReturn,
+      manualReturnTime: useManualReturn ? manualReturnTime : null
     };
 
     onMissionCreated(missionData);
@@ -232,6 +251,57 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
       </Card>
 
 
+      {/* Configuração de Retorno */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <Calendar className="h-5 w-5 text-aviation-blue" />
+            <span>Configuração de Retorno</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center space-x-3">
+            <Switch
+              id="manual-return"
+              checked={useManualReturn}
+              onCheckedChange={setUseManualReturn}
+            />
+            <Label htmlFor="manual-return">Definir horário de retorno manualmente</Label>
+          </div>
+
+          {useManualReturn ? (
+            <div className="space-y-3">
+              <div>
+                <Label htmlFor="manual-return-time">Data e Hora de Retorno Desejada</Label>
+                <Input
+                  id="manual-return-time"
+                  type="datetime-local"
+                  value={format(manualReturnTime, "yyyy-MM-dd'T'HH:mm")}
+                  onChange={(e) => setManualReturnTime(new Date(e.target.value))}
+                  className="mt-1"
+                  min={format(initialTimeSlot.start, "yyyy-MM-dd'T'HH:mm")}
+                />
+                <p className="text-xs text-gray-500 mt-1">
+                  O retorno deve ser após a saída ({format(initialTimeSlot.start, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })})
+                </p>
+              </div>
+              <div className="bg-blue-50 border border-blue-200 rounded p-3">
+                <p className="text-sm text-blue-800">
+                  <strong>Retorno Manual:</strong> O horário de retorno será exatamente como definido. 
+                  Certifique-se de que há tempo suficiente entre a saída do último destino e o horário de retorno escolhido.
+                </p>
+              </div>
+            </div>
+          ) : (
+            <div className="bg-gray-50 border border-gray-200 rounded p-3">
+              <p className="text-sm text-gray-700">
+                <strong>Retorno Automático:</strong> O horário de retorno será calculado automaticamente 
+                baseado na saída do último destino mais o tempo de voo de volta.
+              </p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Destinos */}
       <Card>

@@ -84,7 +84,7 @@ const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ aircraft, onCreateMissi
     const start = new Date(day);
     start.setHours(hour, 0, 0, 0);
     const end = new Date(day);
-    end.setHours(hour + 4, 0, 0, 0); // 4 horas padrão
+    end.setHours(hour + 8, 0, 0, 0); // 8 horas padrão para dar flexibilidade
 
     onCreateMission(aircraft, { start, end });
   };
