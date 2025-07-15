@@ -66,14 +66,8 @@ const SharedFlightBookingConfirmation: React.FC<SharedFlightBookingConfirmationP
     setIsProcessing(true);
     
     try {
-      // Simular processamento
+      // Simular processamento do pagamento
       await new Promise(resolve => setTimeout(resolve, 2000));
-      
-      toast({
-        title: "Reserva confirmada!",
-        description: "Sua poltrona foi reservada com sucesso",
-        variant: "default"
-      });
       
       onBookingConfirmed();
     } catch (error) {

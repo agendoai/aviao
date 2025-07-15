@@ -2,7 +2,9 @@
 import React, { useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Calendar, Plane, MapPin, Clock } from 'lucide-react';
+import { Calendar, Plane, MapPin, Clock, Check } from 'lucide-react';
+import { format } from 'date-fns';
+import { ptBR } from 'date-fns/locale';
 import WeeklySchedule from './WeeklySchedule';
 import MissionCreation from './MissionCreation';
 import TripTypeSelection from './TripTypeSelection';
@@ -45,7 +47,7 @@ interface Aircraft {
 }
 
 const MissionSystem: React.FC = () => {
-  const [currentView, setCurrentView] = useState<'trip-type' | 'schedule' | 'shared-options' | 'shared-flights' | 'create-shared' | 'seat-selection' | 'passenger-info' | 'booking-confirmation' | 'creation' | 'financial' | 'confirmation' | 'shared-confirmation'>('trip-type');
+  const [currentView, setCurrentView] = useState<'trip-type' | 'schedule' | 'shared-options' | 'shared-flights' | 'create-shared' | 'seat-selection' | 'passenger-info' | 'booking-confirmation' | 'shared-booking-confirmation' | 'creation' | 'financial' | 'confirmation' | 'shared-confirmation'>('trip-type');
   const [tripType, setTripType] = useState<'solo' | 'shared' | null>(null);
   const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<{
@@ -121,7 +123,7 @@ const MissionSystem: React.FC = () => {
   };
 
   const handleBookingConfirmed = () => {
-    setCurrentView('confirmation');
+    setCurrentView('shared-booking-confirmation');
   };
 
   const handleCreateSharedMission = () => {
@@ -263,6 +265,60 @@ const MissionSystem: React.FC = () => {
           isImmediate={userPriority === 1}
           onFinish={resetFlow}
         />
+      )}
+
+      {currentView === 'shared-booking-confirmation' && selectedSharedFlight && selectedSeat && passengerInfo && (
+        <div className="space-y-6">
+          <div className="text-center">
+            <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+              <Check className="h-8 w-8 text-green-600" />
+            </div>
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">Reserva Confirmada!</h2>
+            <p className="text-gray-600 mb-6">
+              Sua poltrona foi reservada com sucesso no voo compartilhado
+            </p>
+          </div>
+          
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-center">Detalhes da Reserva</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="text-gray-600">Aeronave:</span>
+                  <div className="font-medium">{selectedSharedFlight.aircraft}</div>
+                </div>
+                <div>
+                  <span className="text-gray-600">Poltrona:</span>
+                  <div className="font-medium">{selectedSeat}</div>
+                </div>
+              </div>
+              
+              <div className="border-t pt-4">
+                <div className="flex justify-between items-center mb-2">
+                  <span className="text-gray-600">Rota:</span>
+                  <span className="font-medium">{selectedSharedFlight.origin} → {selectedSharedFlight.destination}</span>
+                </div>
+                <div className="text-sm text-gray-500">
+                  {format(selectedSharedFlight.departure, "dd/MM/yyyy 'às' HH:mm", { locale: ptBR })}
+                </div>
+              </div>
+              
+              <div className="border-t pt-4">
+                <div className="text-gray-600 mb-2">Passageiro:</div>
+                <div className="font-medium">{passengerInfo.name}</div>
+                <div className="text-sm text-gray-500">{passengerInfo.email}</div>
+              </div>
+            </CardContent>
+          </Card>
+          
+          <div className="flex justify-center">
+            <Button onClick={resetFlow} className="bg-aviation-gradient hover:opacity-90">
+              Finalizar
+            </Button>
+          </div>
+        </div>
       )}
 
       {currentView === 'shared-confirmation' && missionData && (
