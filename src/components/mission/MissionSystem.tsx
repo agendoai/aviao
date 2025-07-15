@@ -6,12 +6,15 @@ import { Calendar, Plane, MapPin, Clock } from 'lucide-react';
 import WeeklySchedule from './WeeklySchedule';
 import MissionCreation from './MissionCreation';
 import TripTypeSelection from './TripTypeSelection';
+import SharedFlightOptions from './SharedFlightOptions';
 import SharedFlights from './SharedFlights';
+import CreateSharedMission from './CreateSharedMission';
 import SharedFlightSeatSelection from './SharedFlightSeatSelection';
 import SharedFlightPassengerInfo from './SharedFlightPassengerInfo';
 import SharedFlightBookingConfirmation from './SharedFlightBookingConfirmation';
 import FinancialVerification from './FinancialVerification';
 import MissionConfirmation from './MissionConfirmation';
+import SharedMissionConfirmation from './SharedMissionConfirmation';
 
 interface SharedFlight {
   id: string;
@@ -42,7 +45,7 @@ interface Aircraft {
 }
 
 const MissionSystem: React.FC = () => {
-  const [currentView, setCurrentView] = useState<'trip-type' | 'schedule' | 'shared-flights' | 'seat-selection' | 'passenger-info' | 'booking-confirmation' | 'creation' | 'financial' | 'confirmation'>('trip-type');
+  const [currentView, setCurrentView] = useState<'trip-type' | 'schedule' | 'shared-options' | 'shared-flights' | 'create-shared' | 'seat-selection' | 'passenger-info' | 'booking-confirmation' | 'creation' | 'financial' | 'confirmation' | 'shared-confirmation'>('trip-type');
   const [tripType, setTripType] = useState<'solo' | 'shared' | null>(null);
   const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<{
@@ -78,7 +81,7 @@ const MissionSystem: React.FC = () => {
     if (type === 'solo') {
       setCurrentView('schedule');
     } else {
-      setCurrentView('shared-flights');
+      setCurrentView('shared-options');
     }
   };
 
@@ -119,6 +122,19 @@ const MissionSystem: React.FC = () => {
 
   const handleBookingConfirmed = () => {
     setCurrentView('confirmation');
+  };
+
+  const handleCreateSharedMission = () => {
+    setCurrentView('create-shared');
+  };
+
+  const handleViewExistingFlights = () => {
+    setCurrentView('shared-flights');
+  };
+
+  const handleSharedMissionCreated = (data: any) => {
+    setMissionData(data);
+    setCurrentView('shared-confirmation');
   };
 
   const resetFlow = () => {
@@ -168,9 +184,24 @@ const MissionSystem: React.FC = () => {
         />
       )}
 
+      {currentView === 'shared-options' && (
+        <SharedFlightOptions
+          onBack={() => setCurrentView('trip-type')}
+          onViewExisting={handleViewExistingFlights}
+          onCreateNew={handleCreateSharedMission}
+        />
+      )}
+
+      {currentView === 'create-shared' && (
+        <CreateSharedMission
+          onBack={() => setCurrentView('shared-options')}
+          onMissionCreated={handleSharedMissionCreated}
+        />
+      )}
+
       {currentView === 'shared-flights' && (
         <SharedFlights 
-          onBack={() => setCurrentView('trip-type')}
+          onBack={() => setCurrentView('shared-options')}
           onSelectFlight={handleSelectSharedFlight}
         />
       )}
@@ -230,6 +261,13 @@ const MissionSystem: React.FC = () => {
           totalCost={missionData.totalCost}
           userPriority={userPriority}
           isImmediate={userPriority === 1}
+          onFinish={resetFlow}
+        />
+      )}
+
+      {currentView === 'shared-confirmation' && missionData && (
+        <SharedMissionConfirmation
+          missionData={missionData}
           onFinish={resetFlow}
         />
       )}
