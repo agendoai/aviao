@@ -7,8 +7,32 @@ import WeeklySchedule from './WeeklySchedule';
 import MissionCreation from './MissionCreation';
 import TripTypeSelection from './TripTypeSelection';
 import SharedFlights from './SharedFlights';
+import SharedFlightSeatSelection from './SharedFlightSeatSelection';
+import SharedFlightPassengerInfo from './SharedFlightPassengerInfo';
+import SharedFlightBookingConfirmation from './SharedFlightBookingConfirmation';
 import FinancialVerification from './FinancialVerification';
 import MissionConfirmation from './MissionConfirmation';
+
+interface SharedFlight {
+  id: string;
+  aircraft: string;
+  departure: Date;
+  arrival: Date;
+  origin: string;
+  destination: string;
+  totalSeats: number;
+  availableSeats: number;
+  owner: string;
+  stops?: string[];
+}
+
+interface PassengerInfo {
+  name: string;
+  email: string;
+  phone: string;
+  document: string;
+  documentType: 'cpf' | 'rg';
+}
 
 interface Aircraft {
   id: string;
@@ -18,7 +42,7 @@ interface Aircraft {
 }
 
 const MissionSystem: React.FC = () => {
-  const [currentView, setCurrentView] = useState<'trip-type' | 'schedule' | 'shared-flights' | 'creation' | 'financial' | 'confirmation'>('trip-type');
+  const [currentView, setCurrentView] = useState<'trip-type' | 'schedule' | 'shared-flights' | 'seat-selection' | 'passenger-info' | 'booking-confirmation' | 'creation' | 'financial' | 'confirmation'>('trip-type');
   const [tripType, setTripType] = useState<'solo' | 'shared' | null>(null);
   const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<{
@@ -26,6 +50,9 @@ const MissionSystem: React.FC = () => {
     end: Date;
   } | null>(null);
   const [missionData, setMissionData] = useState<any>(null);
+  const [selectedSharedFlight, setSelectedSharedFlight] = useState<SharedFlight | null>(null);
+  const [selectedSeat, setSelectedSeat] = useState<number | null>(null);
+  const [passengerInfo, setPassengerInfo] = useState<PassengerInfo | null>(null);
   
   // Mock user data - em produção viria do contexto/Supabase
   const [userBalance] = useState(15000);
@@ -75,9 +102,22 @@ const MissionSystem: React.FC = () => {
     console.log('Opção de pagamento:', method);
   };
 
-  const handleSelectSharedFlight = (flight: any) => {
-    // Em produção, processar seleção de poltrona
-    console.log('Voo compartilhado selecionado:', flight);
+  const handleSelectSharedFlight = (flight: SharedFlight) => {
+    setSelectedSharedFlight(flight);
+    setCurrentView('seat-selection');
+  };
+
+  const handleSeatSelected = (seatNumber: number) => {
+    setSelectedSeat(seatNumber);
+    setCurrentView('passenger-info');
+  };
+
+  const handlePassengerInfoSubmitted = (info: PassengerInfo) => {
+    setPassengerInfo(info);
+    setCurrentView('booking-confirmation');
+  };
+
+  const handleBookingConfirmed = () => {
     setCurrentView('confirmation');
   };
 
@@ -87,6 +127,9 @@ const MissionSystem: React.FC = () => {
     setSelectedAircraft(null);
     setSelectedTimeSlot(null);
     setMissionData(null);
+    setSelectedSharedFlight(null);
+    setSelectedSeat(null);
+    setPassengerInfo(null);
   };
 
   return (
@@ -129,6 +172,33 @@ const MissionSystem: React.FC = () => {
         <SharedFlights 
           onBack={() => setCurrentView('trip-type')}
           onSelectFlight={handleSelectSharedFlight}
+        />
+      )}
+
+      {currentView === 'seat-selection' && selectedSharedFlight && (
+        <SharedFlightSeatSelection
+          flight={selectedSharedFlight}
+          onBack={() => setCurrentView('shared-flights')}
+          onSeatSelected={handleSeatSelected}
+        />
+      )}
+
+      {currentView === 'passenger-info' && selectedSharedFlight && selectedSeat && (
+        <SharedFlightPassengerInfo
+          flight={selectedSharedFlight}
+          selectedSeat={selectedSeat}
+          onBack={() => setCurrentView('seat-selection')}
+          onPassengerInfoSubmitted={handlePassengerInfoSubmitted}
+        />
+      )}
+
+      {currentView === 'booking-confirmation' && selectedSharedFlight && selectedSeat && passengerInfo && (
+        <SharedFlightBookingConfirmation
+          flight={selectedSharedFlight}
+          selectedSeat={selectedSeat}
+          passengerInfo={passengerInfo}
+          onBack={() => setCurrentView('passenger-info')}
+          onBookingConfirmed={handleBookingConfirmed}
         />
       )}
 
