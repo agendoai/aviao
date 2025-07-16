@@ -10,6 +10,10 @@ import { Switch } from '@/components/ui/switch';
 import { Plane, MapPin, Clock, Plus, Trash2, AlertCircle, Calendar } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { searchAirports, calculateFlightDistance, getAirportByIATA, getPopularAirports, type Airport } from '../../utils/aviationstack';
+import { searchAirportsByRegion, searchAirportsByName, getBrazilianAirports, getRegions, type AirportData } from '../../utils/airport-data-api';
+import AirportSelector from './AirportSelector';
+import { useToast } from '@/components/ui/use-toast';
 
 interface Aircraft {
   id: string;
@@ -21,7 +25,10 @@ interface Aircraft {
 interface Destination {
   id: string;
   icao: string;
+  iata?: string;
   name: string;
+  city?: string;
+  country?: string;
   arrival: Date;
   departure: Date;
   airportFee: number;
@@ -50,21 +57,25 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
   const [manualReturnTime, setManualReturnTime] = useState<Date>(initialTimeSlot.end);
   const [useManualReturn, setUseManualReturn] = useState(false);
   const [totalCost, setTotalCost] = useState(0);
+  const [airports, setAirports] = useState<Airport[]>([]);
+  const [isLoadingAirports, setIsLoadingAirports] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const { toast } = useToast();
 
   const BASE_FBO = "Araçatuba-SBAU";
 
   // Mock airports data - em produção viria do ROTAER
-  const airports = [
-    { icao: 'SBMT', name: 'Campo de Marte - São Paulo', flightTime: 90, airportFee: 200 },
-    { icao: 'SBCG', name: 'Campo Grande', flightTime: 120, airportFee: 150 },
-    { icao: 'SBSP', name: 'São Paulo/Congonhas', flightTime: 90, airportFee: 300 },
-    { icao: 'SBRJ', name: 'Rio de Janeiro/Santos Dumont', flightTime: 150, airportFee: 350 },
-    { icao: 'SBBR', name: 'Brasília', flightTime: 180, airportFee: 250 },
-    { icao: 'SBPA', name: 'Porto Alegre', flightTime: 240, airportFee: 200 },
-    { icao: 'SBSV', name: 'Salvador', flightTime: 300, airportFee: 200 },
-    { icao: 'SBRF', name: 'Recife', flightTime: 360, airportFee: 180 },
-    { icao: 'SBMN', name: 'Manaus', flightTime: 420, airportFee: 150 }
-  ];
+  // const airports = [
+  //   { icao: 'SBMT', name: 'Campo de Marte - São Paulo', flightTime: 90, airportFee: 200 },
+  //   { icao: 'SBCG', name: 'Campo Grande', flightTime: 120, airportFee: 150 },
+  //   { icao: 'SBSP', name: 'São Paulo/Congonhas', flightTime: 90, airportFee: 300 },
+  //   { icao: 'SBRJ', name: 'Rio de Janeiro/Santos Dumont', flightTime: 150, airportFee: 350 },
+  //   { icao: 'SBBR', name: 'Brasília', flightTime: 180, airportFee: 250 },
+  //   { icao: 'SBPA', name: 'Porto Alegre', flightTime: 240, airportFee: 200 },
+  //   { icao: 'SBSV', name: 'Salvador', flightTime: 300, airportFee: 200 },
+  //   { icao: 'SBRF', name: 'Recife', flightTime: 360, airportFee: 180 },
+  //   { icao: 'SBMN', name: 'Manaus', flightTime: 420, airportFee: 150 }
+  // ];
 
   useEffect(() => {
     recalculateMission();
@@ -106,10 +117,10 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
     setDestinations([...destinations, newDestination]);
   };
 
-  const updateDestination = (id: string, field: keyof Destination, value: any) => {
-    setDestinations(destinations.map(dest => 
-      dest.id === id ? { ...dest, [field]: value } : dest
-    ));
+  const handleDestinationChange = (index: number, field: keyof Destination, value: any) => {
+    const newDestinations = [...destinations];
+    newDestinations[index] = { ...newDestinations[index], [field]: value };
+    setDestinations(newDestinations);
   };
 
   const removeDestination = (id: string) => {
@@ -187,6 +198,61 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
     setDestinations(updatedDestinations);
     setMissionEndTime(useManualReturn ? manualReturnTime : missionEnd);
     setTotalCost(total);
+  };
+
+  const handleSearchAirports = async (query: string) => {
+    if (query.length < 2) {
+      setAirports([]);
+      return;
+    }
+
+    setIsLoadingAirports(true);
+    try {
+      const results = await searchAirports(query);
+      setAirports(results);
+    } catch (error) {
+      console.error('Erro ao buscar aeroportos:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao buscar aeroportos. Tente novamente.",
+        variant: "destructive"
+      });
+    } finally {
+      setIsLoadingAirports(false);
+    }
+  };
+
+  const handleAirportSelect = async (airport: AirportData, index: number) => {
+    const newDestinations = [...destinations];
+    newDestinations[index] = {
+      ...newDestinations[index],
+      name: airport.name,
+      icao: airport.icao_code,
+      iata: airport.iata_code,
+      city: airport.city,
+      country: airport.country_name
+    };
+    setDestinations(newDestinations);
+
+    // Calcular distância se for o primeiro destino
+    if (index === 0) {
+      try {
+        const distanceCalculation = await calculateFlightDistance('ARU', airport.iata_code);
+        newDestinations[index] = {
+          ...newDestinations[index],
+          flightTime: distanceCalculation.estimated_flight_time_minutes
+        };
+        setDestinations(newDestinations);
+      } catch (error) {
+        console.error('Erro ao calcular distância:', error);
+        // Usar tempo padrão se não conseguir calcular
+        newDestinations[index] = {
+          ...newDestinations[index],
+          flightTime: 90
+        };
+        setDestinations(newDestinations);
+      }
+    }
   };
 
   const confirmMission = async () => {
@@ -305,103 +371,72 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
 
       {/* Destinos */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle>Destinos</CardTitle>
-          <Button onClick={addDestination} size="sm" className="flex items-center space-x-2">
-            <Plus className="h-4 w-4" />
-            <span>Adicionar Destino</span>
-          </Button>
+        <CardHeader>
+          <CardTitle className="flex items-center space-x-2">
+            <MapPin className="h-5 w-5 text-aviation-blue" />
+            <span>Destinos da Missão</span>
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          {destinations.map((destination, index) => (
-            <Card key={destination.id} className="border border-gray-200">
-              <CardHeader className="pb-3">
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg">Destino #{index + 1}</CardTitle>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={() => removeDestination(destination.id)}
-                    className="text-red-500 hover:text-red-700"
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label>Aeroporto</Label>
-                  <Select 
-                    value={destination.icao} 
-                    onValueChange={(value) => {
-                      const airport = airports.find(a => a.icao === value);
-                      if (airport) {
-                        updateDestination(destination.id, 'icao', value);
-                        updateDestination(destination.id, 'name', airport.name);
-                        updateDestination(destination.id, 'flightTime', airport.flightTime);
-                        updateDestination(destination.id, 'airportFee', airport.airportFee);
-                        
-                        // Recalcular horário de chegada baseado no novo tempo de voo
-                        const currentDestinations = destinations.map(d => d.id === destination.id ? { ...d, flightTime: airport.flightTime } : d);
-                        const previousDeparture = index === 0 ? initialTimeSlot.start : currentDestinations[index - 1].departure;
-                        const newArrival = new Date(previousDeparture.getTime() + airport.flightTime * 60 * 1000);
-                        updateDestination(destination.id, 'arrival', newArrival);
-                      }
-                    }}
-                  >
-                    <SelectTrigger>
-                      <SelectValue placeholder="Selecione o aeroporto" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {airports.map(airport => (
-                        <SelectItem key={airport.icao} value={airport.icao}>
-                          {airport.icao} - {airport.name}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                <div className="grid grid-cols-2 gap-4 text-sm bg-gray-50 p-3 rounded">
-                  <div>
-                    <span className="font-medium">Chegada:</span><br />
-                    {format(destination.arrival, "dd/MM 'às' HH:mm", { locale: ptBR })}
-                  </div>
-                  <div>
-                    <span className="font-medium">Tempo de voo:</span><br />
-                    {Math.floor(destination.flightTime / 60)}h {destination.flightTime % 60}min
-                  </div>
-                  <div>
-                    <span className="font-medium">Taxa aeroporto:</span><br />
-                    R$ {destination.airportFee}
-                  </div>
-                  {destination.isOvernight && (
-                    <div>
-                      <span className="font-medium text-orange-600">Pernoite:</span><br />
-                      <span className="text-orange-600">R$ {destination.overnightFee}</span>
-                    </div>
-                  )}
-                </div>
-                
-                <div>
-                  <Label>Data/Hora de Partida deste destino</Label>
+        <CardContent>
+          <div className="space-y-4">
+            {destinations.map((dest, index) => (
+              <div key={index} className="space-y-2">
+                <Label>Destino {index + 1}</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                  <AirportSelector
+                    onAirportSelect={(airport) => handleAirportSelect(airport, index)}
+                    selectedAirport={dest.iata ? {
+                      id: dest.id,
+                      name: dest.name,
+                      iata_code: dest.iata,
+                      icao_code: dest.icao,
+                      latitude: 0,
+                      longitude: 0,
+                      country_code: 'BR',
+                      country_name: dest.country || 'Brazil',
+                      city: dest.city || ''
+                    } : undefined}
+                    placeholder="Selecionar aeroporto..."
+                  />
                   <Input
-                    type="datetime-local"
-                    value={format(destination.departure, "yyyy-MM-dd'T'HH:mm")}
-                    onChange={(e) => updateDestination(destination.id, 'departure', new Date(e.target.value))}
+                    type="time"
+                    value={format(dest.departure, "HH:mm")}
+                    onChange={(e) => handleDestinationChange(index, 'departure', new Date(`${format(dest.departure, "yyyy-MM-dd")}T${e.target.value}`))}
                   />
                 </div>
-              </CardContent>
-            </Card>
-          ))}
-          
-          {destinations.length === 0 && (
-            <div className="text-center py-8 text-gray-500">
-              <MapPin className="h-8 w-8 mx-auto mb-2 opacity-50" />
-              <p>Nenhum destino adicionado</p>
-              <p className="text-sm">Clique em "Adicionar Destino" para começar</p>
-            </div>
-          )}
+                {dest.name && (
+                  <div className="text-sm text-gray-600">
+                    <strong>{dest.name}</strong> ({dest.iata}) - {dest.city}, {dest.country}
+                    {dest.flightTime && (
+                      <span className="ml-2 text-aviation-blue">
+                        • Tempo estimado: {Math.floor(dest.flightTime / 60)}h {dest.flightTime % 60}min
+                      </span>
+                    )}
+                  </div>
+                )}
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => removeDestination(dest.id)}
+                  className="text-red-600 hover:text-red-700"
+                >
+                  <Trash2 className="h-4 w-4 mr-1" />
+                  Remover
+                </Button>
+              </div>
+            ))}
+            
+            <Button
+              type="button"
+              variant="outline"
+              onClick={addDestination}
+              className="w-full"
+            >
+              <Plus className="h-4 w-4 mr-2" />
+              Adicionar Destino
+            </Button>
+          </div>
         </CardContent>
       </Card>
 
