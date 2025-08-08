@@ -1,0 +1,150 @@
+// schema.prisma
+// Prisma schema para o sistema de reservas de avião
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id              Int      @id @default(autoincrement())
+  name            String
+  email           String   @unique
+  password        String
+  asaasCustomerId String?  // Para integração com Asaas
+  role            String   @default("user")
+  bookings        Booking[]
+  transactions    Transaction[]
+  sharedMissions  SharedMission[] @relation("SharedMissionCreator")
+  sharedBookings  SharedMissionBooking[]
+  participationRequests ParticipationRequest[]
+  chatMessages    ChatMessage[]
+}
+
+model Aircraft {
+  id           Int      @id @default(autoincrement())
+  name         String
+  registration String
+  model        String
+  seats        Int
+  status       String   @default("available")
+  hourlyRate   Float    @default(2800)
+  overnightRate Float   @default(1500)
+  bookings     Booking[]
+  sharedMissions SharedMission[]
+}
+
+model Booking {
+  id             Int      @id @default(autoincrement())
+  userId         Int
+  aircraftId     Int
+  origin         String
+  destination    String
+  departure_date DateTime
+  return_date    DateTime
+  passengers     Int      @default(1)
+  flight_hours   Int      @default(2)
+  overnight_stays Int     @default(0)
+  value          Float
+  status         String   @default("pendente")
+  paymentId      String?
+  createdAt      DateTime @default(now())
+  user           User     @relation(fields: [userId], references: [id])
+  aircraft       Aircraft @relation(fields: [aircraftId], references: [id])
+  transactions   Transaction[]
+}
+
+model SharedMission {
+  id              Int      @id @default(autoincrement())
+  title           String
+  description     String?
+  origin          String
+  destination     String
+  departure_date  DateTime
+  return_date     DateTime
+  aircraftId      Int
+  totalSeats      Int
+  availableSeats  Int
+  pricePerSeat    Float
+  overnightFee    Float    @default(0) // Taxa de pernoite por pessoa
+  overnightStays  Int      @default(0) // Número de pernoites
+  status          String   @default("active") // active, completed, cancelled
+  createdBy       Int
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  aircraft        Aircraft @relation(fields: [aircraftId], references: [id])
+  creator         User     @relation("SharedMissionCreator", fields: [createdBy], references: [id])
+  bookings        SharedMissionBooking[]
+  participationRequests ParticipationRequest[]
+}
+
+model SharedMissionBooking {
+  id              Int      @id @default(autoincrement())
+  sharedMissionId Int
+  userId          Int
+  seats           Int      @default(1)
+  totalPrice      Float
+  status          String   @default("pending") // pending, confirmed, paid, cancelled
+  paymentId       String?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  sharedMission   SharedMission @relation(fields: [sharedMissionId], references: [id])
+  user            User     @relation(fields: [userId], references: [id])
+}
+
+model ParticipationRequest {
+  id              Int      @id @default(autoincrement())
+  sharedMissionId Int
+  userId          Int
+  status          String   @default("pending") // pending, accepted, rejected
+  message         String?  // Mensagem inicial do pedido
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  sharedMission   SharedMission @relation(fields: [sharedMissionId], references: [id])
+  user            User     @relation(fields: [userId], references: [id])
+  chatMessages    ChatMessage[]
+}
+
+model ChatMessage {
+  id                    Int      @id @default(autoincrement())
+  participationRequestId Int
+  senderId              Int
+  message               String
+  messageType           String   @default("message") // message, acceptance, rejection
+  createdAt             DateTime @default(now())
+  participationRequest  ParticipationRequest @relation(fields: [participationRequestId], references: [id])
+  sender                User     @relation(fields: [senderId], references: [id])
+}
+
+model Airport {
+  id        Int      @id @default(autoincrement())
+  code      String   @unique
+  name      String
+  city      String
+  state     String
+  country   String
+  stops     Stop[]
+}
+
+model Stop {
+  id        Int      @id @default(autoincrement())
+  name      String
+  airportId Int
+  airport   Airport  @relation(fields: [airportId], references: [id])
+}
+
+model Transaction {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  bookingId   Int?
+  amount      Float
+  type        String
+  description String
+  createdAt   DateTime @default(now())
+  user        User     @relation(fields: [userId], references: [id])
+  booking     Booking? @relation(fields: [bookingId], references: [id])
+}

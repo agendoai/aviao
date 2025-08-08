@@ -3,25 +3,30 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
-import { Plane, Plus, Clock } from 'lucide-react';
+import { Plane, Plus, Clock, Loader2 } from 'lucide-react';
 import { format, startOfWeek, addDays, addHours, isBefore, isAfter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { getBookings } from '@/utils/api';
 
 interface Aircraft {
-  id: string;
+  id: number;
   name: string;
   registration: string;
   model: string;
+  status: string;
+  max_passengers: number;
+  hourly_rate: number;
+  overnight_fee: number;
 }
 
 interface Reservation {
-  id: string;
-  aircraftId: string;
+  id: number;
+  aircraftId: number;
   start: Date;
   end: Date;
   user: string;
   destination: string;
-  status: 'confirmed' | 'pre-reservation';
+  status: string;
 }
 
 interface WeeklyScheduleProps {
@@ -32,36 +37,43 @@ interface WeeklyScheduleProps {
 const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ aircraft, onCreateMission }) => {
   const [currentWeek, setCurrentWeek] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [reservations, setReservations] = useState<Reservation[]>([]);
+  const [loading, setLoading] = useState(true);
   
-  // Mock data - em produção viria do Supabase
+  // Buscar reservas reais da API
   useEffect(() => {
-    const mockReservations: Reservation[] = [
-      {
-        id: '1',
-        aircraftId: '1',
-        start: addHours(addDays(currentWeek, 1), 8),
-        end: addHours(addDays(currentWeek, 1), 12),
-        user: 'João Silva',
-        destination: 'SBSP',
-        status: 'confirmed'
-      },
-      {
-        id: '2',
-        aircraftId: '2',
-        start: addHours(addDays(currentWeek, 2), 14),
-        end: addHours(addDays(currentWeek, 2), 18),
-        user: 'Maria Santos',
-        destination: 'SBRJ',
-        status: 'pre-reservation'
+    const fetchReservations = async () => {
+      try {
+        setLoading(true);
+        const bookingsData = await getBookings();
+        
+        // Converter dados da API para o formato do componente
+        const formattedReservations: Reservation[] = bookingsData.map((booking: any) => ({
+          id: booking.id,
+          aircraftId: booking.aircraftId,
+          start: new Date(booking.departure_date || booking.createdAt),
+          end: new Date(booking.return_date || new Date(booking.createdAt).getTime() + 8 * 60 * 60 * 1000),
+          user: booking.user?.name || 'Usuário',
+          destination: booking.destination || 'N/A',
+          status: booking.status
+        }));
+        
+        setReservations(formattedReservations);
+        console.log('✅ Reservas carregadas:', formattedReservations);
+      } catch (error) {
+        console.error('❌ Erro ao carregar reservas:', error);
+        setReservations([]);
+      } finally {
+        setLoading(false);
       }
-    ];
-    setReservations(mockReservations);
+    };
+
+    fetchReservations();
   }, [currentWeek]);
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(currentWeek, i));
   const timeSlots = Array.from({ length: 14 }, (_, i) => i + 6); // 6h às 19h
 
-  const getReservationForSlot = (aircraftId: string, day: Date, hour: number) => {
+  const getReservationForSlot = (aircraftId: number, day: Date, hour: number) => {
     const slotStart = new Date(day);
     slotStart.setHours(hour, 0, 0, 0);
     const slotEnd = new Date(day);
@@ -74,7 +86,7 @@ const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ aircraft, onCreateMissi
     );
   };
 
-  const isSlotAvailable = (aircraftId: string, day: Date, hour: number) => {
+  const isSlotAvailable = (aircraftId: number, day: Date, hour: number) => {
     return !getReservationForSlot(aircraftId, day, hour);
   };
 
@@ -92,6 +104,17 @@ const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ aircraft, onCreateMissi
   const navigateWeek = (direction: 'prev' | 'next') => {
     setCurrentWeek(prev => addDays(prev, direction === 'next' ? 7 : -7));
   };
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <div className="text-center">
+          <Loader2 className="h-6 w-6 animate-spin text-sky-500 mx-auto mb-2" />
+          <p className="text-sm text-gray-600">Carregando agenda...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-6">

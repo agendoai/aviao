@@ -19,26 +19,12 @@ export interface DistanceCalculation {
   estimated_flight_time_minutes: number;
 }
 
-export const searchAirports = async (query: string): Promise<Airport[]> => {
-  try {
-    const response = await fetch(`${AVIATIONSTACK_BASE_URL}/autocomplete?access_key=${AVIATIONSTACK_API_KEY}&query=${encodeURIComponent(query)}`);
-    
-    if (!response.ok) {
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-    
-    const data = await response.json();
-    
-    if (data.error) {
-      throw new Error(data.error.message || 'Erro na API aviationstack');
-    }
-    
-    return data.data || [];
-  } catch (error) {
-    console.error('Erro ao buscar aeroportos:', error);
-    throw error;
-  }
-};
+export async function searchAirportAviationStack(query: string) {
+  const url = `${AVIATIONSTACK_BASE_URL}/airports?access_key=${AVIATIONSTACK_API_KEY}&search=${encodeURIComponent(query)}`;
+  const res = await fetch(url);
+  if (!res.ok) throw new Error('Erro ao buscar aeroporto na AviationStack');
+  return res.json();
+}
 
 export const getAirportByIATA = async (iataCode: string): Promise<Airport | null> => {
   try {

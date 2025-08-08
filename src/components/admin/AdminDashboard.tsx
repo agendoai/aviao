@@ -1,47 +1,117 @@
 
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Plane, DollarSign, Activity, Settings, Shield } from 'lucide-react';
-import { supabase } from '@/integrations/supabase/client';
-import { useToast } from '@/hooks/use-toast';
+import { Shield, Users, Calendar, MapPin, Plane, DollarSign, Settings, Activity, CalendarIcon } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
+import { getAllAircrafts } from '@/utils/api';
 import UserManagement from './UserManagement';
+import BookingManagement from './BookingManagement';
 import AircraftManagement from './AircraftManagement';
 import FinancialManagement from './FinancialManagement';
 import SystemSettings from './SystemSettings';
+import ScheduleManagement from './ScheduleManagement';
+import { toast } from 'sonner';
+import { useLocation } from 'react-router-dom';
+
+interface Stats {
+  totalUsers: number;
+  totalAircraft: number;
+  monthlyRevenue: number;
+  activeBookings: number;
+}
 
 const AdminDashboard: React.FC = () => {
-  const { toast } = useToast();
-  const [stats, setStats] = useState({
+  const [activeTab, setActiveTab] = useState('dashboard');
+  const [stats, setStats] = useState<Stats>({
     totalUsers: 0,
     totalAircraft: 0,
     monthlyRevenue: 0,
     activeBookings: 0
   });
+  const location = useLocation();
+
+  useEffect(() => {
+    // Ler parâmetro tab da URL
+    const urlParams = new URLSearchParams(location.search);
+    const tabParam = urlParams.get('tab');
+    if (tabParam) {
+      setActiveTab(tabParam);
+    }
+  }, [location]);
 
   useEffect(() => {
     fetchStats();
   }, []);
 
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    // Atualizar URL com o novo tab
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', value);
+    window.history.pushState({}, '', url.toString());
+  };
+
   const fetchStats = async () => {
     try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
+      const token = localStorage.getItem('token');
+      
       const [usersRes, aircraftRes, bookingsRes, transactionsRes] = await Promise.all([
-        supabase.from('profiles').select('id', { count: 'exact' }),
-        supabase.from('aircraft').select('id', { count: 'exact' }),
-        supabase.from('bookings').select('id', { count: 'exact' }).eq('status', 'confirmed'),
-        supabase.from('transactions').select('amount').eq('type', 'debit')
-          .gte('created_at', new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString())
+        fetch(`${backendUrl}/users`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          }
+        }),
+        getAllAircrafts(),
+        fetch(`${backendUrl}/bookings`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          }
+        }),
+        fetch(`${backendUrl}/transactions`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          }
+        })
       ]);
 
-      const monthlyRevenue = transactionsRes.data?.reduce((sum, t) => sum + Number(t.amount), 0) || 0;
+      const users = await usersRes.json();
+      const aircraft = await aircraftRes;
+      const bookings = await bookingsRes.json();
+      const transactions = await transactionsRes.json();
 
-      setStats({
-        totalUsers: usersRes.count || 0,
-        totalAircraft: aircraftRes.count || 0,
-        monthlyRevenue,
-        activeBookings: bookingsRes.count || 0
+      // Calcular receita mensal
+      const currentMonth = new Date().getMonth();
+      const currentYear = new Date().getFullYear();
+      const monthlyTransactions = transactions.filter((t: any) => {
+        const transactionDate = new Date(t.createdAt);
+        return transactionDate.getMonth() === currentMonth && 
+               transactionDate.getFullYear() === currentYear &&
+               t.type === 'debit';
       });
+      
+      const monthlyRevenue = monthlyTransactions.reduce((sum: number, t: any) => sum + Number(t.amount), 0);
+
+      // Contar reservas ativas
+      const activeBookings = bookings.filter((b: any) => 
+        ['pendente', 'confirmado', 'paga'].includes(b.status)
+      ).length;
+
+      const newStats = {
+        totalUsers: users.length || 0,
+        totalAircraft: aircraft.length || 0,
+        monthlyRevenue,
+        activeBookings
+      };
+
+      setStats(newStats);
     } catch (error) {
+      console.error('Erro ao carregar estatísticas:', error);
       toast({
         title: "Erro",
         description: "Erro ao carregar estatísticas",
@@ -51,85 +121,122 @@ const AdminDashboard: React.FC = () => {
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4 p-2 sm:p-4">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-3xl font-bold text-gray-900">
-            Painel Administrativo
-          </h1>
-          <p className="text-gray-600">
-            Gerencie usuários, aeronaves e configurações do sistema
-          </p>
+        <div className="flex items-center space-x-3">
+          <div className="w-8 h-8 sm:w-10 sm:h-10 bg-gradient-to-r from-sky-600 to-sky-800 rounded-full flex items-center justify-center shadow-lg">
+            <Shield className="h-4 w-4 sm:h-5 sm:w-5 text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg sm:text-xl font-bold text-gray-900">Painel Admin</h1>
+            <p className="text-xs sm:text-sm text-gray-600">Gestão do sistema</p>
+          </div>
         </div>
-        <Shield className="h-8 w-8 text-aviation-blue" />
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="aviation-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Total de Usuários</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalUsers}</div>
-          </CardContent>
-        </Card>
+      <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-4">
+        <div className="flex justify-center">
+          <div className="w-full max-w-md">
+            <TabsList className="flex w-full h-auto p-1 bg-gray-100 rounded-xl overflow-x-auto whitespace-nowrap text-xs md:text-sm gap-1" style={{ WebkitOverflowScrolling: 'touch' }}>
+              <TabsTrigger value="dashboard" className="flex flex-col items-center space-y-0.5 p-1 md:p-2 min-w-[60px] md:min-w-[80px] truncate text-[11px] md:text-xs">
+                <Activity className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="text-[11px] md:text-xs font-semibold">Dashboard</span>
+              </TabsTrigger>
+              <TabsTrigger value="users" className="flex flex-col items-center space-y-0.5 p-1 md:p-2 min-w-[60px] md:min-w-[80px] truncate text-[11px] md:text-xs">
+                <Users className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="text-[11px] md:text-xs font-semibold">Usuários</span>
+              </TabsTrigger>
+              <TabsTrigger value="bookings" className="flex flex-col items-center space-y-0.5 p-1 md:p-2 min-w-[60px] md:min-w-[80px] truncate text-[11px] md:text-xs">
+                <Calendar className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="text-[11px] md:text-xs font-semibold">Reservas</span>
+              </TabsTrigger>
+              <TabsTrigger value="aircraft" className="flex flex-col items-center space-y-0.5 p-1 md:p-2 min-w-[60px] md:min-w-[80px] truncate text-[11px] md:text-xs">
+                <Plane className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="text-[11px] md:text-xs font-semibold">Aeronaves</span>
+              </TabsTrigger>
+              <TabsTrigger value="financial" className="flex flex-col items-center space-y-0.5 p-1 md:p-2 min-w-[60px] md:min-w-[80px] truncate text-[11px] md:text-xs">
+                <DollarSign className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="text-[11px] md:text-xs font-semibold">Financeiro</span>
+              </TabsTrigger>
+              <TabsTrigger value="schedule" className="flex flex-col items-center space-y-0.5 p-1 md:p-2 min-w-[60px] md:min-w-[80px] truncate text-[11px] md:text-xs">
+                <CalendarIcon className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="text-[11px] md:text-xs font-semibold">Agenda</span>
+              </TabsTrigger>
+            </TabsList>
+          </div>
+        </div>
 
-        <Card className="aviation-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Aeronaves</CardTitle>
-            <Plane className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.totalAircraft}</div>
-          </CardContent>
-        </Card>
+        <TabsContent value="dashboard" className="space-y-3">
+          {/* Stats Cards - Mobile First */}
+          <div className="grid grid-cols-2 gap-3">
+            <Card className="p-3 rounded-lg shadow-sm border border-sky-500/20 bg-white/90">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-0">
+                <CardTitle className="text-xs font-semibold text-sky-500">Usuários</CardTitle>
+                <Users className="h-3 w-3 sm:h-4 sm:w-4 text-sky-500" />
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="text-base sm:text-lg font-bold text-gray-900">{stats.totalUsers}</div>
+              </CardContent>
+            </Card>
 
-        <Card className="aviation-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Receita Mensal</CardTitle>
-            <DollarSign className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">R$ {stats.monthlyRevenue.toLocaleString('pt-BR')}</div>
-          </CardContent>
-        </Card>
+            <Card className="p-3 rounded-lg shadow-sm border border-sky-500/20 bg-white/90">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-0">
+                <CardTitle className="text-xs font-semibold text-sky-500">Aeronaves</CardTitle>
+                <Plane className="h-3 w-3 sm:h-4 sm:w-4 text-sky-500" />
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="text-base sm:text-lg font-bold text-gray-900">{stats.totalAircraft}</div>
+              </CardContent>
+            </Card>
 
-        <Card className="aviation-card">
-          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Reservas Ativas</CardTitle>
-            <Activity className="h-4 w-4 text-muted-foreground" />
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{stats.activeBookings}</div>
-          </CardContent>
-        </Card>
-      </div>
+            <Card className="p-3 rounded-lg shadow-sm border border-sky-500/20 bg-white/90">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-0">
+                <CardTitle className="text-xs font-semibold text-sky-500">Receita</CardTitle>
+                <DollarSign className="h-3 w-3 sm:h-4 sm:w-4 text-sky-500" />
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="text-base sm:text-lg font-bold text-gray-900">R$ {stats.monthlyRevenue.toLocaleString('pt-BR')}</div>
+              </CardContent>
+            </Card>
 
-      {/* Admin Tabs */}
-      <Tabs defaultValue="users" className="space-y-6">
-        <TabsList className="grid w-full grid-cols-4">
-          <TabsTrigger value="users">Usuários</TabsTrigger>
-          <TabsTrigger value="aircraft">Aeronaves</TabsTrigger>
-          <TabsTrigger value="financial">Financeiro</TabsTrigger>
-          <TabsTrigger value="settings">Configurações</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="users">
-          <UserManagement />
+            <Card className="p-3 rounded-lg shadow-sm border border-sky-500/20 bg-white/90">
+              <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2 p-0">
+                <CardTitle className="text-xs font-semibold text-sky-500">Reservas</CardTitle>
+                <Activity className="h-3 w-3 sm:h-4 sm:w-4 text-sky-500" />
+              </CardHeader>
+              <CardContent className="p-0">
+                <div className="text-base sm:text-lg font-bold text-gray-900">{stats.activeBookings}</div>
+              </CardContent>
+            </Card>
+          </div>
         </TabsContent>
 
-        <TabsContent value="aircraft">
+        <TabsContent value="users" className="space-y-4">
+          <div>
+            <UserManagement />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="bookings" className="space-y-4">
+          <BookingManagement />
+        </TabsContent>
+
+
+
+        <TabsContent value="aircraft" className="space-y-4">
           <AircraftManagement />
         </TabsContent>
 
-        <TabsContent value="financial">
+        <TabsContent value="financial" className="space-y-4">
           <FinancialManagement />
         </TabsContent>
 
-        <TabsContent value="settings">
+        <TabsContent value="settings" className="space-y-4">
           <SystemSettings />
+        </TabsContent>
+
+        <TabsContent value="schedule" className="space-y-4">
+          <ScheduleManagement />
         </TabsContent>
       </Tabs>
     </div>

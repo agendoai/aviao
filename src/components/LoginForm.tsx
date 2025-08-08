@@ -1,5 +1,5 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,10 +8,22 @@ import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plane, Mail, Lock, User } from 'lucide-react';
 import { toast } from 'sonner';
+import { useNavigate } from 'react-router-dom';
 
 const LoginForm: React.FC = () => {
-  const { signIn, signUp, loading } = useAuth();
-  
+  const { signIn, signUp, loading, user } = useAuth();
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    if (user) {
+      if (user.role === 'admin') {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
+    }
+  }, [user, navigate]);
+
   const [loginData, setLoginData] = useState({
     email: '',
     password: ''
@@ -38,6 +50,7 @@ const LoginForm: React.FC = () => {
       toast.error(error.message || "Erro no login");
     } else {
       toast.success("Login realizado com sucesso!");
+      // O redirecionamento será feito pelo useEffect baseado no role
     }
   };
 
@@ -59,12 +72,13 @@ const LoginForm: React.FC = () => {
       return;
     }
 
-    const { error } = await signUp(signupData.email, signupData.password);
+    // Corrigido: passar os campos na ordem correta para signUp
+    const { error } = await signUp(signupData.name, signupData.email, signupData.password);
     
     if (error) {
       toast.error(error.message || "Erro no cadastro");
     } else {
-      toast.success("Cadastro realizado com sucesso! Verifique seu email para confirmar a conta.");
+      toast.success("Cadastro realizado com sucesso! Faça login para continuar.");
     }
   };
 

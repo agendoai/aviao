@@ -98,10 +98,7 @@ const AircraftSelector: React.FC<AircraftSelectorProps> = ({
                   <Users className="h-4 w-4 text-gray-500" />
                   <span>{aircraft.max_passengers} assentos</span>
                 </div>
-                <div className="flex items-center space-x-2">
-                  <DollarSign className="h-4 w-4 text-gray-500" />
-                  <span>R$ {aircraft.hourly_rate.toFixed(0)}/h</span>
-                </div>
+
                 <div className="flex items-center space-x-2">
                   <Clock className="h-4 w-4 text-gray-500" />
                   <span>6h autonomia</span>

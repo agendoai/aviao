@@ -82,71 +82,7 @@ const SystemSettings: React.FC = () => {
           </div>
         </CardHeader>
         <CardContent className="space-y-6">
-          {/* Configurações de Preços */}
-          <div>
-            <h3 className="text-lg font-semibold mb-4">Configurações de Preços</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="hourlyRate">Taxa Horária Padrão (R$)</Label>
-                <Input
-                  id="hourlyRate"
-                  type="number"
-                  value={settings.defaultHourlyRate}
-                  onChange={(e) => setSettings({...settings, defaultHourlyRate: parseFloat(e.target.value)})}
-                />
-              </div>
-              <div>
-                <Label htmlFor="overnightFee">Taxa de Pernoite (R$)</Label>
-                <Input
-                  id="overnightFee"
-                  type="number"
-                  value={settings.overnightFee}
-                  onChange={(e) => setSettings({...settings, overnightFee: parseFloat(e.target.value)})}
-                />
-              </div>
-              <div>
-                <Label htmlFor="cardFee">Taxa de Cartão (%)</Label>
-                <Input
-                  id="cardFee"
-                  type="number"
-                  step="0.01"
-                  value={settings.cardProcessingFee * 100}
-                  onChange={(e) => setSettings({...settings, cardProcessingFee: parseFloat(e.target.value) / 100})}
-                />
-              </div>
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Configurações de Aeronaves */}
-          <div>
-            <h3 className="text-lg font-semibold mb-4">Configurações de Aeronaves</h3>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="maxPassengers">Máximo de Passageiros Padrão</Label>
-                <Input
-                  id="maxPassengers"
-                  type="number"
-                  value={settings.maxPassengers}
-                  onChange={(e) => setSettings({...settings, maxPassengers: parseInt(e.target.value)})}
-                />
-              </div>
-              <div>
-                <Label htmlFor="maintenanceBuffer">Buffer de Manutenção (horas)</Label>
-                <Input
-                  id="maintenanceBuffer"
-                  type="number"
-                  value={settings.maintenanceBufferHours}
-                  onChange={(e) => setSettings({...settings, maintenanceBufferHours: parseInt(e.target.value)})}
-                />
-              </div>
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Configurações de Prioridades */}
+          {/* Sistema de Prioridades */}
           <div>
             <h3 className="text-lg font-semibold mb-4">Sistema de Prioridades</h3>
             <div className="space-y-4">
@@ -161,7 +97,6 @@ const SystemSettings: React.FC = () => {
                   onCheckedChange={(checked) => setSettings({...settings, priorityRotationEnabled: checked})}
                 />
               </div>
-              
               {settings.priorityRotationEnabled && (
                 <div>
                   <Label htmlFor="rotationHours">Intervalo de Rotação (horas)</Label>
@@ -173,7 +108,6 @@ const SystemSettings: React.FC = () => {
                   />
                 </div>
               )}
-
               <div className="pt-4">
                 <Button 
                   onClick={handleRotatePriorities}
@@ -186,9 +120,7 @@ const SystemSettings: React.FC = () => {
               </div>
             </div>
           </div>
-
           <Separator />
-
           {/* Configurações Gerais */}
           <div>
             <h3 className="text-lg font-semibold mb-4">Configurações Gerais</h3>
@@ -204,7 +136,6 @@ const SystemSettings: React.FC = () => {
                   onCheckedChange={(checked) => setSettings({...settings, allowSeatSharing: checked})}
                 />
               </div>
-
               <div className="flex items-center justify-between">
                 <div>
                   <Label htmlFor="requireApproval">Exigir Aprovação Manual</Label>

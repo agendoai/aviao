@@ -1,13 +1,25 @@
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Users, UserCheck, Plane } from 'lucide-react';
+import { UserCheck, Plane } from 'lucide-react';
 
 interface TripTypeSelectionProps {
-  onSelectType: (type: 'solo' | 'shared') => void;
+  onSelect: (type: 'solo' | 'shared-missions') => void;
 }
 
-const TripTypeSelection: React.FC<TripTypeSelectionProps> = ({ onSelectType }) => {
+const TripTypeSelection: React.FC<TripTypeSelectionProps> = ({ onSelect }) => {
+  const handleSoloClick = () => {
+    console.log('🎯 Clicou em Viagem Solo');
+    onSelect('solo');
+  };
+
+
+
+  const handleSharedMissionsClick = () => {
+    console.log('🎯 Clicou em Missões Compartilhadas');
+    onSelect('shared-missions');
+  };
+
   return (
     <div className="space-y-6">
       <div className="text-center">
@@ -17,10 +29,10 @@ const TripTypeSelection: React.FC<TripTypeSelectionProps> = ({ onSelectType }) =
       
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-4xl mx-auto">
         {/* Viagem Solo */}
-        <Card className="cursor-pointer transition-all hover:shadow-lg hover:scale-105 border-2 hover:border-aviation-blue">
+        <Card className="cursor-pointer transition-all hover:shadow-lg hover:scale-105 border-2 hover:border-sky-500">
           <CardHeader className="text-center">
-            <div className="mx-auto w-16 h-16 bg-aviation-blue/10 rounded-full flex items-center justify-center mb-4">
-              <UserCheck className="h-8 w-8 text-aviation-blue" />
+            <div className="mx-auto w-16 h-16 bg-sky-500/10 rounded-full flex items-center justify-center mb-4">
+              <UserCheck className="h-8 w-8 text-sky-500" />
             </div>
             <CardTitle className="text-xl">Viagem Solo</CardTitle>
           </CardHeader>
@@ -34,37 +46,39 @@ const TripTypeSelection: React.FC<TripTypeSelectionProps> = ({ onSelectType }) =
               <li>• Flexibilidade total no roteiro</li>
             </ul>
             <Button 
-              className="w-full bg-aviation-gradient hover:opacity-90"
-              onClick={() => onSelectType('solo')}
+              className="w-full bg-sky-500 hover:bg-sky-600 text-white"
+              onClick={handleSoloClick}
             >
               Selecionar Viagem Solo
             </Button>
           </CardContent>
         </Card>
 
-        {/* Viagem Compartilhada */}
-        <Card className="cursor-pointer transition-all hover:shadow-lg hover:scale-105 border-2 hover:border-aviation-blue">
+
+
+        {/* Missões Compartilhadas */}
+        <Card className="cursor-pointer transition-all hover:shadow-lg hover:scale-105 border-2 hover:border-green-500">
           <CardHeader className="text-center">
-            <div className="mx-auto w-16 h-16 bg-aviation-blue/10 rounded-full flex items-center justify-center mb-4">
-              <Users className="h-8 w-8 text-aviation-blue" />
+            <div className="mx-auto w-16 h-16 bg-green-500/10 rounded-full flex items-center justify-center mb-4">
+              <Plane className="h-8 w-8 text-green-500" />
             </div>
-            <CardTitle className="text-xl">Viagem Compartilhada</CardTitle>
+            <CardTitle className="text-xl">Missões Compartilhadas</CardTitle>
           </CardHeader>
           <CardContent className="text-center space-y-4">
             <p className="text-gray-600">
-              Compartilhe voos com outros membros e reduza custos
+              Crie ou participe de missões compartilhadas organizadas
             </p>
             <ul className="text-sm text-gray-500 space-y-1">
-              <li>• Custo reduzido</li>
-              <li>• Aproveite voos existentes</li>
-              <li>• Conhece outros membros</li>
+              <li>• Crie suas próprias missões</li>
+              <li>• Participe de missões existentes</li>
+              <li>• Economia e networking</li>
             </ul>
             <Button 
               variant="outline"
-              className="w-full border-aviation-blue text-aviation-blue hover:bg-aviation-blue hover:text-white"
-              onClick={() => onSelectType('shared')}
+              className="w-full border-green-500 text-green-500 hover:bg-green-500 hover:text-white"
+              onClick={handleSharedMissionsClick}
             >
-              Ver Voos Compartilhados
+              Gerenciar Missões
             </Button>
           </CardContent>
         </Card>

@@ -1,219 +1,152 @@
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { User, Session, AuthError } from '@supabase/supabase-js';
-import { supabase } from '@/integrations/supabase/client';
-import type { Tables } from '@/integrations/supabase/types';
+import React, { createContext, useContext, useState, useEffect } from 'react';
 
-type Profile = Tables<'profiles'>;
+interface User {
+  id: number;
+  name: string;
+  email: string;
+  role: string;
+}
 
 interface AuthContextType {
   user: User | null;
-  session: Session | null;
-  profile: Profile | null;
   loading: boolean;
-  signIn: (email: string, password: string) => Promise<{ error: AuthError | null }>;
-  signUp: (email: string, password: string) => Promise<{ error: AuthError | null }>;
-  signOut: () => Promise<{ error: AuthError | null }>;
-  updateProfile: (updates: Partial<Profile>) => Promise<void>;
+  signIn: (email: string, password: string) => Promise<{ error: any }>;
+  signUp: (name: string, email: string, password: string) => Promise<{ error: any }>;
+  signOut: () => Promise<void>;
+  isAuthenticated: boolean;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
-  const [session, setSession] = useState<Session | null>(null);
-  const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   useEffect(() => {
-    let mounted = true;
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
-        if (!mounted) return;
-        
-        console.log('Auth state change:', event, session);
-        setSession(session);
-        setUser(session?.user ?? null);
-        
-        if (session?.user) {
-          setTimeout(() => {
-            if (mounted) {
-              fetchProfile(session.user.id);
-            }
-          }, 0);
-        } else {
-          setProfile(null);
-          if (mounted) {
-            setLoading(false);
-          }
+    // Verificar se há token salvo
+    const token = localStorage.getItem('token');
+    if (token) {
+      // Buscar perfil do usuário
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || '/api';
+      fetch(`${backendUrl}/auth/me`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
         }
-      }
-    );
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (!mounted) return;
-      
-      setSession(session);
-      setUser(session?.user ?? null);
-      if (session?.user) {
-        fetchProfile(session.user.id);
-      } else {
+      })
+      .then(res => res.json())
+      .then(data => {
+        if (data.user) {
+          setUser(data.user);
+          setIsAuthenticated(true);
+        } else {
+          localStorage.removeItem('token');
+        }
+      })
+      .catch(() => {
+        localStorage.removeItem('token');
+      })
+      .finally(() => {
         setLoading(false);
-      }
-    });
-
-    return () => {
-      mounted = false;
-      subscription.unsubscribe();
-    };
+      });
+    } else {
+      setLoading(false);
+    }
   }, []);
 
-  const fetchProfile = async (userId: string) => {
-    try {
-      console.log('Fetching profile for user:', userId);
-      const { data, error } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-
-      if (error) {
-        console.error('Error fetching profile:', error);
-      } else if (data) {
-        console.log('Profile fetched:', data);
-        setProfile(data);
-      } else {
-        console.log('No profile found, creating default profile');
-        await createDefaultProfile(userId);
-      }
-    } catch (error) {
-      console.error('Error in fetchProfile:', error);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const createDefaultProfile = async (userId: string) => {
-    try {
-      const newProfile = {
-        id: userId,
-        name: user?.email?.split('@')[0] || 'Usuário',
-        email: user?.email || '',
-        balance: 0,
-        priority_position: 999,
-        role: 'client' as const,
-        membership_tier: 'basic' as const,
-        monthly_fee_status: 'pending' as const
-      };
-      
-      const { data: createdProfile, error: createError } = await supabase
-        .from('profiles')
-        .insert(newProfile)
-        .select()
-        .single();
-        
-      if (createError) {
-        console.error('Error creating profile:', createError);
-      } else if (createdProfile) {
-        setProfile(createdProfile);
-      }
-    } catch (error) {
-      console.error('Error creating profile:', error);
-    }
-  };
-
   const signIn = async (email: string, password: string) => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const { error } = await supabase.auth.signInWithPassword({
-        email,
-        password,
+      console.log('🔍 Iniciando login...');
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || '/api';
+      console.log('🔧 Backend URL:', backendUrl);
+      console.log('🔧 URL completa:', `${backendUrl}/auth/login`);
+      const res = await fetch(`${backendUrl}/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password })
       });
-      return { error };
+      const data = await res.json();
+      console.log('📡 Login response:', data);
+      
+      if (!res.ok) {
+        console.log('❌ Login falhou:', data.error);
+        return { error: data.error || 'Erro no login' };
+      }
+      
+      console.log('✅ Login bem-sucedido');
+      console.log('👤 User:', data.user);
+      console.log('🔑 Token recebido:', data.token ? 'Sim' : 'Não');
+      console.log('🔑 Token completo:', data.token);
+      
+      setUser(data.user);
+      setIsAuthenticated(true);
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+        console.log('💾 Token salvo no localStorage');
+        console.log('💾 Token verificado:', localStorage.getItem('token'));
+      }
+      return { error: null };
     } catch (error) {
-      console.error('Error in signIn:', error);
-      return { error: error as AuthError };
+      console.error('💥 Erro no login:', error);
+      return { error };
     } finally {
       setLoading(false);
     }
   };
 
-  const signUp = async (email: string, password: string) => {
+  const signUp = async (name: string, email: string, password: string) => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const { error } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          emailRedirectTo: `${window.location.origin}/`
-        }
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || '/api';
+      const res = await fetch(`${backendUrl}/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, email, password })
       });
-      return { error };
+      const data = await res.json();
+      if (!res.ok) {
+        return { error: data.error || 'Erro no cadastro' };
+      }
+      setUser(data.user);
+      setIsAuthenticated(true);
+      if (data.token) {
+        localStorage.setItem('token', data.token);
+      }
+      return { error: null };
     } catch (error) {
-      console.error('Error in signUp:', error);
-      return { error: error as AuthError };
+      return { error };
     } finally {
       setLoading(false);
     }
   };
 
   const signOut = async () => {
+    setLoading(true);
     try {
-      const { error } = await supabase.auth.signOut();
-      if (!error) {
-        setUser(null);
-        setProfile(null);
-        setSession(null);
-      }
-      return { error };
-    } catch (error) {
-      console.error('Error in signOut:', error);
-      return { error: error as AuthError };
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || '/api';
+      await fetch(`${backendUrl}/auth/logout`, { method: 'POST' });
+      setUser(null);
+      setIsAuthenticated(false);
+      localStorage.removeItem('token');
+    } finally {
+      setLoading(false);
     }
-  };
-
-  const updateProfile = async (updates: Partial<Profile>) => {
-    if (!user) throw new Error('No user logged in');
-
-    try {
-      console.log('Updating profile with:', updates);
-      const { error } = await supabase
-        .from('profiles')
-        .update(updates)
-        .eq('id', user.id);
-
-      if (error) throw error;
-
-      await fetchProfile(user.id);
-    } catch (error) {
-      console.error('Error updating profile:', error);
-      throw error;
-    }
-  };
-
-  const value: AuthContextType = {
-    user,
-    session,
-    profile,
-    loading,
-    signIn,
-    signUp,
-    signOut,
-    updateProfile,
   };
 
   return (
-    <AuthContext.Provider value={value}>
+    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, isAuthenticated }}>
       {children}
     </AuthContext.Provider>
   );
-};
-
-export const useAuth = (): AuthContextType => {
-  const context = useContext(AuthContext);
-  if (context === undefined) {
-    throw new Error('useAuth must be used within an AuthProvider');
-  }
-  return context;
 };

@@ -1,21 +1,27 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { ArrowLeft, Plane, MapPin, Clock, Users, Calendar, AlertCircle } from 'lucide-react';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { ArrowLeft, Plane, MapPin, Clock, Users, Calendar, AlertCircle, Search, Globe, Loader2 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { useToast } from '@/hooks/use-toast';
+import { toast } from 'sonner';
+import { searchAirports, getPopularAirports, getAirportsByRegion, Airport } from '@/utils/airport-search';
+import { getAircrafts, createSharedMission } from '@/utils/api';
 
 interface Aircraft {
-  id: string;
+  id: number;
   name: string;
   registration: string;
   model: string;
-  maxPassengers: number;
+  max_passengers: number;
+  hourly_rate: number;
+  overnight_fee: number;
+  status: string;
 }
 
 interface SharedMissionData {
@@ -41,36 +47,135 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
   onBack,
   onMissionCreated
 }) => {
-  const { toast } = useToast();
   const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null);
+  const [aircraft, setAircraft] = useState<Aircraft[]>([]);
+  const [loadingAircraft, setLoadingAircraft] = useState(true);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [selectedRegion, setSelectedRegion] = useState<string>('');
+  const [airports, setAirports] = useState<Airport[]>([]);
+  const [loadingAirports, setLoadingAirports] = useState(false);
+  const [selectedDestination, setSelectedDestination] = useState<Airport | null>(null);
+  const [selectedOrigin, setSelectedOrigin] = useState<Airport | null>(null);
   const [missionData, setMissionData] = useState({
     departureDate: '',
     departureTime: '',
     returnDate: '',
     returnTime: '',
-    origin: 'Araçatuba-SBAU',
+    origin: '',
     destination: '',
     stops: '',
     notes: '',
     availableSeats: 1
   });
 
-  // Mock aircraft data
-  const aircraft: Aircraft[] = [
-    {
-      id: '1',
-      name: 'Baron E55',
-      registration: 'PR-FOM',
-      model: 'Baron E55',
-      maxPassengers: 6
-    },
-    {
-      id: '2',
-      name: 'Cessna 172',
-      registration: 'PR-ABC',
-      model: 'Cessna 172',
-      maxPassengers: 4
-    }
+  // Buscar aeronaves da API
+  useEffect(() => {
+    const fetchAircraft = async () => {
+      try {
+        setLoadingAircraft(true);
+        const response = await getAircrafts();
+        if (response && Array.isArray(response) && response.length > 0) {
+          setAircraft(response);
+        } else {
+          console.log('ℹ️ Usando aeronaves locais de fallback');
+          // Dados locais de fallback
+          const fallbackAircraft: Aircraft[] = [
+            {
+              id: 1,
+              name: 'Baron E55',
+              registration: 'PR-FOM',
+              model: 'Baron E55',
+              max_passengers: 6,
+              hourly_rate: 2800,
+              overnight_fee: 1500,
+              status: 'available'
+            },
+            {
+              id: 2,
+              name: 'Cessna 172',
+              registration: 'PR-ABC',
+              model: 'Cessna 172',
+              max_passengers: 4,
+              hourly_rate: 2500,
+              overnight_fee: 1200,
+              status: 'available'
+            }
+          ];
+          setAircraft(fallbackAircraft);
+        }
+      } catch (error) {
+        console.log('ℹ️ Erro ao buscar aeronaves - usando dados locais');
+        // Dados locais de fallback
+        const fallbackAircraft: Aircraft[] = [
+          {
+            id: 1,
+            name: 'Baron E55',
+            registration: 'PR-FOM',
+            model: 'Baron E55',
+            max_passengers: 6,
+            hourly_rate: 2800,
+            overnight_fee: 1500,
+            status: 'available'
+          },
+          {
+            id: 2,
+            name: 'Cessna 172',
+            registration: 'PR-ABC',
+            model: 'Cessna 172',
+            max_passengers: 4,
+            hourly_rate: 2500,
+            overnight_fee: 1200,
+            status: 'available'
+          }
+        ];
+        setAircraft(fallbackAircraft);
+      } finally {
+        setLoadingAircraft(false);
+      }
+    };
+
+    fetchAircraft();
+  }, []);
+
+  // Buscar aeroportos quando o termo de busca mudar
+  useEffect(() => {
+    const searchAirportsAsync = async () => {
+      if (searchTerm.length < 2 && !selectedRegion) {
+        setAirports(getPopularAirports());
+        return;
+      }
+
+      setLoadingAirports(true);
+      try {
+        let results: Airport[] = [];
+        
+        if (selectedRegion) {
+          results = getAirportsByRegion(selectedRegion);
+        } else if (searchTerm.length >= 2) {
+          results = await searchAirports(searchTerm);
+        } else {
+          results = getPopularAirports();
+        }
+        
+        setAirports(results);
+      } catch (error) {
+        console.error('Erro ao buscar aeroportos:', error);
+        setAirports(getPopularAirports());
+      } finally {
+        setLoadingAirports(false);
+      }
+    };
+
+    const timeout = setTimeout(searchAirportsAsync, 500);
+    return () => clearTimeout(timeout);
+  }, [searchTerm, selectedRegion]);
+
+  const regions = [
+    { id: 'sudeste', name: 'Sudeste', states: ['SP', 'RJ', 'MG', 'ES'] },
+    { id: 'sul', name: 'Sul', states: ['PR', 'RS', 'SC'] },
+    { id: 'centro-oeste', name: 'Centro-Oeste', states: ['DF', 'GO', 'MT', 'MS'] },
+    { id: 'nordeste', name: 'Nordeste', states: ['BA', 'PE', 'CE', 'MA', 'PB', 'PI', 'RN', 'SE', 'AL'] },
+    { id: 'norte', name: 'Norte', states: ['AM', 'PA', 'AC', 'RO', 'RR', 'AP', 'TO'] }
   ];
 
   const handleInputChange = (field: string, value: string | number) => {
@@ -80,68 +185,163 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
     }));
   };
 
-  const calculateFlightHours = () => {
-    if (!missionData.departureDate || !missionData.departureTime || !missionData.returnDate || !missionData.returnTime) {
-      return 0;
+  const handleDestinationSelect = (airport: Airport) => {
+    setSelectedDestination(airport);
+    setMissionData(prev => ({
+      ...prev,
+      destination: airport.icao
+    }));
+  };
+
+  const handleOriginSelect = (airport: Airport) => {
+    setSelectedOrigin(airport);
+    setMissionData(prev => ({
+      ...prev,
+      origin: airport.icao
+    }));
+  };
+
+  const handleRegionSelect = (region: string) => {
+    setSelectedRegion(region === selectedRegion ? '' : region);
+    setSearchTerm(''); // Limpar busca quando selecionar região
+  };
+
+  // Função para obter velocidade estimada da aeronave
+  const getAircraftSpeed = (aircraftModel: string): number => {
+    const model = aircraftModel.toLowerCase();
+    
+    if (model.includes('cessna') || model.includes('172')) {
+      return 97; // Cessna 172: ~97 KT (180 km/h)
+    } else if (model.includes('piper') || model.includes('cherokee')) {
+      return 103; // Piper Cherokee: ~103 KT (190 km/h)
+    } else if (model.includes('beechcraft') || model.includes('bonanza') || model.includes('baron')) {
+      return 119; // Beechcraft Baron: ~119 KT (220 km/h)
+    } else if (model.includes('cirrus')) {
+      return 135; // Cirrus SR22: ~135 KT (250 km/h)
+    } else {
+      return 108; // Velocidade padrão para aeronaves pequenas (~200 km/h)
     }
-
-    const departure = new Date(`${missionData.departureDate}T${missionData.departureTime}`);
-    const arrival = new Date(`${missionData.returnDate}T${missionData.returnTime}`);
-    const diffInHours = (arrival.getTime() - departure.getTime()) / (1000 * 60 * 60);
-    
-    return Math.max(0, diffInHours);
   };
 
-  const calculateTotalCost = () => {
-    if (!selectedAircraft) return 0;
-    
-    const flightHours = calculateFlightHours();
-    const hourlyRate = 2800; // Mock rate
-    const airportFees = 500; // Mock fee
-    const overnightFee = missionData.returnDate !== missionData.departureDate ? 1500 : 0;
-    
-    return (flightHours * hourlyRate) + airportFees + overnightFee;
+  // Função para calcular distância usando Haversine (em metros) e converter para milhas náuticas
+  const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 6371e3; // Raio da Terra em metros
+    const φ1 = lat1 * Math.PI / 180; // φ, λ em radianos
+    const φ2 = lat2 * Math.PI / 180;
+    const Δφ = (lat2 - lat1) * Math.PI / 180;
+    const Δλ = (lon2 - lon1) * Math.PI / 180;
+
+    const a = Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+              Math.cos(φ1) * Math.cos(φ2) *
+              Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+    const d = R * c; // Distância em metros
+    return d / 1852; // Converter para milhas náuticas (1 NM = 1852 metros)
   };
+
+  // Taxa aeroportuária dinâmica
+  const calculateAirportFee = (distance: number) => {
+    if (distance <= 200) return 100;
+    if (distance <= 400) return 200;
+    if (distance <= 800) return 300;
+    return 400;
+  };
+
+  // Substituir cálculo de distance em calculateCosts por busca real na AISWEB
+  const calculateCosts = useMemo(() => {
+    // Verificação de segurança adicional
+    if (!selectedAircraft) {
+      return { distance: 0, flightHours: 0, overnight: 0, total: 0 };
+    }
+    
+    if (!missionData.departureDate || !missionData.departureTime || !missionData.returnDate || !missionData.returnTime || !missionData.origin || !missionData.destination) {
+      return { distance: 0, flightHours: 0, overnight: 0, total: 0 };
+    }
+    
+    // Usar coordenadas mock para cálculo síncrono
+    const airports = {
+      SBAU: { lat: -21.1411, lon: -50.4247 },
+      SBSP: { lat: -23.6273, lon: -46.6566 },
+      SBGR: { lat: -23.4356, lon: -46.4731 },
+      SBSV: { lat: -12.9089, lon: -38.3225 },
+      SBRJ: { lat: -22.9104, lon: -43.1631 },
+      SBKP: { lat: -23.0074, lon: -47.1345 },
+      SBCF: { lat: -19.6336, lon: -43.9686 },
+      SBFL: { lat: -27.6705, lon: -48.5477 },
+      SBBR: { lat: -15.8697, lon: -47.9208 },
+      SBPA: { lat: -29.9939, lon: -51.1714 },
+    };
+    const origem = airports[missionData.origin] || airports['SBAU'];
+    const destino = airports[missionData.destination] || airports['SBSP'];
+    const distance = haversine(origem.lat, origem.lon, destino.lat, destino.lon);
+    
+    // Calcular tempo de voo usando a fórmula correta: Tempo (H) = Distância (NM) / Velocidade Cruzeiro (KT)
+    const aircraftSpeed = selectedAircraft ? getAircraftSpeed(selectedAircraft.model) : 108; // Velocidade em nós (KT)
+    const flightTimeHours = distance / aircraftSpeed; // Tempo em horas
+    
+    // Calcular tempo total (ida + volta)
+    const flightHours = Math.max(1, Math.ceil(flightTimeHours * 2)); // Multiplicar por 2 para ida e volta
+    
+    // Pernoite se retorno < saída (baseado no horário real)
+    const departureHour = parseInt(missionData.departureTime.split(':')[0]) || 0;
+    const departureMinute = parseInt(missionData.departureTime.split(':')[1]) || 0;
+    const returnHour = parseInt(missionData.returnTime.split(':')[0]) || 0;
+    const returnMinute = parseInt(missionData.returnTime.split(':')[1]) || 0;
+    
+    let overnight = 0;
+    if (returnHour < departureHour) {
+      overnight = 1;
+    } else if (returnHour === departureHour) {
+      if (returnMinute < departureMinute) {
+        overnight = 1;
+      }
+    }
+    
+    const hourlyRate = selectedAircraft?.hourly_rate || 2800;
+    const overnightFee = selectedAircraft?.overnight_fee || 1500;
+    const total = (flightHours * hourlyRate) + (overnight * overnightFee);
+    
+    return { distance, flightHours, overnight, total };
+  }, [selectedAircraft, missionData]);
 
   const calculateOwnerCost = () => {
-    const totalMissionCost = calculateTotalCost();
-    const totalParticipants = missionData.availableSeats + 1; // +1 for owner
-    return totalMissionCost / totalParticipants;
+    const { total } = calculateCosts;
+    return total || 0; // Dono paga o total
   };
 
   const validateForm = () => {
     if (!selectedAircraft) {
-      toast({
-        title: "Selecione uma aeronave",
-        description: "É necessário selecionar uma aeronave para continuar",
-        variant: "destructive"
+      toast.error("Selecione uma aeronave", {
+        description: "É necessário selecionar uma aeronave para continuar"
       });
       return false;
     }
 
     if (!missionData.departureDate || !missionData.departureTime || !missionData.returnDate || !missionData.returnTime) {
-      toast({
-        title: "Datas e horários obrigatórios",
-        description: "Preencha todas as datas e horários",
-        variant: "destructive"
+      toast.error("Datas e horários obrigatórios", {
+        description: "Preencha todas as datas e horários"
+      });
+      return false;
+    }
+
+    if (!missionData.origin.trim()) {
+      toast.error("Origem obrigatória", {
+        description: "Informe a origem da viagem"
       });
       return false;
     }
 
     if (!missionData.destination.trim()) {
-      toast({
-        title: "Destino obrigatório",
-        description: "Informe o destino da viagem",
-        variant: "destructive"
+      toast.error("Destino obrigatório", {
+        description: "Informe o destino da viagem"
       });
       return false;
     }
 
-    if (missionData.availableSeats < 1 || missionData.availableSeats >= selectedAircraft.maxPassengers) {
-      toast({
-        title: "Poltronas disponíveis inválidas",
-        description: `Selecione entre 1 e ${selectedAircraft.maxPassengers - 1} poltronas`,
-        variant: "destructive"
+    if (missionData.availableSeats < 1 || missionData.availableSeats >= (selectedAircraft?.max_passengers || 1)) {
+      toast.error("Poltronas disponíveis inválidas", {
+        description: `Selecione entre 1 e ${(selectedAircraft?.max_passengers || 1) - 1} poltronas`
       });
       return false;
     }
@@ -149,162 +349,397 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
     return true;
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!validateForm()) return;
-
-    const sharedMissionData: SharedMissionData = {
-      aircraft: selectedAircraft!,
-      departureDate: missionData.departureDate,
-      departureTime: missionData.departureTime,
-      returnDate: missionData.returnDate,
-      returnTime: missionData.returnTime,
-      origin: missionData.origin,
-      destination: missionData.destination,
-      stops: missionData.stops,
-      notes: missionData.notes,
-      availableSeats: missionData.availableSeats,
-      totalCost: calculateOwnerCost() // Owner pays only their proportional share
-    };
-
-    onMissionCreated(sharedMissionData);
+    try {
+      await createSharedMission({
+        title: `Missão compartilhada de ${missionData.origin} para ${missionData.destination}`,
+        description: missionData.notes,
+        origin: missionData.origin,
+        destination: missionData.destination,
+        departure_date: `${missionData.departureDate}T${missionData.departureTime}`,
+        return_date: `${missionData.returnDate}T${missionData.returnTime}`,
+        aircraftId: selectedAircraft!.id,
+        totalSeats: missionData.availableSeats,
+        pricePerSeat: 0,
+        overnightFee: selectedAircraft?.overnight_fee || 0
+      });
+      toast.success('Missão compartilhada criada com sucesso!');
+      onMissionCreated({
+        aircraft: selectedAircraft!,
+        departureDate: missionData.departureDate,
+        departureTime: missionData.departureTime,
+        returnDate: missionData.returnDate,
+        returnTime: missionData.returnTime,
+        origin: missionData.origin,
+        destination: missionData.destination,
+        stops: missionData.stops,
+        notes: missionData.notes,
+        availableSeats: missionData.availableSeats,
+        totalCost: calculateOwnerCost()
+      });
+    } catch (error) {
+      toast.error('Erro ao criar missão compartilhada');
+    }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold text-gray-900">Criar Viagem Compartilhada</h2>
-          <p className="text-gray-600">Configure sua missão e disponibilize poltronas para outros usuários</p>
+          <h2 className="text-lg md:text-xl font-bold text-gray-900">Criar Viagem Compartilhada</h2>
+          <p className="text-xs md:text-sm text-gray-600">Configure sua missão e disponibilize poltronas</p>
         </div>
-        <Button variant="outline" onClick={onBack} className="flex items-center space-x-2">
-          <ArrowLeft className="h-4 w-4" />
+        <Button variant="outline" onClick={onBack} className="flex items-center space-x-2 text-xs">
+          <ArrowLeft className="h-3 w-3" />
           <span>Voltar</span>
         </Button>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-6">
+      <div className="grid lg:grid-cols-2 gap-4">
         {/* Seleção de Aeronave */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Plane className="h-5 w-5 text-aviation-blue" />
+          <CardHeader className="p-3">
+            <CardTitle className="flex items-center space-x-2 text-sm md:text-base">
+              <Plane className="h-4 w-4 text-aviation-blue" />
               <span>Selecione a Aeronave</span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
-            {aircraft.map((plane) => (
-              <div
-                key={plane.id}
-                className={`p-3 border rounded-lg cursor-pointer transition-colors ${
-                  selectedAircraft?.id === plane.id
-                    ? 'border-aviation-blue bg-aviation-blue/5'
-                    : 'border-gray-200 hover:border-gray-300'
-                }`}
-                onClick={() => setSelectedAircraft(plane)}
-              >
-                <div className="flex items-center justify-between">
-                  <div>
-                    <div className="font-medium">{plane.name}</div>
-                    <div className="text-sm text-gray-500">{plane.registration} • {plane.model}</div>
-                  </div>
-                  <div className="text-right">
-                    <div className="text-sm text-gray-500">Máx. passageiros</div>
-                    <div className="font-medium">{plane.maxPassengers}</div>
+          <CardContent className="space-y-3 p-3">
+            {loadingAircraft ? (
+              <div className="flex items-center justify-center py-6">
+                <Loader2 className="h-5 w-5 animate-spin text-sky-500 mr-2" />
+                <span className="text-sm text-gray-600">Carregando aeronaves...</span>
+              </div>
+            ) : aircraft.length === 0 ? (
+              <div className="text-center py-6">
+                <Plane className="h-10 w-10 text-gray-400 mx-auto mb-3" />
+                <h3 className="text-sm font-semibold text-gray-900 mb-1">Nenhuma aeronave disponível</h3>
+                <p className="text-xs text-gray-600">Não há aeronaves cadastradas no sistema.</p>
+              </div>
+            ) : (
+              aircraft.map((plane) => (
+                <div
+                  key={plane.id}
+                  className={`p-3 border rounded-lg cursor-pointer transition-colors ${
+                    selectedAircraft?.id === plane.id
+                      ? 'border-aviation-blue bg-aviation-blue/5'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                  onClick={() => setSelectedAircraft(plane)}
+                >
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <div className="font-medium text-sm">{plane.name}</div>
+                      <div className="text-xs text-gray-500">{plane.registration} • {plane.model}</div>
+
+                    </div>
+                    <div className="text-right">
+                      <div className="text-xs text-gray-500">Máx. passageiros</div>
+                      <div className="font-medium text-sm">{plane.max_passengers}</div>
+                    </div>
                   </div>
                 </div>
+              ))
+            )}
+
+            {/* Cálculo Automático quando Aeronave é Selecionada */}
+            {selectedAircraft && (
+              <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-lg">
+                <div className="flex items-center space-x-2 mb-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+                  <span className="font-medium text-green-800 text-sm">Cálculo Automático Ativado</span>
+                </div>
+                <div className="space-y-1 text-xs">
+                  <div className="flex justify-between">
+                    <span className="text-green-700">Aeronave selecionada:</span>
+                    <span className="font-medium">{selectedAircraft.name}</span>
+                  </div>
+
+                  {missionData.origin && missionData.destination && (
+                    <div className="pt-1 border-t border-green-200">
+                      <div className="flex justify-between">
+                        <span className="text-green-700">Distância calculada:</span>
+                        <span className="font-medium">{calculateCosts.distance}km</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-green-700">Tempo de voo estimado:</span>
+                        <span className="font-medium">{calculateCosts.flightHours}h</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-green-700">Custo total estimado:</span>
+                        <span className="font-medium text-green-800">R$ {calculateCosts.total}</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
-            ))}
+            )}
           </CardContent>
         </Card>
 
         {/* Detalhes da Missão */}
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <MapPin className="h-5 w-5 text-aviation-blue" />
+          <CardHeader className="p-3">
+            <CardTitle className="flex items-center space-x-2 text-sm md:text-base">
+              <MapPin className="h-4 w-4 text-aviation-blue" />
               <span>Detalhes da Missão</span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
+          <CardContent className="space-y-3 p-3">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="departureDate">Data de Partida</Label>
+                <Label htmlFor="departureDate" className="text-xs">Data de Partida</Label>
                 <Input
                   id="departureDate"
                   type="date"
                   value={missionData.departureDate}
                   onChange={(e) => handleInputChange('departureDate', e.target.value)}
-                  className="mt-1"
+                  className="mt-1 h-8 text-xs"
                 />
               </div>
               <div>
-                <Label htmlFor="departureTime">Horário de Partida</Label>
+                <Label htmlFor="departureTime" className="text-xs">Horário de Partida</Label>
                 <Input
                   id="departureTime"
                   type="time"
                   value={missionData.departureTime}
                   onChange={(e) => handleInputChange('departureTime', e.target.value)}
-                  className="mt-1"
+                  className="mt-1 h-8 text-xs"
                 />
               </div>
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-2 gap-3">
               <div>
-                <Label htmlFor="returnDate">Data de Retorno</Label>
+                <Label htmlFor="returnDate" className="text-xs">Data de Retorno</Label>
                 <Input
                   id="returnDate"
                   type="date"
                   value={missionData.returnDate}
                   onChange={(e) => handleInputChange('returnDate', e.target.value)}
-                  className="mt-1"
+                  className="mt-1 h-8 text-xs"
                 />
               </div>
               <div>
-                <Label htmlFor="returnTime">Horário de Retorno</Label>
+                <Label htmlFor="returnTime" className="text-xs">Horário de Retorno</Label>
                 <Input
                   id="returnTime"
                   type="time"
                   value={missionData.returnTime}
                   onChange={(e) => handleInputChange('returnTime', e.target.value)}
-                  className="mt-1"
+                  className="mt-1 h-8 text-xs"
                 />
               </div>
             </div>
 
             <div>
-              <Label htmlFor="destination">Destino</Label>
-              <Input
-                id="destination"
-                type="text"
-                placeholder="Ex: São Paulo-SBMT"
-                value={missionData.destination}
-                onChange={(e) => handleInputChange('destination', e.target.value)}
-                className="mt-1"
-              />
+              <Label htmlFor="origin" className="text-xs">Origem</Label>
+              <div className="space-y-2">
+                {/* Busca de Aeroporto de Origem */}
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Buscar aeroporto de origem..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-8 h-8 text-xs"
+                  />
+                  {loadingAirports && (
+                    <Loader2 className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-sky-500" />
+                  )}
+                </div>
+
+                {/* Filtros por Região para Origem */}
+                <div>
+                  <Label className="text-xs">Filtrar por Região</Label>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {regions.map((region) => (
+                      <Badge
+                        key={region.id}
+                        variant={selectedRegion === region.id ? "default" : "outline"}
+                        className={`cursor-pointer text-xs px-2 py-0.5 ${
+                          selectedRegion === region.id 
+                            ? 'bg-sky-500 text-white' 
+                            : 'hover:bg-sky-50'
+                        }`}
+                        onClick={() => handleRegionSelect(region.id)}
+                      >
+                        <Globe className="h-2.5 w-2.5 mr-1" />
+                        {region.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Lista de Aeroportos de Origem */}
+                <div className="space-y-1 max-h-32 overflow-y-auto">
+                  {airports.length > 0 ? (
+                    airports.map((airport) => (
+                      <div
+                        key={airport.icao}
+                        className={`p-2 rounded border cursor-pointer transition-all text-xs ${
+                          selectedOrigin?.icao === airport.icao
+                            ? 'border-sky-500 bg-sky-50'
+                            : 'border-gray-200 hover:border-sky-300 hover:bg-gray-50'
+                        }`}
+                        onClick={() => handleOriginSelect(airport)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-medium text-gray-900">
+                              {airport.icao} - {airport.name}
+                            </div>
+                            <div className="text-gray-600">
+                              {airport.city}, {airport.state}
+                            </div>
+                            {airport.iata && (
+                              <div className="text-gray-500">
+                                IATA: {airport.iata}
+                              </div>
+                            )}
+                          </div>
+                          {selectedOrigin?.icao === airport.icao && (
+                            <div className="w-3 h-3 bg-sky-500 rounded-full flex items-center justify-center">
+                              <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-3 text-gray-500">
+                      <Plane className="h-5 w-5 mx-auto mb-1 text-gray-400" />
+                      <p className="text-xs">Nenhum aeroporto encontrado</p>
+                      <p className="text-xs">Tente buscar por outro termo ou região</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Estatísticas para Origem */}
+                {airports.length > 0 && (
+                  <div className="text-xs text-gray-500 text-center">
+                    {airports.length} aeroporto(s) encontrado(s)
+                    {selectedRegion && ` na região ${regions.find(r => r.id === selectedRegion)?.name}`}
+                  </div>
+                )}
+              </div>
             </div>
 
             <div>
-              <Label htmlFor="stops">Escalas (opcional)</Label>
+              <Label htmlFor="destination" className="text-xs">Destino</Label>
+              <div className="space-y-2">
+                {/* Busca de Aeroporto */}
+                <div className="relative">
+                  <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  <Input
+                    placeholder="Buscar aeroporto de destino..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="pl-8 h-8 text-xs"
+                  />
+                  {loadingAirports && (
+                    <Loader2 className="absolute right-2 top-1/2 transform -translate-y-1/2 h-4 w-4 animate-spin text-sky-500" />
+                  )}
+                </div>
+
+                {/* Filtros por Região */}
+                <div>
+                  <Label className="text-xs">Filtrar por Região</Label>
+                  <div className="flex flex-wrap gap-1 mt-1">
+                    {regions.map((region) => (
+                      <Badge
+                        key={region.id}
+                        variant={selectedRegion === region.id ? "default" : "outline"}
+                        className={`cursor-pointer text-xs px-2 py-0.5 ${
+                          selectedRegion === region.id 
+                            ? 'bg-sky-500 text-white' 
+                            : 'hover:bg-sky-50'
+                        }`}
+                        onClick={() => handleRegionSelect(region.id)}
+                      >
+                        <Globe className="h-2.5 w-2.5 mr-1" />
+                        {region.name}
+                      </Badge>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Lista de Aeroportos */}
+                <div className="space-y-1 max-h-32 overflow-y-auto">
+                  {airports.length > 0 ? (
+                    airports.map((airport) => (
+                      <div
+                        key={airport.icao}
+                        className={`p-2 rounded border cursor-pointer transition-all text-xs ${
+                          selectedDestination?.icao === airport.icao
+                            ? 'border-sky-500 bg-sky-50'
+                            : 'border-gray-200 hover:border-sky-300 hover:bg-gray-50'
+                        }`}
+                        onClick={() => handleDestinationSelect(airport)}
+                      >
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <div className="font-medium text-gray-900">
+                              {airport.icao} - {airport.name}
+                            </div>
+                            <div className="text-gray-600">
+                              {airport.city}, {airport.state}
+                            </div>
+                            {airport.iata && (
+                              <div className="text-gray-500">
+                                IATA: {airport.iata}
+                              </div>
+                            )}
+                          </div>
+                          {selectedDestination?.icao === airport.icao && (
+                            <div className="w-3 h-3 bg-sky-500 rounded-full flex items-center justify-center">
+                              <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-center py-3 text-gray-500">
+                      <Plane className="h-5 w-5 mx-auto mb-1 text-gray-400" />
+                      <p className="text-xs">Nenhum aeroporto encontrado</p>
+                      <p className="text-xs">Tente buscar por outro termo ou região</p>
+                    </div>
+                  )}
+                </div>
+
+                {/* Estatísticas */}
+                {airports.length > 0 && (
+                  <div className="text-xs text-gray-500 text-center">
+                    {airports.length} aeroporto(s) encontrado(s)
+                    {selectedRegion && ` na região ${regions.find(r => r.id === selectedRegion)?.name}`}
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div>
+              <Label htmlFor="stops" className="text-xs">Escalas (opcional)</Label>
               <Input
                 id="stops"
                 type="text"
                 placeholder="Ex: Campo Grande, Brasília"
                 value={missionData.stops}
                 onChange={(e) => handleInputChange('stops', e.target.value)}
-                className="mt-1"
+                className="mt-1 h-8 text-xs"
               />
             </div>
 
             <div>
-              <Label htmlFor="notes">Observações (opcional)</Label>
+              <Label htmlFor="notes" className="text-xs">Observações (opcional)</Label>
               <Textarea
                 id="notes"
                 placeholder="Informações adicionais sobre a viagem..."
                 value={missionData.notes}
                 onChange={(e) => handleInputChange('notes', e.target.value)}
-                className="mt-1"
-                rows={3}
+                className="mt-1 text-xs"
+                rows={2}
               />
             </div>
           </CardContent>
@@ -313,63 +748,38 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
 
       {/* Configuração de Compartilhamento */}
       <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center space-x-2">
-            <Users className="h-5 w-5 text-aviation-blue" />
+        <CardHeader className="p-3">
+          <CardTitle className="flex items-center space-x-2 text-sm md:text-base">
+            <Users className="h-4 w-4 text-aviation-blue" />
             <span>Configuração de Compartilhamento</span>
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          <div className="grid md:grid-cols-2 gap-6">
-            <div>
-              <Label htmlFor="availableSeats">Poltronas Disponíveis para Compartilhamento</Label>
+        <CardContent className="p-3">
+          {selectedAircraft && (
+            <div className="mt-4">
+              <Label htmlFor="availableSeats" className="text-xs font-bold">Quantos assentos você quer liberar para outros?</Label>
               <Input
                 id="availableSeats"
                 type="number"
                 min="1"
-                max={selectedAircraft ? selectedAircraft.maxPassengers - 1 : 1}
+                max={selectedAircraft ? (selectedAircraft.max_passengers || 1) - 1 : 1}
                 value={missionData.availableSeats}
-                onChange={(e) => handleInputChange('availableSeats', parseInt(e.target.value) || 1)}
-                className="mt-1"
+                onChange={e => handleInputChange('availableSeats', parseInt(e.target.value) || 1)}
+                className="mt-1 h-8 text-xs"
+                required
               />
-              <div className="text-sm text-gray-500 mt-1">
-                {selectedAircraft ? `Máximo: ${selectedAircraft.maxPassengers - 1} poltronas` : 'Selecione uma aeronave primeiro'}
+              <div className="text-xs text-gray-500 mt-1">
+                {selectedAircraft ? `Máximo: ${(selectedAircraft.max_passengers || 1) - 1} assentos` : 'Selecione uma aeronave primeiro'}
               </div>
             </div>
+          )}
 
-            <div>
-              <Label>Resumo de Custos</Label>
-              <div className="mt-1 space-y-2">
-                <div className="flex justify-between text-sm">
-                  <span>Horas de voo:</span>
-                  <span>{calculateFlightHours().toFixed(1)}h</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Custo total da viagem:</span>
-                  <span className="font-medium">R$ {calculateTotalCost().toLocaleString('pt-BR')}</span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Custo por poltrona:</span>
-                  <span className="font-medium text-aviation-blue">
-                    R$ {calculateOwnerCost().toLocaleString('pt-BR')}
-                  </span>
-                </div>
-                <div className="flex justify-between text-sm">
-                  <span>Sua parte (como dono):</span>
-                  <span className="font-medium text-green-600">
-                    R$ {calculateOwnerCost().toLocaleString('pt-BR')}
-                  </span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
-            <div className="flex items-start space-x-3">
-              <AlertCircle className="h-5 w-5 text-blue-600 mt-0.5" />
+          <div className="mt-3 bg-blue-50 border border-blue-200 rounded-lg p-3">
+            <div className="flex items-start space-x-2">
+              <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5" />
               <div>
-                <h3 className="font-medium text-blue-900">Importante sobre compartilhamento:</h3>
-                <ul className="text-sm text-blue-700 mt-1 space-y-1">
+                <h3 className="font-medium text-blue-900 text-sm">Importante sobre compartilhamento:</h3>
+                <ul className="text-xs text-blue-700 mt-1 space-y-0.5">
                   <li>• Você mantém o controle total da missão</li>
                   <li>• Você paga apenas sua parte proporcional dos custos</li>
                   <li>• Você pode cancelar ou modificar a viagem até 24h antes</li>
@@ -384,11 +794,11 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
       <div className="flex justify-center">
         <Button 
           onClick={handleSubmit}
-          disabled={!selectedAircraft || !missionData.departureDate || !missionData.destination}
-          className="bg-aviation-gradient hover:opacity-90 text-white text-lg py-3 px-8"
+          disabled={!selectedAircraft || !missionData.departureDate || !missionData.origin || !missionData.destination}
+          className="bg-aviation-gradient hover:opacity-90 text-white text-sm px-6 h-10"
         >
-          <Users className="h-4 w-4 mr-2" />
-          Criar Viagem Compartilhada
+          <Users className="h-3 w-3 mr-2" />
+          Criar
         </Button>
       </div>
     </div>

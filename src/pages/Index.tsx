@@ -1,23 +1,45 @@
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
+import { useLocation } from 'react-router-dom';
 import LoginForm from '../components/LoginForm';
 import Header from '../components/Header';
 import Dashboard from '../components/Dashboard';
 import MissionSystem from '../components/mission/MissionSystem';
 import PriorityQueue from '../components/PriorityQueue';
-import ReportsSection from '../components/reports/ReportsSection';
+
 import SettingsSection from '../components/settings/SettingsSection';
 import AdminDashboard from '../components/admin/AdminDashboard';
 import OwnerDashboard from '../components/owner/OwnerDashboard';
 import PaymentManager from '../components/payments/PaymentManager';
+import BottomNav from '@/components/ui/BottomNav';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { CalendarDays, BarChart3, Settings, Home, Users, Shield, Plane, CreditCard } from 'lucide-react';
+import { CalendarDays, BarChart3, Settings, Home, Users, Plane, CreditCard } from 'lucide-react';
 
 const Index = () => {
-  const { profile, loading } = useAuth();
+  const { user, loading } = useAuth();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState('dashboard');
+
+  // Detectar parâmetro de URL para definir aba ativa
+  useEffect(() => {
+    const urlParams = new URLSearchParams(location.search);
+    const tabParam = urlParams.get('tab');
+    if (tabParam) {
+      setActiveTab(tabParam);
+    } else {
+      setActiveTab('dashboard');
+    }
+  }, [location.search]); // Adicionar location.search como dependência
+
+  // Atualizar URL quando aba mudar
+  const handleTabChange = (value: string) => {
+    setActiveTab(value);
+    const url = new URL(window.location.href);
+    url.searchParams.set('tab', value);
+    window.history.replaceState({}, '', url.toString());
+  };
 
   if (loading) {
     return (
@@ -37,7 +59,7 @@ const Index = () => {
     );
   }
 
-  if (!profile) {
+  if (!user) {
     return <LoginForm />;
   }
 
@@ -46,18 +68,11 @@ const Index = () => {
     const baseTabs = [
       { id: 'dashboard', label: 'Dashboard', icon: Home },
       { id: 'missions', label: 'Missões', icon: CalendarDays },
-      { id: 'priority', label: 'Prioridades', icon: Users },
-      { id: 'payments', label: 'Pagamentos', icon: CreditCard },
-      { id: 'reports', label: 'Relatórios', icon: BarChart3 },
       { id: 'settings', label: 'Configurações', icon: Settings }
     ];
 
     // Adicionar tabs específicas por role
-    if (profile.role === 'admin') {
-      baseTabs.splice(-1, 0, { id: 'admin', label: 'Admin', icon: Shield });
-    }
-    
-    if (profile.role === 'owner' || profile.role === 'admin') {
+    if (user.role === 'owner' || user.role === 'admin') {
       baseTabs.splice(-1, 0, { id: 'owner', label: 'Proprietário', icon: Plane });
     }
 
@@ -71,7 +86,7 @@ const Index = () => {
       <Header />
       
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
+        <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex-1">
               <TabsList className="grid grid-cols-3 sm:grid-cols-6 lg:flex lg:w-auto bg-white/80 backdrop-blur border shadow-sm">
@@ -94,12 +109,12 @@ const Index = () => {
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-3xl font-bold text-gray-900">
-                    Bem-vindo, {profile.name}
+                    Bem-vindo, {user.name}
                   </h1>
                   <p className="text-gray-600 mt-1">
-                    {profile.role === 'admin' && 'Painel administrativo - Gerencie o sistema completo'}
-                    {profile.role === 'owner' && 'Dashboard do proprietário - Gerencie suas aeronaves'}
-                    {profile.role === 'client' && 'Gerencie suas missões e acompanhe sua posição de prioridade'}
+                    {user.role === 'admin' && 'Painel administrativo - Gerencie o sistema completo'}
+                    {user.role === 'owner' && 'Dashboard do proprietário - Gerencie suas aeronaves'}
+                    {user.role === 'client' && 'Gerencie suas missões e acompanhe sua posição de prioridade'}
                   </p>
                 </div>
               </div>
@@ -110,7 +125,8 @@ const Index = () => {
               <MissionSystem />
             </TabsContent>
 
-            <TabsContent value="priority" className="space-y-6 p-6">
+            {/* Removido: aba de Prioridades */}
+            {/* <TabsContent value="priority" className="space-y-6 p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-3xl font-bold text-gray-900">
@@ -122,9 +138,10 @@ const Index = () => {
                 </div>
               </div>
               <PriorityQueue />
-            </TabsContent>
+            </TabsContent> */}
 
-            <TabsContent value="payments" className="space-y-6 p-6">
+            {/* Removido: aba de Pagamentos */}
+            {/* <TabsContent value="payments" className="space-y-6 p-6">
               <div className="flex items-center justify-between">
                 <div>
                   <h1 className="text-3xl font-bold text-gray-900">
@@ -136,29 +153,11 @@ const Index = () => {
                 </div>
               </div>
               <PaymentManager />
-            </TabsContent>
+            </TabsContent> */}
 
-            <TabsContent value="reports" className="space-y-6 p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h1 className="text-3xl font-bold text-gray-900">
-                    Relatórios e Analytics
-                  </h1>
-                  <p className="text-gray-600 mt-1">
-                    Análise detalhada de uso, custos e estatísticas de voo
-                  </p>
-                </div>
-              </div>
-              <ReportsSection />
-            </TabsContent>
 
-            {profile.role === 'admin' && (
-              <TabsContent value="admin" className="space-y-6 p-6">
-                <AdminDashboard />
-              </TabsContent>
-            )}
 
-            {(profile.role === 'owner' || profile.role === 'admin') && (
+            {(user.role === 'owner' || user.role === 'admin') && (
               <TabsContent value="owner" className="space-y-6 p-6">
                 <OwnerDashboard />
               </TabsContent>
@@ -170,6 +169,7 @@ const Index = () => {
           </div>
         </Tabs>
       </main>
+      <BottomNav />
     </div>
   );
 };

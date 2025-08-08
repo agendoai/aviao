@@ -26,6 +26,7 @@ import {
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import MembershipPayment from '@/components/payments/MembershipPayment';
 
 const SettingsSection: React.FC = () => {
   const { profile } = useAuth();
@@ -154,7 +155,7 @@ const SettingsSection: React.FC = () => {
   const TierIcon = tierInfo.icon;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-8">
       {/* Header */}
       <Card>
         <CardHeader>
@@ -556,6 +557,7 @@ const SettingsSection: React.FC = () => {
                 </div>
               </CardContent>
             </Card>
+            <MembershipPayment />
           </div>
         </TabsContent>
       </Tabs>

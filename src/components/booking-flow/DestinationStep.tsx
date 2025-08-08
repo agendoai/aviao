@@ -1,72 +1,75 @@
 
-import React from 'react';
-import { MapPin } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Button } from '@/components/ui/button';
-import { Badge } from '@/components/ui/badge';
-import { useToast } from '@/hooks/use-toast';
+import React, { useState } from 'react';
+import { searchAirport } from '@/utils/aisweb';
+import { calculateDistance } from '@/utils/distance';
 
-interface DestinationStepProps {
-  destination: string;
-  selectedAircraftName?: string;
-  travelMode: 'solo' | 'shared';
-  onDestinationChange: (destination: string) => void;
-  onContinue: () => void;
-}
+const DestinationStep: React.FC = () => {
+  const [origin, setOrigin] = useState('');
+  const [destination, setDestination] = useState('');
+  const [distance, setDistance] = useState<number | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
-const DestinationStep: React.FC<DestinationStepProps> = ({
-  destination,
-  selectedAircraftName,
-  travelMode,
-  onDestinationChange,
-  onContinue
-}) => {
-  const { toast } = useToast();
-
-  const handleSubmit = () => {
-    if (!destination.trim()) {
-      toast({
-        title: "Campo obrigatório",
-        description: "Por favor, digite seu destino.",
-        variant: "destructive"
-      });
-      return;
+  const handleCalculateDistance = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const originData = await searchAirport(origin);
+      const destData = await searchAirport(destination);
+      // Ajuste conforme resposta real da API do AISWEB
+      const lat1 = parseFloat(originData.latitude || originData.lat);
+      const lon1 = parseFloat(originData.longitude || originData.lon);
+      const lat2 = parseFloat(destData.latitude || destData.lat);
+      const lon2 = parseFloat(destData.longitude || destData.lon);
+      if (isNaN(lat1) || isNaN(lon1) || isNaN(lat2) || isNaN(lon2)) {
+        setError('Não foi possível obter as coordenadas dos aeroportos.');
+        setDistance(null);
+      } else {
+        setDistance(calculateDistance(lat1, lon1, lat2, lon2));
+      }
+    } catch (err: any) {
+      setError('Erro ao buscar aeroportos ou calcular distância.');
+      setDistance(null);
+    } finally {
+      setLoading(false);
     }
-    onContinue();
   };
 
   return (
     <div className="space-y-4">
-      <div className="text-center">
-        <MapPin className="h-12 w-12 text-aviation-blue mx-auto mb-4" />
-        <h2 className="text-2xl font-bold mb-2">Qual seu destino?</h2>
-        <p className="text-gray-600">Ex: Paris, Nova York, Londres</p>
-        <div className="flex flex-wrap justify-center gap-2 mt-2">
-          {selectedAircraftName && (
-            <Badge variant="outline">
-              Aeronave: {selectedAircraftName}
-            </Badge>
-          )}
-          <Badge variant="outline">
-            Modo: {travelMode === 'solo' ? 'Individual' : 'Compartilhado'}
-          </Badge>
-        </div>
-      </div>
-      <div className="max-w-md mx-auto space-y-4">
-        <Input
-          value={destination}
-          onChange={(e) => onDestinationChange(e.target.value)}
-          placeholder="Digite o destino..."
-          className="text-lg p-4"
-          onKeyPress={(e) => e.key === 'Enter' && handleSubmit()}
+      <div>
+        <label htmlFor="origin">Origem (ICAO/IATA):</label>
+        <input
+          id="origin"
+          type="text"
+          value={origin}
+          onChange={e => setOrigin(e.target.value.toUpperCase())}
+          className="border rounded px-2 py-1 ml-2"
         />
-        <Button 
-          onClick={handleSubmit}
-          className="w-full bg-aviation-gradient hover:opacity-90 text-white text-lg py-3"
-        >
-          Continuar
-        </Button>
       </div>
+      <div>
+        <label htmlFor="destination">Destino (ICAO/IATA):</label>
+        <input
+          id="destination"
+          type="text"
+          value={destination}
+          onChange={e => setDestination(e.target.value.toUpperCase())}
+          className="border rounded px-2 py-1 ml-2"
+        />
+      </div>
+      <button
+        onClick={handleCalculateDistance}
+        disabled={loading || !origin || !destination}
+        className="bg-blue-600 text-white px-4 py-2 rounded"
+      >
+        {loading ? 'Calculando...' : 'Calcular Distância'}
+      </button>
+      {distance !== null && !error && (
+        <div className="mt-2 text-green-700 font-bold">
+          Distância: {distance.toFixed(1)} NM
+        </div>
+      )}
+      {error && <div className="mt-2 text-red-600">{error}</div>}
     </div>
   );
 };

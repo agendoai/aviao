@@ -123,7 +123,7 @@ const CostBreakdown: React.FC<CostBreakdownProps> = ({
               <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                 <div>
                   <span className="text-gray-600">Distância:</span>
-                  <div className="font-medium">{segment.distance}km</div>
+                  <div className="font-medium">{segment.distance.toFixed(1)} NM</div>
                 </div>
                 <div>
                   <span className="text-gray-600">Tempo de Voo:</span>
