@@ -1404,7 +1404,7 @@ export default function SharedMissionsList() {
                     
                     <div className="flex items-center space-x-2">
                       <div className="p-1.5 bg-green-100 rounded">
-                        <Calendar className="h-3 w-3 text-green-600" />
+                        <CalendarIcon className="h-3 w-3 text-green-600" />
                       </div>
                       <div>
                         <p className="font-semibold text-gray-900 text-xs">

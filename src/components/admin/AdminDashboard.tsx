@@ -3,14 +3,13 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Shield, Users, Calendar, MapPin, Plane, DollarSign, Settings, Activity, CalendarIcon } from 'lucide-react';
+import { Shield, Users, Calendar, MapPin, Plane, DollarSign, Activity, CalendarIcon } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { getAllAircrafts } from '@/utils/api';
 import UserManagement from './UserManagement';
 import BookingManagement from './BookingManagement';
 import AircraftManagement from './AircraftManagement';
 import FinancialManagement from './FinancialManagement';
-import SystemSettings from './SystemSettings';
 import ScheduleManagement from './ScheduleManagement';
 import { toast } from 'sonner';
 import { useLocation } from 'react-router-dom';
@@ -37,12 +36,25 @@ const AdminDashboard: React.FC = () => {
     const urlParams = new URLSearchParams(location.search);
     const tabParam = urlParams.get('tab');
     if (tabParam) {
-      setActiveTab(tabParam);
+      // Se tab for 'settings' (removido), redireciona para 'dashboard'
+      const normalized = tabParam === 'settings' ? 'dashboard' : tabParam;
+      setActiveTab(normalized);
+      if (normalized !== tabParam) {
+        const url = new URL(window.location.href);
+        url.searchParams.set('tab', normalized);
+        window.history.replaceState({}, '', url.toString());
+      }
     }
   }, [location]);
 
   useEffect(() => {
     fetchStats();
+  }, []);
+
+  useEffect(() => {
+    const onRefresh = () => fetchStats();
+    window.addEventListener('dashboard:refresh', onRefresh);
+    return () => window.removeEventListener('dashboard:refresh', onRefresh);
   }, []);
 
   const handleTabChange = (value: string) => {
@@ -58,7 +70,7 @@ const AdminDashboard: React.FC = () => {
       const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
       const token = localStorage.getItem('token');
       
-      const [usersRes, aircraftRes, bookingsRes, transactionsRes] = await Promise.all([
+      const [usersRes, aircraftRes, bookingsRes, financialsRes, sharedMissionsRes] = await Promise.all([
         fetch(`${backendUrl}/users`, {
           headers: {
             'Authorization': `Bearer ${token}`,
@@ -72,7 +84,13 @@ const AdminDashboard: React.FC = () => {
             'Content-Type': 'application/json',
           }
         }),
-        fetch(`${backendUrl}/transactions`, {
+        fetch(`${backendUrl}/admin/financials`, {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json',
+          }
+        }),
+        fetch(`${backendUrl}/shared-missions`, {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
@@ -83,39 +101,32 @@ const AdminDashboard: React.FC = () => {
       const users = await usersRes.json();
       const aircraft = await aircraftRes;
       const bookings = await bookingsRes.json();
-      const transactions = await transactionsRes.json();
+      const financials = await financialsRes.json();
+      const sharedMissions = await sharedMissionsRes.json();
 
-      // Calcular receita mensal
-      const currentMonth = new Date().getMonth();
-      const currentYear = new Date().getFullYear();
-      const monthlyTransactions = transactions.filter((t: any) => {
-        const transactionDate = new Date(t.createdAt);
-        return transactionDate.getMonth() === currentMonth && 
-               transactionDate.getFullYear() === currentYear &&
-               t.type === 'debit';
-      });
-      
-      const monthlyRevenue = monthlyTransactions.reduce((sum: number, t: any) => sum + Number(t.amount), 0);
+      // Receita total baseada apenas em status 'confirmada' (somando reservas e missões)
+      const totalRevenue = Number(financials.totalReceived || 0);
 
-      // Contar reservas ativas
-      const activeBookings = bookings.filter((b: any) => 
-        ['pendente', 'confirmado', 'paga'].includes(b.status)
-      ).length;
+      // Contar reservas confirmadas (reservas diretas + bookings confirmados em missões)
+      const directConfirmed = bookings.filter((b: any) => b.status === 'confirmada').length;
+      const missionConfirmed = (sharedMissions || []).reduce((sum: number, m: any) => {
+        const confirmedSeats = (m.bookings || []).filter((bk: any) => ['confirmada', 'confirmed'].includes(bk.status)).length;
+        return sum + confirmedSeats;
+      }, 0);
+      const totalConfirmedCount = directConfirmed + missionConfirmed;
 
       const newStats = {
         totalUsers: users.length || 0,
         totalAircraft: aircraft.length || 0,
-        monthlyRevenue,
-        activeBookings
+        monthlyRevenue: totalRevenue,
+        activeBookings: totalConfirmedCount
       };
 
       setStats(newStats);
     } catch (error) {
       console.error('Erro ao carregar estatísticas:', error);
-      toast({
-        title: "Erro",
-        description: "Erro ao carregar estatísticas",
-        variant: "destructive"
+      toast.error("Erro ao carregar estatísticas", {
+        description: "Tente novamente mais tarde"
       });
     }
   };
@@ -229,10 +240,6 @@ const AdminDashboard: React.FC = () => {
 
         <TabsContent value="financial" className="space-y-4">
           <FinancialManagement />
-        </TabsContent>
-
-        <TabsContent value="settings" className="space-y-4">
-          <SystemSettings />
         </TabsContent>
 
         <TabsContent value="schedule" className="space-y-4">

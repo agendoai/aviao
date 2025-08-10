@@ -4,9 +4,20 @@ import { prisma } from '../db';
 const router = Router();
 
 router.get('/financials', async (req, res) => {
-  const totalReceived = await prisma.booking.aggregate({ _sum: { value: true }, where: { status: 'paga' } });
+  const bookingsConfirmada = await prisma.booking.aggregate({ _sum: { value: true }, where: { status: 'confirmada' } });
+  const sharedConfirmada = await prisma.sharedMissionBooking.aggregate({ _sum: { totalPrice: true }, where: { status: { in: ['confirmada', 'confirmed'] } } });
+  const totalReceived = (bookingsConfirmada._sum.value || 0) + (sharedConfirmada._sum.totalPrice || 0);
+
   const totalPending = await prisma.booking.aggregate({ _sum: { value: true }, where: { status: 'pendente' } });
-  res.json({ totalReceived: totalReceived._sum.value || 0, totalPending: totalPending._sum.value || 0 });
+
+  res.json({ 
+    totalReceived,
+    breakdown: {
+      bookingsConfirmada: bookingsConfirmada._sum.value || 0,
+      sharedMissionsConfirmada: sharedConfirmada._sum.totalPrice || 0,
+    },
+    totalPending: totalPending._sum.value || 0 
+  });
 });
 
 router.get('/reports', async (req, res) => {

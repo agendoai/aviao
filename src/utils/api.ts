@@ -193,6 +193,7 @@ export async function createSharedMission(data: {
   return_date: string;
   aircraftId: number;
   totalSeats: number;
+  availableSeats?: number;
   pricePerSeat: number;
   overnightFee?: number;
 }) {

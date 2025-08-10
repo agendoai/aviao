@@ -90,6 +90,14 @@ interface Booking {
   };
 }
 
+interface CalendarEntry {
+  id: number;
+  aircraftId: number;
+  departure_date: string;
+  return_date: string;
+  status: string; // 'available' | 'blocked' | 'pendente' | 'confirmada' | 'paga'
+}
+
 interface TimeSlot {
   start: Date;
   end: Date;
@@ -110,6 +118,7 @@ const MissionSystem: React.FC = () => {
   // Estados para aeronaves da API
   const [aircraft, setAircraft] = useState<Aircraft[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
+  const [calendarEntries, setCalendarEntries] = useState<CalendarEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedAircraftForSchedule, setSelectedAircraftForSchedule] = useState<Aircraft | null>(null);
   const [availableTimeSlots, setAvailableTimeSlots] = useState<TimeSlot[]>([]);
@@ -167,15 +176,26 @@ const MissionSystem: React.FC = () => {
           console.log('ℹ️ Usando base local de aeroportos');
         }
 
-        const [aircraftData, bookingsData] = await Promise.all([
+        const [aircraftData, bookingsData, calendarData] = await Promise.all([
           getAircrafts(),
-          getBookings()
+          getBookings(),
+          (async () => {
+            const token = localStorage.getItem('token');
+            const res = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api'}/calendar`, {
+              headers: {
+                'Authorization': `Bearer ${token}`,
+                'Content-Type': 'application/json',
+              }
+            });
+            return res.json();
+          })()
         ]);
         
         // Filtrar apenas aeronaves disponíveis
         const availableAircraft = aircraftData.filter((a: Aircraft) => a.status === 'available');
         setAircraft(availableAircraft);
         setBookings(bookingsData);
+        setCalendarEntries(calendarData);
         console.log('✅ Aeronaves carregadas:', availableAircraft);
         console.log('✅ Reservas carregadas:', bookingsData);
       } catch (error) {
@@ -195,36 +215,44 @@ const MissionSystem: React.FC = () => {
     const startHour = 6; // 6h
     const endHour = 19; // 19h
     
-    // Buscar reservas da aeronave para a data selecionada
-    const aircraftBookings = bookings.filter(booking => 
-      booking.aircraftId === aircraftId &&
-      format(parseISO(booking.departure_date), 'yyyy-MM-dd') === format(selectedDate, 'yyyy-MM-dd')
-    );
+    // Entradas de calendário (agenda admin) para a aeronave e data
+    const dayEntries = calendarEntries.filter(e => {
+      if (e.aircraftId !== aircraftId) return false;
+      const d = format(parseISO(e.departure_date), 'yyyy-MM-dd');
+      return d === format(selectedDate, 'yyyy-MM-dd');
+    });
 
-    // Gerar slots de 1 hora
+    // Reservas/bloqueios efetivos (que ocupam o horário)
+    const busyEntries = dayEntries.filter(e => e.status !== 'available');
+
+    // Slots considerados disponíveis pelo admin
+    const adminAvailableSlots = dayEntries.filter(e => e.status === 'available');
+
     for (let hour = startHour; hour < endHour; hour++) {
       const slotStart = new Date(selectedDate);
       slotStart.setHours(hour, 0, 0, 0);
-      
       const slotEnd = new Date(selectedDate);
       slotEnd.setHours(hour + 1, 0, 0, 0);
 
-      // Verificar se há conflito com reservas existentes
-      const conflictingBooking = aircraftBookings.find(booking => {
-        const bookingStart = parseISO(booking.departure_date);
-        const bookingEnd = parseISO(booking.return_date);
-        
-        return (
-          (isBefore(slotStart, bookingEnd) && isAfter(slotEnd, bookingStart)) ||
-          (isBefore(bookingStart, slotEnd) && isAfter(bookingEnd, slotStart))
-        );
+      // precisa existir um slot 'available' que cubra este intervalo
+      const hasAdminSlot = adminAvailableSlots.some(e => {
+        const s = parseISO(e.departure_date);
+        const r = parseISO(e.return_date);
+        return s < slotEnd && r > slotStart;
+      });
+
+      // verificar conflito com busyEntries
+      const conflicting = busyEntries.find(e => {
+        const s = parseISO(e.departure_date);
+        const r = parseISO(e.return_date);
+        return (s < slotEnd && r > slotStart);
       });
 
       slots.push({
         start: slotStart,
         end: slotEnd,
-        available: !conflictingBooking,
-        conflictingBooking
+        available: hasAdminSlot && !conflicting,
+        conflictingBooking: conflicting as any,
       });
     }
 

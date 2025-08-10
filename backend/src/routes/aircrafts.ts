@@ -165,7 +165,7 @@ router.delete('/:id', authMiddleware, requireAdmin, async (req, res) => {
     const activeBookings = await prisma.booking.findFirst({
       where: { 
         aircraftId: parseInt(id),
-        status: { in: ['pendente', 'confirmado', 'paga'] }
+        status: { in: ['pendente', 'confirmada'] }
       }
     });
 

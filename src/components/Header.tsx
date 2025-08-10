@@ -3,7 +3,7 @@ import React, { useState } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Plane, LogOut, User, Wallet, Menu } from 'lucide-react';
+import { Plane, LogOut, User, Menu } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 
 const Header: React.FC = () => {
@@ -39,27 +39,9 @@ const Header: React.FC = () => {
             {/* Menu desktop */}
             {profile && (
               <div className="hidden md:flex items-center space-x-4">
-                <div className="flex items-center space-x-4 bg-gray-50 rounded-lg px-3 py-1.5">
-                  <div className="flex items-center space-x-2">
-                    <Wallet className="h-4 w-4 text-aviation-blue" />
-                    <span className="text-xs md:text-sm font-medium text-gray-900">
-                      R$ {profile.balance?.toLocaleString('pt-BR') || '0'}
-                    </span>
-                  </div>
-                  <div className="w-px h-6 bg-gray-300"></div>
-                  <div className="text-center">
-                    <span className="text-[10px] md:text-xs text-gray-600">Prioridade</span>
-                    <div className="text-xs md:text-sm font-bold text-aviation-blue">
-                      #{profile.priority_position}
-                    </div>
-                  </div>
-                </div>
                 <div className="flex items-center space-x-2">
                   <div className="text-right hidden sm:block">
                     <p className="text-xs md:text-sm font-medium text-gray-900">{profile.name}</p>
-                    <p className="text-[10px] md:text-xs text-gray-600 capitalize">
-                      {profile.membership_tier}
-                    </p>
                   </div>
                   <Avatar className="border-2 border-aviation-blue/20">
                     <AvatarFallback className="bg-aviation-gradient text-white">
@@ -102,16 +84,6 @@ const Header: React.FC = () => {
                   </Avatar>
                   <div>
                     <div className="font-medium text-sm">{profile.name}</div>
-                    <div className="text-xs text-gray-500 capitalize">{profile.membership_tier}</div>
-                  </div>
-                </div>
-                <div className="flex flex-col gap-2 mb-4">
-                  <div className="flex items-center gap-2 text-xs">
-                    <Wallet className="h-4 w-4 text-aviation-blue" />
-                    R$ {profile.balance?.toLocaleString('pt-BR') || '0'}
-                  </div>
-                  <div className="flex items-center gap-2 text-xs">
-                    Prioridade: <span className="font-bold text-aviation-blue">#{profile.priority_position}</span>
                   </div>
                 </div>
                 <Button 

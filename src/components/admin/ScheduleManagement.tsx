@@ -102,6 +102,7 @@ const ScheduleManagement: React.FC = () => {
   };
 
   const isBlocked = (entry?: CalendarEntry) => entry && entry.status === 'blocked';
+  const isAvailable = (entry?: CalendarEntry) => entry && entry.status === 'available';
 
   const handleBlock = async () => {
     if (!selectedAircraftId) return;
@@ -243,12 +244,59 @@ const ScheduleManagement: React.FC = () => {
             ))}
           </div>
 
-          {/* Ajuste do botão */}
+          {/* Grade semanal de horários por aeronave */}
+          {selectedAircraftId && (
+            <div className="overflow-auto border rounded-md">
+              <div className="min-w-[720px]">
+                <div className="grid" style={{ gridTemplateColumns: `120px repeat(${weekDays.length}, 1fr)` }}>
+                  <div className="bg-gray-50 p-2 text-xs font-medium">Hora</div>
+                  {weekDays.map((d, idx) => (
+                    <div key={idx} className="bg-gray-50 p-2 text-xs font-medium text-center">
+                      {format(d, "EEE dd/MM", { locale: ptBR })}
+                    </div>
+                  ))}
+                  {hours.map(h => (
+                    <>
+                      <div key={`h-${h}`} className="p-2 text-xs border-t bg-white">{String(h).padStart(2, '0')}:00</div>
+                      {weekDays.map((d, i) => {
+                        const entry = entriesFor(selectedAircraftId, d, h);
+                        const blocked = isBlocked(entry);
+                        const available = isAvailable(entry);
+                        return (
+                          <div
+                            key={`c-${h}-${i}`}
+                            className={`p-1 text-[11px] border-t border-l text-center cursor-pointer select-none ${blocked ? 'bg-red-100 text-red-700' : available ? 'bg-emerald-100 text-emerald-700' : ''}`}
+                            title={entry ? `${entry.status}` : 'Sem entrada'}
+                            onClick={async () => {
+                              if (!selectedAircraftId) return;
+                              const slotStart = new Date(d);
+                              slotStart.setHours(h, 0, 0, 0);
+                              const slotEnd = addHours(slotStart, 1);
+                              if (blocked && entry) {
+                                await handleUnblock(entry);
+                              } else if (!entry || available) {
+                                await blockTimeSlot({ aircraftId: selectedAircraftId, start: slotStart.toISOString(), end: slotEnd.toISOString(), reason });
+                                const cal = await getCalendar();
+                                setCalendar(cal);
+                              }
+                            }}
+                          >
+                            {blocked ? 'Bloqueado' : available ? 'Disponível' : ''}
+                          </div>
+                        );
+                      })}
+                    </>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Botão gerar agenda recorrente */}
           <div className="flex items-center gap-2 mt-4">
             <Button
               onClick={async () => {
                 if (!selectedAircraftId) return;
-                // Chamar API para gerar time slots recorrentes para a aeronave
                 await fetch(`/api/calendar/generate`, {
                   method: 'POST',
                   headers: {
@@ -261,7 +309,8 @@ const ScheduleManagement: React.FC = () => {
                     daysConfig,
                   }),
                 });
-                // Opcional: mostrar toast de sucesso
+                const cal = await getCalendar();
+                setCalendar(cal);
               }}
               className="flex items-center gap-2 h-8 text-xs px-3"
             >
@@ -271,7 +320,6 @@ const ScheduleManagement: React.FC = () => {
         </CardContent>
       </Card>
 
-      {/* Ajuste do aviso final */}
       <div className="mt-4 text-xs text-gray-500 italic text-center">A agenda será gerada automaticamente para a aeronave selecionada, a partir da data escolhida, seguindo a configuração dos dias e horários acima. Recomenda-se revisar bloqueios e exceções após a geração.</div>
     </div>
   );

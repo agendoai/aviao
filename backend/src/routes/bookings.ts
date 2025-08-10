@@ -252,7 +252,7 @@ router.patch('/:id/status', authMiddleware, requireAdmin, async (req, res) => {
     const { id } = req.params;
     const { status } = req.body;
 
-    if (!['pendente', 'confirmada', 'paga', 'cancelada'].includes(status)) {
+    if (!['pendente', 'confirmada', 'cancelada'].includes(status)) {
       return res.status(400).json({ error: 'Status inválido' });
     }
 
@@ -292,7 +292,7 @@ router.patch('/:id', authMiddleware, requireAdmin, async (req, res) => {
     const { status, value, origin, destination, departure_date, return_date, passengers, flight_hours, overnight_stays } = req.body;
 
     // Validações
-    if (status && !['pendente', 'confirmada', 'paga', 'cancelada'].includes(status)) {
+    if (status && !['pendente', 'confirmada', 'cancelada'].includes(status)) {
       return res.status(400).json({ error: 'Status inválido' });
     }
 
@@ -363,14 +363,12 @@ router.get('/stats/overview', authMiddleware, requireAdmin, async (req, res) => 
     const totalBookings = await prisma.booking.count();
     const pendingBookings = await prisma.booking.count({ where: { status: 'pendente' } });
     const confirmedBookings = await prisma.booking.count({ where: { status: 'confirmada' } });
-    const paidBookings = await prisma.booking.count({ where: { status: 'paga' } });
     const cancelledBookings = await prisma.booking.count({ where: { status: 'cancelada' } });
 
     res.json({
       totalBookings,
       pendingBookings,
       confirmedBookings,
-      paidBookings,
       cancelledBookings
     });
   } catch (error) {

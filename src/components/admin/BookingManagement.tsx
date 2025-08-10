@@ -97,6 +97,7 @@ export default function BookingManagement() {
 
       if (response.ok) {
         await fetchBookings(); // Recarregar lista
+        window.dispatchEvent(new Event('dashboard:refresh'));
       } else {
         console.error('Erro ao atualizar status da reserva');
       }
@@ -120,6 +121,7 @@ export default function BookingManagement() {
 
       if (response.ok) {
         await fetchBookings(); // Recarregar lista
+        window.dispatchEvent(new Event('dashboard:refresh'));
       } else {
         console.error('Erro ao cancelar reserva');
       }
@@ -146,6 +148,7 @@ export default function BookingManagement() {
         await fetchBookings(); // Recarregar lista
         setIsEditing(false);
         setEditingBooking(null);
+        window.dispatchEvent(new Event('dashboard:refresh'));
       } else {
         console.error('Erro ao salvar edição da reserva');
       }
@@ -160,8 +163,7 @@ export default function BookingManagement() {
         return 'secondary';
       case 'confirmada':
         return 'default';
-      case 'paga':
-        return 'default';
+
       case 'cancelada':
         return 'destructive';
       default:
@@ -173,7 +175,7 @@ export default function BookingManagement() {
     switch (status) {
       case 'pendente': return 'Pendente';
       case 'confirmada': return 'Confirmada';
-      case 'paga': return 'Paga';
+
       case 'cancelada': return 'Cancelada';
       default: return status;
     }
@@ -350,7 +352,6 @@ export default function BookingManagement() {
                                         <SelectContent>
                                           <SelectItem value="pendente">Pendente</SelectItem>
                                           <SelectItem value="confirmada">Confirmada</SelectItem>
-                                          <SelectItem value="paga">Paga</SelectItem>
                                           <SelectItem value="cancelada">Cancelada</SelectItem>
                                         </SelectContent>
                                       </Select>
@@ -490,7 +491,6 @@ export default function BookingManagement() {
                         <SelectContent>
                           <SelectItem value="pendente">Pendente</SelectItem>
                           <SelectItem value="confirmada">Confirmada</SelectItem>
-                          <SelectItem value="paga">Paga</SelectItem>
                           <SelectItem value="cancelada">Cancelada</SelectItem>
                         </SelectContent>
                       </Select>

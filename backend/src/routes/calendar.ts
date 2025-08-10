@@ -7,7 +7,7 @@ const router = Router();
 // Listar agenda (todas reservas e bloqueios)
 router.get('/', authMiddleware, async (req, res) => {
   const calendar = await prisma.booking.findMany({
-    where: { status: { in: ['pendente', 'confirmada', 'paga', 'blocked'] } },
+    where: { status: { in: ['pendente', 'confirmada', 'paga', 'blocked', 'available'] } },
     orderBy: { departure_date: 'asc' }
   });
   res.json(calendar);

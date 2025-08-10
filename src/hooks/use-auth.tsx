@@ -8,8 +8,16 @@ interface User {
   role: string;
 }
 
+interface Profile extends User {
+  balance: number;
+  monthly_fee_status: 'paid' | 'pending' | 'overdue';
+  membership_tier: 'vip' | 'premium' | 'basic';
+  priority_position: number;
+}
+
 interface AuthContextType {
   user: User | null;
+  profile: Profile | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (name: string, email: string, password: string) => Promise<{ error: any }>;
@@ -67,38 +75,25 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, password: string) => {
     setLoading(true);
     try {
-      console.log('🔍 Iniciando login...');
       const backendUrl = import.meta.env.VITE_BACKEND_URL || '/api';
-      console.log('🔧 Backend URL:', backendUrl);
-      console.log('🔧 URL completa:', `${backendUrl}/auth/login`);
       const res = await fetch(`${backendUrl}/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
       });
       const data = await res.json();
-      console.log('📡 Login response:', data);
       
       if (!res.ok) {
-        console.log('❌ Login falhou:', data.error);
         return { error: data.error || 'Erro no login' };
       }
-      
-      console.log('✅ Login bem-sucedido');
-      console.log('👤 User:', data.user);
-      console.log('🔑 Token recebido:', data.token ? 'Sim' : 'Não');
-      console.log('🔑 Token completo:', data.token);
       
       setUser(data.user);
       setIsAuthenticated(true);
       if (data.token) {
         localStorage.setItem('token', data.token);
-        console.log('💾 Token salvo no localStorage');
-        console.log('💾 Token verificado:', localStorage.getItem('token'));
       }
       return { error: null };
     } catch (error) {
-      console.error('💥 Erro no login:', error);
       return { error };
     } finally {
       setLoading(false);
@@ -144,8 +139,18 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
+  const profile: Profile | null = user
+    ? {
+        ...user,
+        balance: 0,
+        monthly_fee_status: 'paid',
+        membership_tier: 'basic',
+        priority_position: 0,
+      }
+    : null;
+
   return (
-    <AuthContext.Provider value={{ user, loading, signIn, signUp, signOut, isAuthenticated }}>
+    <AuthContext.Provider value={{ user, profile, loading, signIn, signUp, signOut, isAuthenticated }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,6 +1,6 @@
 import React from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { Shield, Users, Plane, DollarSign, Settings, Calendar, MapPin } from 'lucide-react';
+import { Shield, Users, Plane, DollarSign, Calendar } from 'lucide-react';
 
 const AdminBottomNav: React.FC = () => {
   const location = useLocation();
@@ -15,10 +15,8 @@ const AdminBottomNav: React.FC = () => {
     { icon: Shield, label: 'Dashboard', path: 'dashboard' },
     { icon: Users, label: 'Usuários', path: 'users' },
     { icon: Calendar, label: 'Reservas', path: 'bookings' },
-    { icon: MapPin, label: 'Missões', path: 'missions' },
     { icon: Plane, label: 'Aeronaves', path: 'aircraft' },
-    { icon: DollarSign, label: 'Financeiro', path: 'financial' },
-    { icon: Settings, label: 'Config', path: 'settings' }
+    { icon: DollarSign, label: 'Financeiro', path: 'financial' }
   ];
 
   return (
