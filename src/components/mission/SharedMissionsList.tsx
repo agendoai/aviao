@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -24,22 +24,28 @@ import {
   ChevronLeft,
   ChevronRight,
   Search,
-  User
+  User,
+  Crown
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/hooks/use-auth';
 import { useToast } from '@/hooks/use-toast';
+import { useNotifications } from '@/hooks/use-notifications';
 import { 
   getSharedMissions, 
   createSharedMission, 
   getAircrafts,
   createParticipationRequest,
   getParticipationRequestsForMission,
+  getMyParticipationRequests,
   sendParticipationRequestMessage,
   acceptParticipationRequest,
-  rejectParticipationRequest
+  rejectParticipationRequest,
+  getMyCreatedSharedMissions,
+  getMessageCounts,
+  markMessagesAsRead
 } from '@/utils/api';
 import { searchAirports, getPopularAirports, getAirportsByRegion, Airport, calculateDistance as calculateDistanceNM, getAircraftSpeed, getAirportCoordinatesWithFallback } from '@/utils/airport-search';
 import { getCalendar } from '@/utils/api';
@@ -66,6 +72,7 @@ interface SharedMission {
   totalSeats: number;
   availableSeats: number;
   pricePerSeat: number;
+  totalCost: number;
   overnightFee: number;
   overnightStays: number;
   status: string;
@@ -117,15 +124,43 @@ interface ChatMessage {
   };
 }
 
-export default function SharedMissionsList() {
+interface SharedMissionsListProps {
+  onBookMission?: (mission: SharedMission) => void;
+  pendingNavigation?: {
+    tab?: string;
+    missionId?: number;
+    requestId?: number;
+  } | null;
+}
+
+export default function SharedMissionsList({ onBookMission, pendingNavigation }: SharedMissionsListProps) {
   const { user } = useAuth();
   const { toast } = useToast();
+  const { messageCounts, refreshMessageCounts } = useNotifications();
+  const chatMessagesRef = useRef<HTMLDivElement>(null);
+  
+  // State for current view
   const [currentView, setCurrentView] = useState<'main' | 'create' | 'view'>('main');
+  const [currentStep, setCurrentStep] = useState(1);
+  
+  // State for missions and requests
   const [missions, setMissions] = useState<SharedMission[]>([]);
-  const [aircrafts, setAircrafts] = useState<Aircraft[]>([]);
+  const [myRequests, setMyRequests] = useState<ParticipationRequest[]>([]);
+  const [missionRequests, setMissionRequests] = useState<{[missionId: number]: ParticipationRequest[]}>({});
   const [loading, setLoading] = useState(false);
-  const [filterLoading, setFilterLoading] = useState(false);
+  const [bookingLoading, setBookingLoading] = useState<number | null>(null);
+  
+  // State for chat
+  const [showChat, setShowChat] = useState(false);
+  const [selectedRequest, setSelectedRequest] = useState<ParticipationRequest | null>(null);
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [newMessage, setNewMessage] = useState('');
+  const [shouldOpenChatAfterLoad, setShouldOpenChatAfterLoad] = useState<number | null>(null);
 
+  // State for aircrafts and filters
+  const [aircrafts, setAircrafts] = useState<Aircraft[]>([]);
+  const [filterLoading, setFilterLoading] = useState(false);
+  
   // Create mission states
   const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null);
   const [missionData, setMissionData] = useState({
@@ -140,7 +175,6 @@ export default function SharedMissionsList() {
     availableSeats: 1,
     overnightStays: 0
   });
-  const [currentStep, setCurrentStep] = useState(1);
 
   // Filter states
   const [filters, setFilters] = useState({
@@ -150,19 +184,98 @@ export default function SharedMissionsList() {
     returnDate: null as Date | null
   });
 
-  // Chat states
-  const [showChat, setShowChat] = useState(false);
-  const [selectedRequest, setSelectedRequest] = useState<ParticipationRequest | null>(null);
-  const [newMessage, setNewMessage] = useState('');
-  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
-  const [bookingLoading, setBookingLoading] = useState<number | null>(null);
-
   useEffect(() => {
     loadAircrafts();
+    loadMissions();
+    loadMyRequests();
+  }, []);
+
+  useEffect(() => {
     if (currentView === 'view') {
-      loadMissions();
+      loadMissionRequestsForMyMissions();
     }
-  }, [currentView]);
+  }, [currentView, missions]);
+
+  // Auto-scroll to bottom when chat messages change
+  useEffect(() => {
+    if (showChat && chatMessages.length > 0) {
+      // Small delay to ensure DOM is updated
+      setTimeout(scrollToBottom, 100);
+    }
+  }, [chatMessages, showChat]);
+
+  // Handle pending navigation to open specific chat
+  useEffect(() => {
+    if (pendingNavigation?.missionId && pendingNavigation?.requestId !== undefined) {
+      const findAndOpenRequest = async () => {
+        // If requestId is 0, it means navigate to mission view (for owner notifications)
+        if (pendingNavigation.requestId === 0) {
+          // Switch to view mode to see all requests for this mission
+          setCurrentView('view');
+          return;
+        }
+
+        // If we have a specific requestId, try to find and open it
+        if (pendingNavigation.requestId) {
+          // First check if we have the request in myRequests (for requester)
+          const myRequest = myRequests.find(req => req.id === pendingNavigation.requestId);
+          if (myRequest && myRequest.user && myRequest.sharedMission) {
+            await openChat(myRequest);
+            return;
+          }
+
+          // If not found in myRequests, check missionRequests (for owner)
+          const missionRequestsList = missionRequests[pendingNavigation.missionId];
+          if (missionRequestsList) {
+            const ownerRequest = missionRequestsList.find(req => req.id === pendingNavigation.requestId);
+            if (ownerRequest && ownerRequest.user && ownerRequest.sharedMission) {
+              await openChat(ownerRequest);
+              return;
+            }
+          }
+
+          // If still not found or data is incomplete, we might need to load the data first
+          // This could happen if the component just mounted or data is still loading
+          console.log('Request not found or incomplete, might need to load data first');
+          
+          // Try to reload data if we don't have it
+          if (myRequests.length === 0) {
+            await loadMyRequests();
+          }
+          if (!missionRequests[pendingNavigation.missionId]) {
+            await loadMissionRequests(pendingNavigation.missionId);
+          }
+        }
+      };
+
+      findAndOpenRequest();
+    }
+  }, [pendingNavigation]);
+
+  // Retry opening chat when data is loaded
+  useEffect(() => {
+    if (pendingNavigation?.missionId && pendingNavigation?.requestId && pendingNavigation.requestId !== 0) {
+      const retryOpenChat = async () => {
+        // Check if we now have the request data
+        const myRequest = myRequests.find(req => req.id === pendingNavigation.requestId);
+        if (myRequest && myRequest.user && myRequest.sharedMission) {
+          await openChat(myRequest);
+          return;
+        }
+
+        const missionRequestsList = missionRequests[pendingNavigation.missionId];
+        if (missionRequestsList) {
+          const ownerRequest = missionRequestsList.find(req => req.id === pendingNavigation.requestId);
+          if (ownerRequest && ownerRequest.user && ownerRequest.sharedMission) {
+            await openChat(ownerRequest);
+            return;
+          }
+        }
+      };
+
+      retryOpenChat();
+    }
+  }, [myRequests, missionRequests, pendingNavigation]);
 
   const loadAircrafts = async () => {
     try {
@@ -204,6 +317,68 @@ export default function SharedMissionsList() {
     }
   };
 
+  const loadMyRequests = async () => {
+    try {
+      const data = await getMyParticipationRequests();
+      setMyRequests(data);
+      
+      // Check if we should open chat after loading
+      if (shouldOpenChatAfterLoad) {
+        const request = data.find(r => r.sharedMissionId === shouldOpenChatAfterLoad);
+        if (request) {
+          setSelectedRequest(request);
+          setChatMessages(request.chatMessages);
+          setShowChat(true);
+        }
+        setShouldOpenChatAfterLoad(null);
+      }
+    } catch (error) {
+      console.error('Erro ao carregar meus pedidos:', error);
+    }
+  };
+
+  const loadMissionRequestsForMyMissions = async () => {
+    try {
+      const myMissions = missions.filter(mission => mission.creator.id === user?.id);
+      const requestsMap: {[missionId: number]: ParticipationRequest[]} = {};
+      
+      for (const mission of myMissions) {
+        try {
+          const requests = await getParticipationRequestsForMission(mission.id);
+          requestsMap[mission.id] = requests;
+        } catch (error) {
+          console.error(`Erro ao carregar pedidos para missão ${mission.id}:`, error);
+          requestsMap[mission.id] = [];
+        }
+      }
+      setMissionRequests(requestsMap);
+    } catch (error: any) {
+      console.error('Erro ao carregar pedidos das minhas missões:', error);
+    }
+  };
+
+  const loadMissionRequests = async (missionId: number) => {
+    try {
+      const requests = await getParticipationRequestsForMission(missionId);
+      setMissionRequests(prev => ({
+        ...prev,
+        [missionId]: requests
+      }));
+    } catch (error) {
+      console.error(`Erro ao carregar pedidos para missão ${missionId}:`, error);
+    }
+  };
+
+  const hasPendingRequest = (missionId: number) => {
+    return myRequests.some(request => 
+      request.sharedMissionId === missionId && request.status === 'pending'
+    );
+  };
+
+  const getMyRequestForMission = (missionId: number) => {
+    return myRequests.find(request => request.sharedMissionId === missionId);
+  };
+
   const handleParticipationRequest = async (mission: SharedMission) => {
     if (mission.creator.id === user?.id) {
       toast({
@@ -223,6 +398,18 @@ export default function SharedMissionsList() {
       return;
     }
 
+    // Check if user already has a pending request for this mission
+    const existingRequest = getMyRequestForMission(mission.id);
+    if (existingRequest && existingRequest.status === 'pending') {
+      // User already has a pending request, just open the chat
+      openChat(existingRequest);
+      toast({
+        title: "Aviso",
+        description: "Você já tem um pedido pendente para esta missão. Abrindo o chat...",
+      });
+      return;
+    }
+
     try {
       setBookingLoading(mission.id);
       const request = await createParticipationRequest({
@@ -230,14 +417,14 @@ export default function SharedMissionsList() {
         message: 'Olá! Gostaria de participar da sua missão compartilhada. Podemos conversar sobre os detalhes?'
       });
 
-      // Carregar mensagens do chat
-      const messages = await getParticipationRequestsForMission(mission.id);
-      const myRequest = messages.find((r: ParticipationRequest) => r.userId === request.userId);
+      // Find the newly created request in the updated myRequests state
+      // (myRequests is updated in the finally block)
+      const myRequest = myRequests.find((r: ParticipationRequest) => 
+        r.sharedMissionId === mission.id && r.userId === request.userId
+      );
       
       if (myRequest) {
-        setSelectedRequest(myRequest);
-        setChatMessages(myRequest.chatMessages);
-        setShowChat(true);
+        openChat(myRequest);
       }
 
       toast({
@@ -246,28 +433,71 @@ export default function SharedMissionsList() {
       });
     } catch (error: any) {
       console.error('Erro ao enviar pedido:', error);
-      toast({
-        title: "Erro",
-        description: error.message || "Erro ao enviar pedido de participação",
-        variant: "destructive"
-      });
+      
+      // Check if it's the "already has pending request" error
+      if (error.message && error.message.includes('já tem um pedido pendente')) {
+        toast({
+          title: "Aviso",
+          description: "Você já tem um pedido pendente para esta missão. Abrindo o chat...",
+        });
+        
+        // Set a flag to open chat after myRequests is loaded
+        setShouldOpenChatAfterLoad(mission.id);
+      } else {
+        toast({
+          title: "Erro",
+          description: error.message || "Erro ao enviar pedido de participação",
+          variant: "destructive"
+        });
+      }
     } finally {
       setBookingLoading(null);
+      await loadMyRequests(); // Ensure myRequests is always up-to-date
     }
   };
 
   const sendMessage = async () => {
-    if (!newMessage.trim() || !selectedRequest) return;
+    if (!selectedRequest || !newMessage.trim()) return;
 
     try {
-      const message = await sendParticipationRequestMessage(selectedRequest.id, {
-        message: newMessage
+      await sendParticipationRequestMessage(selectedRequest.id, {
+        message: newMessage.trim()
       });
 
-      setChatMessages(prev => [...prev, message]);
+      // Add message to chat
+      const newChatMessage: ChatMessage = {
+        id: Date.now(),
+        participationRequestId: selectedRequest.id,
+        senderId: user?.id || 0,
+        message: newMessage.trim(),
+        messageType: 'message',
+        createdAt: new Date().toISOString(),
+        sender: {
+          id: user?.id || 0,
+          name: user?.name || 'Você'
+        }
+      };
+
+      setChatMessages(prev => [...prev, newChatMessage]);
       setNewMessage('');
+
+      // Scroll to bottom after sending message
+      setTimeout(scrollToBottom, 100);
+
+      // Reload requests for this mission
+      await loadMissionRequests(selectedRequest.sharedMissionId);
+      // Also reload all mission requests for the view
+      await loadMissionRequestsForMyMissions();
+    
+    // Reload my requests if we're in the client view
+    if (currentView === 'view') {
+      await loadMyRequests();
+    }
+
+    // Refresh message counts
+    await refreshMessageCounts();
+
     } catch (error: any) {
-      console.error('Erro ao enviar mensagem:', error);
       toast({
         title: "Erro",
         description: error.message || "Erro ao enviar mensagem",
@@ -282,34 +512,31 @@ export default function SharedMissionsList() {
     try {
       await acceptParticipationRequest(selectedRequest.id);
       
-      // Atualizar mensagens com a mensagem de aceitação
-      const acceptanceMessage: ChatMessage = {
-        id: Date.now(),
-        participationRequestId: selectedRequest.id,
-        senderId: selectedRequest.sharedMission.creator.id,
-        message: '✅ Pedido aceito! Você foi aprovado para participar da missão.',
-        messageType: 'acceptance',
-        createdAt: new Date().toISOString(),
-        sender: {
-          id: selectedRequest.sharedMission.creator.id,
-          name: selectedRequest.sharedMission.creator.name
-        }
-      };
-
-      setChatMessages(prev => [...prev, acceptanceMessage]);
-      
-      // Atualizar status do pedido
-      setSelectedRequest(prev => prev ? { ...prev, status: 'accepted' } : null);
-
       toast({
         title: "Sucesso",
-        description: "Pedido aceito com sucesso!",
+        description: "Solicitação aceita com sucesso!",
       });
+
+      // Reload requests for this mission
+      await loadMissionRequests(selectedRequest.sharedMissionId);
+      // Also reload all mission requests for the view
+      await loadMissionRequestsForMyMissions();
+      
+      // Update the selected request status
+      setSelectedRequest(prev => prev ? { ...prev, status: 'accepted' as const } : null);
+      
+      // Reload my requests if we're in the client view
+      if (currentView === 'view') {
+        await loadMyRequests();
+      }
+
+      // Refresh message counts
+      await refreshMessageCounts();
+      
     } catch (error: any) {
-      console.error('Erro ao aceitar pedido:', error);
       toast({
         title: "Erro",
-        description: error.message || "Erro ao aceitar pedido",
+        description: error.message || "Erro ao aceitar solicitação",
         variant: "destructive"
       });
     }
@@ -321,36 +548,39 @@ export default function SharedMissionsList() {
     try {
       await rejectParticipationRequest(selectedRequest.id);
       
-      // Atualizar mensagens com a mensagem de rejeição
-      const rejectionMessage: ChatMessage = {
-        id: Date.now(),
-        participationRequestId: selectedRequest.id,
-        senderId: selectedRequest.sharedMission.creator.id,
-        message: '❌ Pedido rejeitado. Obrigado pelo interesse.',
-        messageType: 'rejection',
-        createdAt: new Date().toISOString(),
-        sender: {
-          id: selectedRequest.sharedMission.creator.id,
-          name: selectedRequest.sharedMission.creator.name
-        }
-      };
-
-      setChatMessages(prev => [...prev, rejectionMessage]);
-      
-      // Atualizar status do pedido
-      setSelectedRequest(prev => prev ? { ...prev, status: 'rejected' } : null);
-
       toast({
         title: "Sucesso",
-        description: "Pedido rejeitado",
+        description: "Solicitação rejeitada com sucesso!",
       });
+
+      // Reload requests for this mission
+      await loadMissionRequests(selectedRequest.sharedMissionId);
+      // Also reload all mission requests for the view
+      await loadMissionRequestsForMyMissions();
+      
+      // Update the selected request status
+      setSelectedRequest(prev => prev ? { ...prev, status: 'rejected' as const } : null);
+      
+      // Reload my requests if we're in the client view
+      if (currentView === 'view') {
+        await loadMyRequests();
+      }
+
+      // Refresh message counts
+      await refreshMessageCounts();
+      
     } catch (error: any) {
-      console.error('Erro ao rejeitar pedido:', error);
       toast({
         title: "Erro",
-        description: error.message || "Erro ao rejeitar pedido",
+        description: error.message || "Erro ao rejeitar solicitação",
         variant: "destructive"
       });
+    }
+  };
+
+  const scrollToBottom = () => {
+    if (chatMessagesRef.current) {
+      chatMessagesRef.current.scrollTop = chatMessagesRef.current.scrollHeight;
     }
   };
 
@@ -359,6 +589,34 @@ export default function SharedMissionsList() {
     setSelectedRequest(null);
     setChatMessages([]);
     setNewMessage('');
+  };
+
+  const openChat = async (request: ParticipationRequest) => {
+    // Ensure the request has all required properties before opening chat
+    if (!request || !request.user || !request.sharedMission) {
+      console.error('Invalid request object:', request);
+      toast({
+        title: "Erro",
+        description: "Dados da solicitação incompletos",
+        variant: "destructive"
+      });
+      return;
+    }
+    
+    setSelectedRequest(request);
+    setChatMessages(request.chatMessages || []);
+    setShowChat(true);
+    
+    // Mark messages as read when opening chat
+    try {
+      await markMessagesAsRead(request.id);
+      await refreshMessageCounts();
+    } catch (error) {
+      console.error('Erro ao marcar mensagens como lidas:', error);
+    }
+
+    // Scroll to bottom after chat opens
+    setTimeout(scrollToBottom, 200);
   };
 
   // Funções de cálculo: usar utilitários globais para consistência
@@ -392,7 +650,7 @@ export default function SharedMissionsList() {
     
     return {
       distanceNM: distanceNM.toFixed(1),
-      flightHours: flightHours.toFixed(1),
+      flightHours: `${Math.floor(flightHours)}h${flightHours % 1 > 0 ? ` ${Math.round((flightHours % 1) * 60)}min` : ''}`,
       baseCost: baseCost,
       overnightCost: overnightCost,
       totalCost: baseCost + overnightCost
@@ -482,6 +740,9 @@ export default function SharedMissionsList() {
     city: 'Araçatuba',
     state: 'SP',
     iata: 'ARU',
+    country: 'Brasil',
+    latitude: -21.1411,
+    longitude: -50.4247
   });
   const [selectedDestination, setSelectedDestination] = useState<Airport | null>(null);
   const [searchTerm, setSearchTerm] = useState('');
@@ -656,7 +917,15 @@ export default function SharedMissionsList() {
       returnDateTime.setMinutes(parseInt(missionData.returnTime.split(':')[1]));
 
       const costCalculation = calculateTotalCost();
-
+      if (costCalculation === 0) {
+        toast({
+          title: "Erro",
+          description: "Não foi possível calcular o custo da missão",
+          variant: "destructive"
+        });
+        return;
+      }
+      
       await createSharedMission({
         title: `Missão compartilhada de ${missionData.origin} para ${selectedDestination.icao}`,
         description: missionData.description,
@@ -667,9 +936,9 @@ export default function SharedMissionsList() {
         aircraftId: selectedAircraft.id,
         totalSeats: selectedAircraft.seats,
         availableSeats: missionData.availableSeats,
-        pricePerSeat: 0,
+        pricePerSeat: Math.ceil(costCalculation.totalCost / missionData.availableSeats),
+        totalCost: costCalculation.totalCost,
         overnightFee: selectedAircraft.overnightRate,
-        overnightStays: missionData.overnightStays
       });
 
       toast({
@@ -715,7 +984,7 @@ export default function SharedMissionsList() {
         </div>
 
         {/* Cards de Opções */}
-        <div className="grid md:grid-cols-2 gap-4">
+        <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-4">
           {/* Card 1: Criar Missão Compartilhada */}
           <Card className="cursor-pointer hover:shadow-lg transition-all border-2 hover:border-blue-500" onClick={() => setCurrentView('create')}>
             <CardHeader className="text-center">
@@ -777,6 +1046,8 @@ export default function SharedMissionsList() {
               </Button>
             </CardContent>
           </Card>
+
+
         </div>
       </div>
     );
@@ -1147,6 +1418,16 @@ export default function SharedMissionsList() {
                     }
                     
                     try {
+                      const costCalculation = calculateTotalCost();
+                      if (costCalculation === 0) {
+                        toast({
+                          title: "Erro",
+                          description: "Não foi possível calcular o custo da missão",
+                          variant: "destructive"
+                        });
+                        return;
+                      }
+                      
                       await createSharedMission({
                         title: `Missão compartilhada de SBAU para ${selectedDestination!.icao}`,
                         description: 'Missão compartilhada criada via wizard',
@@ -1156,7 +1437,8 @@ export default function SharedMissionsList() {
                         return_date: `${returnDate}T${returnTime}`,
                         aircraftId: selectedAircraft!.id,
                         totalSeats: availableSeats,
-                        pricePerSeat: 0,
+                        pricePerSeat: Math.ceil(costCalculation.totalCost / availableSeats),
+                        totalCost: costCalculation.totalCost,
                         overnightFee: selectedAircraft!.overnightRate || 0
                       });
                       
@@ -1447,27 +1729,104 @@ export default function SharedMissionsList() {
                     
                     <div className="flex justify-end mt-3">
                       {mission.creator.id !== user?.id && mission.status === 'active' && mission.availableSeats > 0 ? (
-                        <Button
-                          onClick={() => handleParticipationRequest(mission)}
-                          disabled={bookingLoading === mission.id}
-                          className="bg-blue-600 hover:bg-blue-700 text-xs h-8 px-3"
-                        >
-                          {bookingLoading === mission.id ? (
-                            <>
-                              <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></div>
-                              Enviando...
-                            </>
-                          ) : (
-                            <>
-                              <MessageCircle className="h-3 w-3 mr-1" />
-                              Pedir Participação
-                            </>
-                          )}
-                        </Button>
+                        hasPendingRequest(mission.id) ? (
+                          <Button
+                            onClick={() => {
+                              const myRequest = getMyRequestForMission(mission.id);
+                              if (myRequest) {
+                                openChat(myRequest);
+                              }
+                            }}
+                            className="bg-green-600 hover:bg-green-700 text-xs h-8 px-3"
+                          >
+                            <MessageCircle className="h-3 w-3 mr-1" />
+                            Ver Chat
+                            {messageCounts && messageCounts.missionCounts[mission.id] && (
+                              <Badge 
+                                variant="destructive" 
+                                className="ml-1 h-4 w-4 rounded-full p-0 text-xs flex items-center justify-center"
+                              >
+                                {messageCounts.missionCounts[mission.id].unreadCount > 99 ? '99+' : messageCounts.missionCounts[mission.id].unreadCount}
+                              </Badge>
+                            )}
+                          </Button>
+                        ) : (
+                          <Button
+                            onClick={() => handleParticipationRequest(mission)}
+                            disabled={bookingLoading === mission.id}
+                            className="bg-blue-600 hover:bg-blue-700 text-xs h-8 px-3"
+                          >
+                            {bookingLoading === mission.id ? (
+                              <>
+                                <div className="animate-spin rounded-full h-3 w-3 border-b-2 border-white mr-1"></div>
+                                Enviando...
+                              </>
+                            ) : (
+                              <>
+                                <MessageCircle className="h-3 w-3 mr-1" />
+                                Negociar
+                              </>
+                            )}
+                          </Button>
+                        )
                       ) : mission.creator.id === user?.id ? (
-                        <Badge variant="outline" className="text-gray-600 text-xs px-2 py-1">
-                          Sua missão
-                        </Badge>
+                        <div className="flex items-center space-x-2">
+                          {/* Show request count and unread messages for mission owner */}
+                          {(() => {
+                            const requests = missionRequests[mission.id] || [];
+                            const pendingRequests = requests.filter(r => r.status === 'pending');
+                            const acceptedRequests = requests.filter(r => r.status === 'accepted');
+                            const rejectedRequests = requests.filter(r => r.status === 'rejected');
+                            const unreadCount = messageCounts?.myMissionsCounts[mission.id]?.unreadCount || 0;
+                            
+                            return (
+                              <>
+                                <div className="flex items-center space-x-1">
+                                  <MessageCircle className="h-3 w-3 text-orange-600" />
+                                  <span className="text-xs text-orange-600 font-medium">
+                                    {pendingRequests.length} pendentes
+                                  </span>
+                                  {unreadCount > 0 && (
+                                    <Badge 
+                                      variant="destructive" 
+                                      className="ml-1 h-4 w-4 rounded-full p-0 text-xs flex items-center justify-center"
+                                    >
+                                      {unreadCount > 99 ? '99+' : unreadCount}
+                                    </Badge>
+                                  )}
+                                </div>
+                                {(pendingRequests.length > 0 || unreadCount > 0) && (
+                                  <Button
+                                    onClick={() => {
+                                      const firstPending = pendingRequests[0];
+                                      if (firstPending) {
+                                        openChat(firstPending);
+                                      } else if (requests.length > 0) {
+                                        openChat(requests[0]);
+                                      }
+                                    }}
+                                    className="bg-orange-600 hover:bg-orange-700 text-xs h-7 px-2"
+                                  >
+                                    Ver
+                                  </Button>
+                                )}
+                                {requests.length > 0 && (
+                                  <Button
+                                    onClick={() => {
+                                      if (requests.length > 0) {
+                                        openChat(requests[0]);
+                                      }
+                                    }}
+                                    variant="outline"
+                                    className="text-purple-600 border-purple-600 hover:bg-purple-50 text-xs h-7 px-2"
+                                  >
+                                    Todas ({requests.length})
+                                  </Button>
+                                )}
+                              </>
+                            );
+                          })()}
+                        </div>
                       ) : mission.availableSeats === 0 ? (
                         <Badge variant="outline" className="text-red-600 text-xs px-2 py-1">
                           Lotado
@@ -1486,7 +1845,7 @@ export default function SharedMissionsList() {
         </div>
 
         {/* Chat Modal */}
-        {showChat && selectedRequest && (
+        {showChat && selectedRequest && selectedRequest.user && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-lg w-full max-w-md max-h-[80vh] flex flex-col">
               {/* Chat Header */}
@@ -1494,9 +1853,9 @@ export default function SharedMissionsList() {
                 <div className="flex items-center space-x-2">
                   <MessageCircle className="h-4 w-4 text-blue-600" />
                   <div>
-                    <h3 className="text-sm font-semibold">Chat - {selectedRequest.sharedMission.title}</h3>
+                    <h3 className="text-sm font-semibold">Chat - {selectedRequest.sharedMission?.title || 'Missão'}</h3>
                     <p className="text-xs text-gray-600">
-                      {selectedRequest.user.id === user?.id ? 'Você é o solicitante' : `Solicitante: ${selectedRequest.user.name}`}
+                      {selectedRequest.user?.id === user?.id ? 'Você é o solicitante' : `Solicitante: ${selectedRequest.user?.name || 'Usuário'}`}
                     </p>
                   </div>
                 </div>
@@ -1510,8 +1869,27 @@ export default function SharedMissionsList() {
                 </Button>
               </div>
 
+              {/* Action Buttons for Mission Owner - Moved to top */}
+              {selectedRequest.sharedMission?.creator.id === user?.id && selectedRequest.status === 'pending' && (
+                <div className="flex space-x-2 p-3 border-b bg-gray-50">
+                  <Button
+                    onClick={handleAcceptRequest}
+                    className="flex-1 bg-green-600 hover:bg-green-700 text-xs h-8"
+                  >
+                    ✅ Aceitar
+                  </Button>
+                  <Button
+                    onClick={handleRejectRequest}
+                    variant="outline"
+                    className="flex-1 text-red-600 border-red-600 hover:bg-red-50 text-xs h-8"
+                  >
+                    ❌ Rejeitar
+                  </Button>
+                </div>
+              )}
+
               {/* Chat Messages */}
-              <div className="flex-1 overflow-y-auto p-3 space-y-2 max-h-60">
+              <div ref={chatMessagesRef} className="flex-1 overflow-y-auto p-3 space-y-2 max-h-60">
                 {chatMessages.map((msg) => (
                   <div
                     key={msg.id}
@@ -1528,7 +1906,7 @@ export default function SharedMissionsList() {
                           : 'bg-gray-100 text-gray-800'
                       }`}
                     >
-                      <div className="font-medium text-xs mb-1">{msg.sender.name}</div>
+                      <div className="font-medium text-xs mb-1">{msg.sender?.name || 'Usuário'}</div>
                       <div>{msg.message}</div>
                       <div className="text-xs opacity-70 mt-1">
                         {format(new Date(msg.createdAt), 'HH:mm')}
@@ -1556,25 +1934,6 @@ export default function SharedMissionsList() {
                     Enviar
                   </Button>
                 </div>
-
-                {/* Action Buttons for Mission Owner */}
-                {selectedRequest.user.id === user?.id && chatMessages.length > 0 && (
-                  <div className="flex space-x-2 mt-2">
-                    <Button
-                      onClick={handleAcceptRequest}
-                      className="flex-1 bg-green-600 hover:bg-green-700 text-xs h-7"
-                    >
-                      ✅ Aceitar
-                    </Button>
-                    <Button
-                      onClick={handleRejectRequest}
-                      variant="outline"
-                      className="flex-1 text-red-600 border-red-600 hover:bg-red-50 text-xs h-7"
-                    >
-                      ❌ Rejeitar
-                    </Button>
-                  </div>
-                )}
               </div>
             </div>
           </div>
@@ -1582,6 +1941,8 @@ export default function SharedMissionsList() {
       </div>
     );
   }
+
+
 
   return null;
 }; 

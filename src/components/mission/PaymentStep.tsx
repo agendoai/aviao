@@ -18,6 +18,7 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { createBooking } from '@/utils/api';
+import { convertBrazilianDateToUTCString } from '@/utils/dateUtils';
 
 interface PaymentStepProps {
   aircraft: any;
@@ -31,6 +32,8 @@ interface PaymentStepProps {
   flightHours: number;
   overnightStays: number;
   distance: number;
+  airportFees?: number;
+  feeBreakdown?: { [icao: string]: any };
   onPaymentCompleted: () => void;
   onBack: () => void;
 }
@@ -47,6 +50,8 @@ const PaymentStep: React.FC<PaymentStepProps> = ({
   flightHours,
   overnightStays,
   distance,
+  airportFees = 0,
+  feeBreakdown = {},
   onPaymentCompleted,
   onBack
 }) => {
@@ -55,6 +60,7 @@ const PaymentStep: React.FC<PaymentStepProps> = ({
   console.log('💰 PaymentStep received returnDate:', returnDate);
   console.log('💰 PaymentStep received returnTime:', returnTime);
   console.log('💰 PaymentStep received overnightStays:', overnightStays);
+  console.log('💰 PaymentStep received flightHours:', flightHours);
   console.log('💰 PaymentStep returnDate type:', typeof returnDate);
   console.log('💰 PaymentStep returnDate length:', returnDate?.length);
   console.log('💰 PaymentStep returnDate value:', returnDate);
@@ -70,7 +76,7 @@ const PaymentStep: React.FC<PaymentStepProps> = ({
 
   const hourlyCost = hourlyRate * flightHoursNum;
   const overnightCost = overnightFee * overnightStaysNum;
-  const totalCost = hourlyCost + overnightCost;
+  const totalCost = hourlyCost + overnightCost + airportFees;
 
   console.log('💰 Valores calculados:', {
     hourlyRate,
@@ -79,6 +85,7 @@ const PaymentStep: React.FC<PaymentStepProps> = ({
     overnightStaysNum,
     hourlyCost,
     overnightCost,
+    airportFees,
     totalCost
   });
 
@@ -87,12 +94,24 @@ const PaymentStep: React.FC<PaymentStepProps> = ({
     
     try {
       // Preparar dados da missão
+      // Criar datas no timezone local (brasileiro)
+      const departureDateTime = new Date(`${format(departureDate, 'yyyy-MM-dd')}T${departureTime}:00`);
+      const returnDateTime = new Date(returnDate ? `${returnDate}T${returnTime}:00` : `${format(departureDate, 'yyyy-MM-dd')}T${returnTime}:00`);
+      
+      console.log('🔍 DEBUG PAYMENT STEP:');
+      console.log('🔍 departureDateTime (local):', departureDateTime.toLocaleString('pt-BR'));
+      console.log('🔍 returnDateTime (local):', returnDateTime.toLocaleString('pt-BR'));
+      console.log('🔍 departureDateTime (ISO):', departureDateTime.toISOString());
+      console.log('🔍 returnDateTime (ISO):', returnDateTime.toISOString());
+      console.log('🔍 departureDateTime (hora):', departureDateTime.getHours());
+      console.log('🔍 returnDateTime (hora):', returnDateTime.getHours());
+      
       const missionData = {
         aircraftId: aircraft.id,
         origin: origin,
         destination: destination,
-        departure_date: `${format(departureDate, 'yyyy-MM-dd')}T${departureTime}:00`,
-        return_date: returnDate ? `${returnDate}T${returnTime}:00` : `${format(departureDate, 'yyyy-MM-dd')}T${returnTime}:00`,
+        departure_date: convertBrazilianDateToUTCString(departureDateTime),
+        return_date: convertBrazilianDateToUTCString(returnDateTime),
         passengers: passengers.length,
         flight_hours: flightHours,
         overnight_stays: overnightStays,
@@ -101,6 +120,7 @@ const PaymentStep: React.FC<PaymentStepProps> = ({
       };
 
       console.log('🚀 Criando missão com dados:', missionData);
+      console.log('🚀 flight_hours sendo enviado:', missionData.flight_hours);
 
       // Chamar API para criar a missão
       const response = await createBooking(missionData);
@@ -219,35 +239,29 @@ const PaymentStep: React.FC<PaymentStepProps> = ({
             </div>
             
             <div className="flex justify-between">
-              <span>Taxa horária ({flightHoursNum}h × R$ {hourlyRate.toLocaleString('pt-BR')})</span>
+              <span>Tempo de voo ({Math.floor(flightHoursNum)}h{flightHoursNum % 1 > 0 ? ` ${Math.round((flightHoursNum % 1) * 60)}min` : ''} × R$ {hourlyRate.toLocaleString('pt-BR')})</span>
               <span>R$ {hourlyCost.toLocaleString('pt-BR')}</span>
             </div>
             
             {overnightStaysNum > 0 && (
               <div className="flex justify-between">
-                <span>Pernoite{overnightStaysNum > 1 ? 's' : ''} ({overnightStaysNum} {overnightStaysNum > 1 ? 'noites' : 'noite'})</span>
+                <span>Taxa de pernoite ({overnightStaysNum} {overnightStaysNum > 1 ? 'noites' : 'noite'} × R$ {overnightFee.toLocaleString('pt-BR')})</span>
                 <span>R$ {overnightCost.toLocaleString('pt-BR')}</span>
               </div>
             )}
+            
+                         {airportFees > 0 && (
+               <div className="flex justify-between">
+                 <span>Taxas aeroportuárias (destinos)</span>
+                 <span>R$ {airportFees.toLocaleString('pt-BR')}</span>
+               </div>
+             )}
             
             <div className="border-t pt-2">
               <div className="flex justify-between font-medium">
                 <span>Total</span>
                 <span>R$ {totalCost.toLocaleString('pt-BR')}</span>
               </div>
-            </div>
-            <div className="mt-2 text-xs text-gray-500 text-center">
-              Tempo de voo calculado baseado na distância real ({distance.toFixed(1)} NM) e velocidade da {aircraft.model}. 
-              <br />
-              <span className="font-medium">Inclui ida e volta.</span>
-              {overnightStays > 0 && (
-                <>
-                  <br />
-                  <span className="text-orange-600 font-medium">
-                    Taxa de pernoite incluída ({overnightStaysNum} {overnightStaysNum > 1 ? 'noites' : 'noite'} × R$ {overnightFee.toLocaleString('pt-BR')}) - após meia-noite ou voo noturno.
-                  </span>
-                </>
-              )}
             </div>
           </div>
         </div>

@@ -18,10 +18,11 @@ import {
 } from 'lucide-react';
 import { format, addDays, startOfDay, endOfDay, eachHourOfInterval, parseISO, isBefore, isAfter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
+import { convertBrazilianTimeToUTC, convertBrazilianDateToUTCString } from '@/utils/dateUtils';
 import WeeklySchedule from './WeeklySchedule';
 import MissionCreation from './MissionCreation';
 import TripTypeSelection from './TripTypeSelection';
-import DestinationStep from './DestinationStep';
+
 import PassengerDetailsCollection from './PassengerDetailsCollection';
 import PaymentStep from './PaymentStep';
 import SharedFlightOptions from './SharedFlightOptions';
@@ -35,11 +36,15 @@ import MissionConfirmation from './MissionConfirmation';
 import SharedMissionConfirmation from './SharedMissionConfirmation';
 import CreateSharedMissionForm from './CreateSharedMissionForm';
 import SharedMissionsList from './SharedMissionsList';
+import SimpleCalendar from '../SimpleCalendar';
+import BaseDestinationFlow from './BaseDestinationFlow';
 import { getAircrafts, getBookings, createBooking } from '@/utils/api';
 import { useAuth } from '@/hooks/use-auth';
+import { useNavigation } from '@/hooks/use-navigation';
 import { toast } from 'sonner';
 import AirportStats from './AirportStats';
 import OvernightExample from './OvernightExample';
+import IntelligentTimeSelectionStep from '../booking-flow/IntelligentTimeSelectionStep';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { getAirportCoordinatesWithFallback, testAISWEBConnection, calculateDistance, verifyDistances, getAircraftSpeed, verifySBAUtoSBSV } from '@/utils/airport-search';
@@ -84,6 +89,7 @@ interface Booking {
   return_date: string;
   status: string;
   value: number;
+  blocked_until?: string; // Campo para bloqueio de manutenção
   user: {
     name: string;
     email: string;
@@ -106,7 +112,7 @@ interface TimeSlot {
 }
 
 const MissionSystem: React.FC = () => {
-  const [currentView, setCurrentView] = useState<'trip-type' | 'schedule' | 'destination' | 'passengers' | 'payment' | 'confirmation' | 'shared-flights' | 'create-shared' | 'seat-selection' | 'passenger-info' | 'booking-confirmation' | 'shared-booking-confirmation' | 'creation' | 'financial' | 'shared-confirmation' | 'shared-missions-list'>('trip-type');
+  const [currentView, setCurrentView] = useState<'trip-type' | 'schedule' | 'base-destination-flow' | 'passengers' | 'payment' | 'confirmation' | 'shared-flights' | 'create-shared' | 'seat-selection' | 'passenger-info' | 'booking-confirmation' | 'shared-booking-confirmation' | 'creation' | 'financial' | 'shared-confirmation' | 'shared-missions-list'>('trip-type');
   const [tripType, setTripType] = useState<'solo' | null>(null);
   const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null);
   const [selectedTimeSlot, setSelectedTimeSlot] = useState<TimeSlot | null>(null);
@@ -136,6 +142,7 @@ const MissionSystem: React.FC = () => {
   const [distance, setDistance] = useState(0);
   
   const { user } = useAuth();
+  const { pendingNavigation } = useNavigation();
 
   // Mock user data - em produção viria do contexto/Supabase
   const [userBalance] = useState(15000);
@@ -145,6 +152,13 @@ const MissionSystem: React.FC = () => {
   useEffect(() => {
     console.log('🎯 Current view mudou para:', currentView);
   }, [currentView]);
+
+  // Handle pending navigation to open specific chat
+  useEffect(() => {
+    if (pendingNavigation?.tab === 'missions' && pendingNavigation.missionId && pendingNavigation.requestId) {
+      setCurrentView('shared-missions-list');
+    }
+  }, [pendingNavigation]);
 
   // Monitorar mudanças no returnDate para debug
   useEffect(() => {
@@ -198,6 +212,14 @@ const MissionSystem: React.FC = () => {
         setCalendarEntries(calendarData);
         console.log('✅ Aeronaves carregadas:', availableAircraft);
         console.log('✅ Reservas carregadas:', bookingsData);
+        console.log('✅ Calendário carregado:', calendarData);
+        
+        // Log detalhado das reservas com bloqueios
+        bookingsData.forEach((booking: any) => {
+          if (booking.blocked_until) {
+            console.log(`🔒 Reserva ${booking.id} bloqueada até:`, booking.blocked_until);
+          }
+        });
       } catch (error) {
         console.error('❌ Erro ao carregar dados:', error);
         toast.error('Erro ao carregar dados');
@@ -228,6 +250,9 @@ const MissionSystem: React.FC = () => {
     // Slots considerados disponíveis pelo admin
     const adminAvailableSlots = dayEntries.filter(e => e.status === 'available');
 
+    // Buscar reservas que podem ter bloqueio de manutenção
+    const bookingsForAircraft = bookings.filter(b => b.aircraftId === aircraftId);
+
     for (let hour = startHour; hour < endHour; hour++) {
       const slotStart = new Date(selectedDate);
       slotStart.setHours(hour, 0, 0, 0);
@@ -241,12 +266,38 @@ const MissionSystem: React.FC = () => {
         return s < slotEnd && r > slotStart;
       });
 
-      // verificar conflito com busyEntries
-      const conflicting = busyEntries.find(e => {
+      // verificar conflito com busyEntries (calendário admin)
+      const conflictingCalendar = busyEntries.find(e => {
         const s = parseISO(e.departure_date);
         const r = parseISO(e.return_date);
         return (s < slotEnd && r > slotStart);
       });
+
+      // verificar conflito com reservas e bloqueios de manutenção
+              const conflictingBooking = bookingsForAircraft.find(b => {
+          const departureDate = new Date(b.departure_date.replace('Z', '-03:00'));
+          const returnDate = new Date(b.return_date.replace('Z', '-03:00'));
+          const blockedUntil = b.blocked_until ? new Date(b.blocked_until.replace('Z', '-03:00')) : null;
+        
+        // Conflito direto de horário
+        const directConflict = departureDate < slotEnd && returnDate > slotStart;
+        
+        // Conflito com período de bloqueio (manutenção)
+        const maintenanceConflict = blockedUntil && blockedUntil > slotStart;
+        
+        return directConflict || maintenanceConflict;
+      });
+
+      const conflicting = conflictingCalendar || conflictingBooking;
+
+      // Log de debug para slots conflitantes
+      if (conflicting) {
+        console.log(`❌ Slot ${hour}:00 conflitante:`, {
+          slotStart: slotStart.toISOString(),
+          slotEnd: slotEnd.toISOString(),
+          conflicting: conflicting
+        });
+      }
 
       slots.push({
         start: slotStart,
@@ -480,29 +531,33 @@ const MissionSystem: React.FC = () => {
     setSelectedAircraft(selectedAircraftForSchedule);
     console.log('✈️ Selected Aircraft after setting:', selectedAircraftForSchedule);
     setDepartureTime(format(slot.start, 'HH:mm'));
-    // Não definir returnTime automaticamente - deixar o usuário definir
-    setCurrentView('destination');
+    setSelectedDate(slot.start);
+    // Ir para o novo fluxo base-destino
+    setCurrentView('base-destination-flow');
   };
 
-  const handleDestinationSelected = async (dest: string, returnDate: string, returnTime: string, distance: number) => {
-    console.log('🎯 Destination selected:', dest);
-    console.log('🎯 Return date:', returnDate);
-    console.log('🎯 Return time:', returnTime);
-    console.log('🎯 Distance:', distance);
-    console.log('🎯 Return date type:', typeof returnDate);
-    console.log('🎯 Return date length:', returnDate?.length);
+  const handleBaseDestinationFlowCompleted = (missionData: any) => {
+    console.log('🎯 Base-Destination flow completed:', missionData);
     
-    setDestination(dest);
-    console.log('🎯 Salvando returnDate no estado:', returnDate);
-    setReturnDate(returnDate); // Adicionar estado para data de retorno
-    setReturnTime(returnTime);
-    setDistance(distance);
+    // Extrair dados da missão
+    setOrigin(missionData.origin);
+    setDestination(missionData.destinations[0]?.airport.icao || '');
+    console.log('🔍 missionData.returnDate:', missionData.returnDate);
+    console.log('🔍 missionData.returnDate type:', typeof missionData.returnDate);
+    const formattedReturnDate = format(missionData.returnDate, 'yyyy-MM-dd', { locale: ptBR });
+    console.log('🔍 formattedReturnDate:', formattedReturnDate);
+    setReturnDate(formattedReturnDate);
+    setReturnTime(missionData.returnTime);
+    setDistance(missionData.totalFlightTime * 108); // Aproximação: 108 NM/hora
+    setFlightHours(missionData.totalFlightTime);
     
-    console.log('🎯 Distance calculated:', distance);
-    console.log('🎯 Calling calculateFlightCosts with returnDate:', returnDate);
-    console.log('🎯 selectedDate:', selectedDate);
-    console.log('🎯 VAI CHAMAR calculateFlightCosts AGORA!');
-    calculateFlightCosts(dest, returnTime, distance, returnDate, selectedDate);
+    // Definir overnightStays baseado nos dados da missão
+    setOvernightStays(missionData.overnightStays || 0);
+    
+    // Salvar dados da missão para uso posterior
+    setMissionData(missionData);
+    
+    // Ir para a próxima etapa (passageiros)
     setCurrentView('passengers');
   };
 
@@ -612,81 +667,46 @@ const MissionSystem: React.FC = () => {
             </div>
           </Card>
 
-          {/* Seleção de Data */}
+          {/* Calendário Inteligente */}
           {selectedAircraftForSchedule && (
             <Card className="p-4">
               <div className="space-y-3">
-                <Label className="text-sm font-medium">Selecione a Data</Label>
-                
-                {/* Navegação Rápida */}
-                <div className="flex gap-2 overflow-x-auto pb-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDateChange(new Date())}
-                    className="whitespace-nowrap text-xs"
-                  >
-                    Hoje
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDateChange(addDays(new Date(), 1))}
-                    className="whitespace-nowrap text-xs"
-                  >
-                    Amanhã
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => handleDateChange(addDays(new Date(), 7))}
-                    className="whitespace-nowrap text-xs"
-                  >
-                    Próxima Semana
-                  </Button>
-                </div>
-
-                {/* Input de Data */}
-                <Input
-                  type="date"
-                  value={format(selectedDate, 'yyyy-MM-dd')}
-                  onChange={(e) => handleDateChange(new Date(e.target.value))}
-                  className="h-10 text-sm"
+                <Label className="text-sm font-medium">Calendário Inteligente</Label>
+                <p className="text-xs text-gray-600 mb-4">
+                  Visualize a disponibilidade da aeronave e selecione data e horário
+                </p>
+                <IntelligentTimeSelectionStep
+                  title="Selecione o horário de partida"
+                  selectedDate={format(selectedDate || new Date(), 'dd')}
+                  currentMonth={selectedDate || new Date()}
+                  selectedAircraft={selectedAircraftForSchedule}
+                  onTimeSelect={(timeSlot) => {
+                    console.log('🎯 Slot selecionado:', timeSlot);
+                    
+                    if (typeof timeSlot === 'object' && timeSlot.start) {
+                      const timeString = timeSlot.start.toLocaleTimeString('pt-BR', {
+                        hour: '2-digit',
+                        minute: '2-digit',
+                        hour12: false
+                      });
+                      setDepartureTime(timeString);
+                      handleTimeSlotSelection(timeSlot);
+                    } else {
+                      const time = timeSlot.toString();
+                      setDepartureTime(time);
+                      
+                      // Criar um TimeSlot para compatibilidade
+                      const newTimeSlot: TimeSlot = {
+                        start: new Date(`${format(selectedDate || new Date(), 'yyyy-MM-dd')}T${time}:00`),
+                        end: new Date(`${format(selectedDate || new Date(), 'yyyy-MM-dd')}T${time}:00`),
+                        available: true
+                      };
+                      handleTimeSlotSelection(newTimeSlot);
+                    }
+                  }}
+                  onBack={() => setSelectedAircraftForSchedule(null)}
+                  onAircraftSelect={(aircraft) => setSelectedAircraftForSchedule(aircraft)}
                 />
-              </div>
-            </Card>
-          )}
-
-          {/* Slots de Horário */}
-          {selectedAircraftForSchedule && availableTimeSlots.length > 0 && (
-            <Card className="p-4">
-              <div className="space-y-3">
-                <Label className="text-sm font-medium">Horários Disponíveis</Label>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                  {availableTimeSlots.map((slot, index) => (
-                    <div
-                      key={index}
-                      className={`p-2 rounded border cursor-pointer transition-all text-center text-sm ${
-                        slot.available
-                          ? 'border-green-300 bg-green-50 hover:bg-green-100'
-                          : 'border-red-300 bg-red-50 opacity-50 cursor-not-allowed'
-                      }`}
-                      onClick={() => slot.available && handleTimeSlotSelection(slot)}
-                    >
-                      <div className="font-medium">
-                        {format(slot.start, 'HH:mm')} - {format(slot.end, 'HH:mm')}
-                      </div>
-                      <div className="text-xs text-gray-600">
-                        {slot.available ? 'Disponível' : 'Ocupado'}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-                
-                {/* Resumo */}
-                <div className="text-xs text-gray-500 text-center">
-                  {availableTimeSlots.filter(s => s.available).length} de {availableTimeSlots.length} horários disponíveis
-                </div>
               </div>
             </Card>
           )}
@@ -766,18 +786,14 @@ const MissionSystem: React.FC = () => {
         />
       )}
 
-      {currentView === 'destination' && selectedAircraft && (
-        <div className="space-y-6">
-          <DestinationStep
-            origin={origin}
-            onDestinationSelected={handleDestinationSelected}
-            onBack={() => setCurrentView('schedule')}
-          />
-          
-          {/* Estatísticas de Aeroportos */}
-          <AirportStats className="mt-6" />
-          <OvernightExample />
-        </div>
+      {currentView === 'base-destination-flow' && selectedAircraft && (
+        <BaseDestinationFlow
+          selectedAircraft={selectedAircraft}
+          departureDate={selectedDate}
+          departureTime={departureTime}
+          onFlowCompleted={handleBaseDestinationFlowCompleted}
+          onBack={() => setCurrentView('schedule')}
+        />
       )}
 
       {currentView === 'passengers' && selectedAircraft && (
@@ -787,7 +803,7 @@ const MissionSystem: React.FC = () => {
           <PassengerDetailsCollection
             maxPassengers={selectedAircraft.max_passengers}
             onPassengersSubmitted={handlePassengersSubmitted}
-            onBack={() => setCurrentView('destination')}
+            onBack={() => setCurrentView('base-destination-flow')}
           />
         </div>
       )}
@@ -808,6 +824,8 @@ const MissionSystem: React.FC = () => {
             flightHours={flightHours}
             overnightStays={overnightStays}
             distance={distance}
+            airportFees={missionData?.airportFees || 0}
+            feeBreakdown={missionData?.feeBreakdown || {}}
             onPaymentCompleted={handlePaymentCompleted}
             onBack={() => setCurrentView('passengers')}
           />
@@ -849,7 +867,17 @@ const MissionSystem: React.FC = () => {
                 </div>
                 <div>
                   <span className="text-gray-600">Data de Volta:</span>
-                  <div className="font-medium">{returnDate ? format(new Date(returnDate), 'dd/MM/yyyy', { locale: ptBR }) : 'N/A'}</div>
+                  <div className="font-medium">{returnDate ? (() => {
+                    console.log('🔍 Exibindo data de volta:');
+                    console.log('🔍 returnDate:', returnDate);
+                    const dateWithTime = `${returnDate}T00:00:00`;
+                    console.log('🔍 dateWithTime:', dateWithTime);
+                    const dateObj = new Date(dateWithTime);
+                    console.log('🔍 dateObj:', dateObj);
+                    const formatted = format(dateObj, 'dd/MM/yyyy', { locale: ptBR });
+                    console.log('🔍 formatted:', formatted);
+                    return formatted;
+                  })() : 'N/A'}</div>
                 </div>
               </div>
               
@@ -953,7 +981,10 @@ const MissionSystem: React.FC = () => {
               </Button>
             </div>
           </div>
-          <SharedMissionsList onBookMission={handleBookSharedMission} />
+          <SharedMissionsList 
+            onBookMission={handleBookSharedMission} 
+            pendingNavigation={pendingNavigation}
+          />
         </div>
       )}
     </div>

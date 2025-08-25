@@ -108,8 +108,10 @@ BEGIN
     v_final_cost := v_pre_reservation.total_cost + v_card_fee;
   END IF;
 
-  -- Calcular bloqueio pós-voo (duração do voo + 3h)
-  v_blocked_until := (v_pre_reservation.return_date + v_pre_reservation.return_time) + interval '3 hours';
+  -- Calcular bloqueio pós-voo (retorno + flight_hours/2 + 3h)
+  v_blocked_until := (v_pre_reservation.return_date + v_pre_reservation.return_time) + 
+                    ((v_pre_reservation.flight_hours / 2) || ' hours')::interval + 
+                    interval '3 hours';
 
   -- Criar booking confirmado
   INSERT INTO public.bookings (

@@ -11,6 +11,7 @@ import BookingManagement from './BookingManagement';
 import AircraftManagement from './AircraftManagement';
 import FinancialManagement from './FinancialManagement';
 import ScheduleManagement from './ScheduleManagement';
+import MembershipConfig from './MembershipConfig';
 import { toast } from 'sonner';
 import { useLocation } from 'react-router-dom';
 
@@ -173,6 +174,10 @@ const AdminDashboard: React.FC = () => {
                 <CalendarIcon className="h-4 w-4 sm:h-5 sm:w-5" />
                 <span className="text-[11px] md:text-xs font-semibold">Agenda</span>
               </TabsTrigger>
+              <TabsTrigger value="membership" className="flex flex-col items-center space-y-0.5 p-1 md:p-2 min-w-[60px] md:min-w-[80px] truncate text-[11px] md:text-xs">
+                <DollarSign className="h-4 w-4 sm:h-5 sm:w-5" />
+                <span className="text-[11px] md:text-xs font-semibold">Mensalidade</span>
+              </TabsTrigger>
             </TabsList>
           </div>
         </div>
@@ -244,6 +249,10 @@ const AdminDashboard: React.FC = () => {
 
         <TabsContent value="schedule" className="space-y-4">
           <ScheduleManagement />
+        </TabsContent>
+
+        <TabsContent value="membership" className="space-y-4">
+          <MembershipConfig />
         </TabsContent>
       </Tabs>
     </div>

@@ -11,18 +11,23 @@ datasource db {
 }
 
 model User {
-  id              Int      @id @default(autoincrement())
-  name            String
-  email           String   @unique
-  password        String
-  asaasCustomerId String?  // Para integração com Asaas
-  role            String   @default("user")
-  bookings        Booking[]
-  transactions    Transaction[]
-  sharedMissions  SharedMission[] @relation("SharedMissionCreator")
-  sharedBookings  SharedMissionBooking[]
+  id                 Int      @id @default(autoincrement())
+  name               String
+  email              String   @unique
+  password           String
+  cpfCnpj            String?  // CPF/CNPJ obrigatório para Asaas
+  phone              String?  // Telefone obrigatório para Asaas
+  asaasCustomerId    String?  // Customer ID do Asaas
+  asaasSubscriptionId String? // Subscription ID do Asaas
+  role               String   @default("user")
+  status             String   @default("active") // active, inactive - baseado na mensalidade
+  bookings           Booking[]
+  transactions       Transaction[]
+  sharedMissions     SharedMission[] @relation("SharedMissionCreator")
+  sharedBookings     SharedMissionBooking[]
   participationRequests ParticipationRequest[]
-  chatMessages    ChatMessage[]
+  chatMessages       ChatMessage[]
+  membershipPayments MembershipPayment[]
 }
 
 model Aircraft {
@@ -36,6 +41,7 @@ model Aircraft {
   overnightRate Float   @default(1500)
   bookings     Booking[]
   sharedMissions SharedMission[]
+  schedules    AircraftSchedule[]
 }
 
 model Booking {
@@ -46,16 +52,21 @@ model Booking {
   destination    String
   departure_date DateTime
   return_date    DateTime
+  actual_departure_date DateTime? // Data real de ida (para exibição)
+  actual_return_date DateTime? // Data real de volta (para exibição)
   passengers     Int      @default(1)
-  flight_hours   Int      @default(2)
+  flight_hours   Float    @default(2.0)
   overnight_stays Int     @default(0)
   value          Float
   status         String   @default("pendente")
   paymentId      String?
+  blocked_until  DateTime? // Horário até quando a aeronave fica bloqueada (incluindo manutenção)
+  maintenance_buffer_hours Int @default(3) // Horas de manutenção após o voo
   createdAt      DateTime @default(now())
   user           User     @relation(fields: [userId], references: [id])
   aircraft       Aircraft @relation(fields: [aircraftId], references: [id])
   transactions   Transaction[]
+  schedule       AircraftSchedule?
 }
 
 model SharedMission {
@@ -70,6 +81,7 @@ model SharedMission {
   totalSeats      Int
   availableSeats  Int
   pricePerSeat    Float
+  totalCost       Float    @default(0) // Custo total da missão
   overnightFee    Float    @default(0) // Taxa de pernoite por pessoa
   overnightStays  Int      @default(0) // Número de pernoites
   status          String   @default("active") // active, completed, cancelled
@@ -116,6 +128,7 @@ model ChatMessage {
   message               String
   messageType           String   @default("message") // message, acceptance, rejection
   createdAt             DateTime @default(now())
+  readAt                DateTime? // When the message was read by the recipient
   participationRequest  ParticipationRequest @relation(fields: [participationRequestId], references: [id])
   sender                User     @relation(fields: [senderId], references: [id])
 }
@@ -147,4 +160,40 @@ model Transaction {
   createdAt   DateTime @default(now())
   user        User     @relation(fields: [userId], references: [id])
   booking     Booking? @relation(fields: [bookingId], references: [id])
+}
+
+model MembershipPayment {
+  id          Int      @id @default(autoincrement())
+  userId      Int
+  value       Float
+  dueDate     DateTime
+  status      String   @default("pendente") // pendente, paga, atrasada
+  paymentId   String?  // ID do pagamento no Asaas
+  subscriptionId String? // ID da assinatura recorrente no Asaas
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  user        User     @relation(fields: [userId], references: [id])
+}
+
+model SystemConfig {
+  id          Int      @id @default(autoincrement())
+  key         String   @unique
+  value       String
+  description String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model AircraftSchedule {
+  id                    Int      @id @default(autoincrement())
+  aircraftId            Int
+  startTime             DateTime // Horário de início do bloqueio
+  endTime               DateTime // Horário de fim do bloqueio (incluindo manutenção)
+  type                  String   // "booking", "maintenance", "unavailable"
+  bookingId             Int?     @unique // ID da reserva (se for booking)
+  description           String?  // Descrição do bloqueio
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+  aircraft              Aircraft @relation(fields: [aircraftId], references: [id])
+  booking               Booking? @relation(fields: [bookingId], references: [id])
 }

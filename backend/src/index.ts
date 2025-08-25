@@ -10,7 +10,9 @@ import transactionsRoutes from './routes/transactions';
 import chatRoutes from './routes/chat';
 import adminRoutes from './routes/admin';
 import calendarRoutes from './routes/calendar';
-
+import webhookRoutes from './routes/webhooks';
+import scheduleRoutes from './routes/schedule';
+import airportRoutes from './routes/airports';
 const app = express();
 
 app.use(cors({
@@ -30,9 +32,18 @@ app.use('/api/transactions', transactionsRoutes);
 app.use('/api/chat', chatRoutes);
 app.use('/api/admin', adminRoutes);
 app.use('/api/calendar', calendarRoutes);
+app.use('/api/webhooks', webhookRoutes);
+app.use('/api/schedule', scheduleRoutes);
+app.use('/api/airports', airportRoutes);
 
 const PORT = process.env.PORT || 4000;
 
+import { Scheduler } from './services/scheduler';
+
 app.listen(PORT, () => {
-  console.log(`Servidor rodando na porta ${PORT}`);
+  console.log(`🚀 Servidor rodando na porta ${PORT}`);
+  console.log(`📡 Webhook Asaas: /api/webhooks/asaas`);
+  
+  // Iniciar scheduler de agenda
+  Scheduler.start();
 }); 

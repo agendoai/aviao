@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Users, UserCheck, UserX, Plane, DollarSign, Calendar, Eye } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
+import { toast } from 'sonner';
 
 interface User {
   id: number;
@@ -17,6 +18,7 @@ interface User {
   bookings: Booking[];
   sharedMissions: SharedMission[];
   membershipPayments: MembershipPayment[];
+  status: string; // Added status to the User interface
 }
 
 interface Booking {
@@ -84,7 +86,7 @@ export default function UserManagement() {
     }
   };
 
-  const updateUserStatus = async (userId: number, status: 'active' | 'blocked') => {
+  const updateUserStatus = async (userId: number, status: 'active' | 'blocked' | 'inactive') => {
     try {
       const token = localStorage.getItem('token');
       const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
@@ -184,6 +186,7 @@ export default function UserManagement() {
         return 'default';
       case 'blocked':
       case 'cancelada':
+      case 'inactive':
         return 'destructive';
       case 'pendente':
         return 'secondary';
@@ -197,6 +200,7 @@ export default function UserManagement() {
   const getStatusLabel = (status: string) => {
     switch (status) {
       case 'active': return 'Ativo';
+      case 'inactive': return 'Inativo';
       case 'blocked': return 'Bloqueado';
       case 'pendente': return 'Pendente';
       case 'confirmada': return 'Confirmada';
@@ -204,6 +208,58 @@ export default function UserManagement() {
       case 'cancelada': return 'Cancelada';
       case 'atrasada': return 'Atrasada';
       default: return status;
+    }
+  };
+
+  const checkUserStatus = async (userId: number) => {
+    try {
+      const token = localStorage.getItem('token');
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
+      const response = await fetch(`${backendUrl}/users/status/check/${userId}`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success(`Status atualizado: ${result.status} - ${result.message}`);
+        await fetchUsers(); // Recarregar lista
+      } else {
+        console.error('Erro ao verificar status do usuário');
+        toast.error('Erro ao verificar status do usuário');
+      }
+    } catch (error) {
+      console.error('Erro ao verificar status do usuário:', error);
+      toast.error('Erro ao verificar status do usuário');
+    }
+  };
+
+  const checkAllUsersStatus = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
+      const response = await fetch(`${backendUrl}/users/status/check-all`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        toast.success(`Status verificado: ${result.updated} atualizados, ${result.errors} erros`);
+        await fetchUsers(); // Recarregar lista
+      } else {
+        console.error('Erro ao verificar status de todos os usuários');
+        toast.error('Erro ao verificar status de todos os usuários');
+      }
+    } catch (error) {
+      console.error('Erro ao verificar status de todos os usuários:', error);
+      toast.error('Erro ao verificar status de todos os usuários');
     }
   };
 
@@ -231,7 +287,19 @@ export default function UserManagement() {
   }
 
   return (
-    <div className="space-y-4">
+    <div className="p-6">
+      <div className="flex justify-between items-center mb-6">
+        <h1 className="text-2xl font-bold">Gerenciamento de Usuários</h1>
+        <div className="space-x-2">
+          <Button onClick={checkAllUsersStatus} variant="outline">
+            Verificar Status Geral
+          </Button>
+          <Button onClick={fetchUsers}>
+            Atualizar Lista
+          </Button>
+        </div>
+      </div>
+
       <Card className="rounded-xl shadow-md border border-sky-500/20 bg-white/90">
         <CardHeader className="pb-3">
           <div className="flex items-center justify-between">
@@ -271,8 +339,8 @@ export default function UserManagement() {
                     <TableCell className="text-xs">{user.sharedMissions?.length || 0}</TableCell>
                     <TableCell className="text-xs">{user.membershipPayments?.length || 0}</TableCell>
                     <TableCell>
-                      <Badge variant={getStatusBadgeColor(user.role)} className="text-xs px-2 py-1 rounded-full">
-                        {getStatusLabel(user.role)}
+                      <Badge variant={getStatusBadgeColor(user.status)} className="text-xs px-2 py-1 rounded-full">
+                        {getStatusLabel(user.status)}
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -317,8 +385,8 @@ export default function UserManagement() {
                                       <div>
                                         <span className="font-medium">Status:</span>
                                         <Select
-                                          value={selectedUser.role}
-                                          onValueChange={(value: 'active' | 'blocked') => {
+                                          value={selectedUser.status}
+                                          onValueChange={(value: 'active' | 'blocked' | 'inactive') => {
                                             updateUserStatus(selectedUser.id, value);
                                             setIsUserDetailOpen(false);
                                           }}
@@ -329,6 +397,7 @@ export default function UserManagement() {
                                           <SelectContent>
                                             <SelectItem value="active">Ativo</SelectItem>
                                             <SelectItem value="blocked">Bloqueado</SelectItem>
+                                            <SelectItem value="inactive">Inativo</SelectItem>
                                           </SelectContent>
                                         </Select>
                                       </div>

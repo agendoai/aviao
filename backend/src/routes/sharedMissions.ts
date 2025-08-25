@@ -19,6 +19,7 @@ router.post('/', authMiddleware, async (req, res) => {
       aircraftId,
       totalSeats,
       pricePerSeat,
+      totalCost,
       overnightFee,
       overnightStays
     } = req.body;
@@ -32,10 +33,11 @@ router.post('/', authMiddleware, async (req, res) => {
       !return_date ||
       !aircraftId ||
       !totalSeats ||
-      pricePerSeat === undefined
+      pricePerSeat === undefined ||
+      totalCost === undefined
     ) {
       return res.status(400).json({ 
-        error: 'Campos obrigatórios: title, origin, destination, departure_date, return_date, aircraftId, totalSeats' 
+        error: 'Campos obrigatórios: title, origin, destination, departure_date, return_date, aircraftId, totalSeats, totalCost' 
       });
     }
 
@@ -61,6 +63,15 @@ router.post('/', authMiddleware, async (req, res) => {
     const returnDate = new Date(return_date);
     const calculatedOvernightStays = Math.max(0, Math.floor((returnDate.getTime() - departureDate.getTime()) / (1000 * 60 * 60 * 24)));
 
+    // Calcular blocked_until (retorno + tempo de voo volta + 3 horas de manutenção)
+    const returnFlightTime = 2 / 2; // flight_hours / 2 (valor padrão 2h)
+    const pousoVolta = new Date(returnDate.getTime() + (returnFlightTime * 60 * 60 * 1000));
+    const blockedUntil = new Date(pousoVolta.getTime() + (3 * 60 * 60 * 1000)); // Pouso volta + 3h
+    
+    console.log(`📅 Criando missão compartilhada com bloqueio:`);
+    console.log(`📅   Retorno: ${returnDate.toISOString()}`);
+    console.log(`📅   Bloqueado até: ${blockedUntil.toISOString()}`);
+
     // Criar a missão compartilhada
     const sharedMission = await prisma.sharedMission.create({
       data: {
@@ -68,12 +79,13 @@ router.post('/', authMiddleware, async (req, res) => {
         description,
         origin,
         destination,
-        departure_date: departureDate,
-        return_date: returnDate,
+        departure_date: new Date(departureDate.getTime() + (3 * 60 * 60 * 1000)), // Ajustar timezone
+        return_date: new Date(returnDate.getTime() + (3 * 60 * 60 * 1000)), // Ajustar timezone
         aircraftId,
         totalSeats,
         availableSeats: totalSeats,
         pricePerSeat: pricePerSeat ?? 0,
+        totalCost: totalCost ?? 0,
         overnightFee: overnightFee || 0,
         overnightStays: calculatedOvernightStays,
         createdBy: userId
@@ -97,6 +109,29 @@ router.post('/', authMiddleware, async (req, res) => {
         }
       }
     });
+
+    // Criar booking para bloquear o calendário
+    const calendarBooking = await prisma.booking.create({
+      data: {
+        userId: userId,
+        aircraftId: aircraftId,
+        origin: origin,
+        destination: destination,
+        departure_date: new Date(departureDate.getTime() - (3 * 60 * 60 * 1000)), // 04:00 (início pré-voo - 3h antes)
+        return_date: blockedUntil, // 21:00 (fim lógico)
+        actual_departure_date: departureDate, // 07:00 (hora real que o usuário escolheu)
+        actual_return_date: returnDate, // 18:00 (hora real que o usuário escolheu)
+        passengers: totalSeats,
+        flight_hours: 2, // Valor padrão
+        overnight_stays: calculatedOvernightStays,
+        value: totalCost ?? 0,
+        status: 'confirmada', // Status confirmada para missão compartilhada
+        blocked_until: blockedUntil,
+        maintenance_buffer_hours: 3
+      }
+    });
+
+    console.log(`✅ Booking criado para calendário: ${calendarBooking.id}`);
 
     res.status(201).json(sharedMission);
   } catch (error) {
@@ -515,6 +550,18 @@ router.get('/participation-requests/mission/:missionId', authMiddleware, async (
             email: true
           }
         },
+        sharedMission: {
+          select: {
+            id: true,
+            title: true,
+            creator: {
+              select: {
+                id: true,
+                name: true
+              }
+            }
+          }
+        },
         chatMessages: {
           include: {
             sender: {
@@ -555,8 +602,17 @@ router.get('/participation-requests/my', authMiddleware, async (req, res) => {
         userId
       },
       include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
         sharedMission: {
-          include: {
+          select: {
+            id: true,
+            title: true,
             creator: {
               select: {
                 id: true,
@@ -767,6 +823,150 @@ router.put('/participation-requests/:requestId/reject', authMiddleware, async (r
     res.json(result);
   } catch (error) {
     console.error('Erro ao rejeitar pedido:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Obter contagem de mensagens não lidas para o usuário
+router.get('/participation-requests/message-counts', authMiddleware, async (req, res) => {
+  try {
+    const userId = parseInt((req as any).user.userId);
+
+    if (!(req as any).user) {
+      return res.status(401).json({ error: 'Usuário não autenticado' });
+    }
+
+    // Buscar todas as missões criadas pelo usuário
+    const myMissions = await prisma.sharedMission.findMany({
+      where: { createdBy: userId },
+      select: { id: true, title: true }
+    });
+
+    // Buscar todos os pedidos do usuário
+    const myRequests = await prisma.participationRequest.findMany({
+      where: { userId },
+      select: { 
+        id: true, 
+        sharedMissionId: true,
+        sharedMission: {
+          select: { id: true, title: true }
+        }
+      }
+    });
+
+    const messageCounts = {
+      totalUnread: 0,
+      missionCounts: {} as { [missionId: number]: { title: string; unreadCount: number; requestId: number } },
+      myMissionsCounts: {} as { [missionId: number]: { title: string; totalRequests: number; pendingRequests: number } }
+    };
+
+    // Contar mensagens não lidas para pedidos do usuário (como requester)
+    for (const request of myRequests) {
+      const unreadCount = await prisma.chatMessage.count({
+        where: {
+          participationRequestId: request.id,
+          senderId: { not: userId }, // Mensagens de outros usuários
+          readAt: null // Apenas mensagens não lidas
+        }
+      });
+
+      if (unreadCount > 0) {
+        messageCounts.totalUnread += unreadCount;
+        messageCounts.missionCounts[request.sharedMissionId] = {
+          title: request.sharedMission.title,
+          unreadCount,
+          requestId: request.id
+        };
+      }
+    }
+
+    // Contar pedidos pendentes e mensagens não lidas para missões do usuário (como owner)
+    for (const mission of myMissions) {
+      const requests = await prisma.participationRequest.findMany({
+        where: { sharedMissionId: mission.id },
+        select: { id: true, status: true }
+      });
+
+      const totalRequests = requests.length;
+      const pendingRequests = requests.filter(r => r.status === 'pending').length;
+
+      // Contar mensagens não lidas para esta missão (como owner)
+      let totalUnreadForMission = 0;
+      for (const request of requests) {
+        const unreadCount = await prisma.chatMessage.count({
+          where: {
+            participationRequestId: request.id,
+            senderId: { not: userId }, // Mensagens de outros usuários
+            readAt: null // Apenas mensagens não lidas
+          }
+        });
+        totalUnreadForMission += unreadCount;
+      }
+
+      // Adicionar ao total geral
+      messageCounts.totalUnread += totalUnreadForMission;
+
+      if (totalRequests > 0) {
+        messageCounts.myMissionsCounts[mission.id] = {
+          title: mission.title,
+          totalRequests,
+          pendingRequests,
+          unreadCount: totalUnreadForMission
+        };
+      }
+    }
+
+    res.json(messageCounts);
+  } catch (error) {
+    console.error('Erro ao obter contagem de mensagens:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Marcar mensagens como lidas
+router.put('/participation-requests/:requestId/mark-read', authMiddleware, async (req, res) => {
+  try {
+    const { requestId } = req.params;
+    const userId = parseInt((req as any).user.userId);
+
+    if (!(req as any).user) {
+      return res.status(401).json({ error: 'Usuário não autenticado' });
+    }
+
+    // Verificar se o pedido existe e se o usuário tem acesso
+    const request = await prisma.participationRequest.findUnique({
+      where: { id: parseInt(requestId) },
+      include: {
+        sharedMission: true
+      }
+    });
+
+    if (!request) {
+      return res.status(404).json({ error: 'Pedido não encontrado' });
+    }
+
+    // Verificar se o usuário é o requester ou o owner da missão
+    if (request.userId !== userId && request.sharedMission.createdBy !== userId) {
+      return res.status(403).json({ error: 'Acesso negado' });
+    }
+
+    // Marcar todas as mensagens não lidas como lidas
+    // Para o requester: marcar mensagens do owner como lidas
+    // Para o owner: marcar mensagens do requester como lidas
+    await prisma.chatMessage.updateMany({
+      where: {
+        participationRequestId: parseInt(requestId),
+        senderId: { not: userId }, // Mensagens de outros usuários
+        readAt: null // Apenas mensagens não lidas
+      },
+      data: {
+        readAt: new Date()
+      }
+    });
+
+    res.json({ success: true });
+  } catch (error) {
+    console.error('Erro ao marcar mensagens como lidas:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });

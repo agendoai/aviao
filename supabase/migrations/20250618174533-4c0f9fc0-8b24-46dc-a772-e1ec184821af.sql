@@ -132,9 +132,9 @@ BEGIN
     RETURN json_build_object('error', 'Insufficient balance');
   END IF;
 
-  -- Calculate blocked until time (flight duration + 3 hours maintenance)
-  v_blocked_until := (v_pre_reservation.departure_date + v_pre_reservation.departure_time)::timestamp + 
-                     (v_pre_reservation.flight_hours || ' hours')::interval + 
+  -- Calculate blocked until time (return + flight_hours/2 + 3 hours maintenance)
+  v_blocked_until := (v_pre_reservation.return_date + v_pre_reservation.return_time)::timestamp + 
+                     ((v_pre_reservation.flight_hours / 2) || ' hours')::interval + 
                      interval '3 hours';
 
   -- Create booking

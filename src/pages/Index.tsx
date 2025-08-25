@@ -2,11 +2,13 @@
 import React, { useState, useEffect } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { useLocation } from 'react-router-dom';
+import { useNavigation } from '@/hooks/use-navigation';
 import LoginForm from '../components/LoginForm';
 import Header from '../components/Header';
 import Dashboard from '../components/Dashboard';
 import MissionSystem from '../components/mission/MissionSystem';
 import PriorityQueue from '../components/PriorityQueue';
+import UserStatusCheck from '../components/UserStatusCheck';
 
 import SettingsSection from '../components/settings/SettingsSection';
 import AdminDashboard from '../components/admin/AdminDashboard';
@@ -20,6 +22,7 @@ import { CalendarDays, BarChart3, Settings, Home, Users, Plane, CreditCard } fro
 const Index = () => {
   const { user, loading } = useAuth();
   const location = useLocation();
+  const { pendingNavigation, clearPendingNavigation } = useNavigation();
   const [activeTab, setActiveTab] = useState('dashboard');
 
   // Detectar parâmetro de URL para definir aba ativa
@@ -32,6 +35,14 @@ const Index = () => {
       setActiveTab('dashboard');
     }
   }, [location.search]); // Adicionar location.search como dependência
+
+  // Handle pending navigation from notification clicks
+  useEffect(() => {
+    if (pendingNavigation?.tab) {
+      setActiveTab(pendingNavigation.tab);
+      clearPendingNavigation();
+    }
+  }, [pendingNavigation, clearPendingNavigation]);
 
   // Atualizar URL quando aba mudar
   const handleTabChange = (value: string) => {
@@ -82,10 +93,11 @@ const Index = () => {
   const tabs = getUserTabs();
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
-      <Header />
-      
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
+    <UserStatusCheck>
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-100">
+        <Header />
+        
+        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <Tabs value={activeTab} onValueChange={handleTabChange} className="space-y-6">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div className="flex-1">
@@ -171,6 +183,7 @@ const Index = () => {
       </main>
       <BottomNav />
     </div>
+    </UserStatusCheck>
   );
 };
 

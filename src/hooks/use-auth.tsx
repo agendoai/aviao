@@ -6,6 +6,7 @@ interface User {
   name: string;
   email: string;
   role: string;
+  status: string;
 }
 
 interface Profile extends User {
@@ -100,14 +101,14 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     }
   };
 
-  const signUp = async (name: string, email: string, password: string) => {
+  const signUp = async (name: string, email: string, cpfCnpj: string, phone: string, password: string) => {
     setLoading(true);
     try {
       const backendUrl = import.meta.env.VITE_BACKEND_URL || '/api';
       const res = await fetch(`${backendUrl}/auth/register`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ name, email, password })
+        body: JSON.stringify({ name, email, cpfCnpj, phone, password })
       });
       const data = await res.json();
       if (!res.ok) {
@@ -118,7 +119,13 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       if (data.token) {
         localStorage.setItem('token', data.token);
       }
-      return { error: null };
+      
+      // Mostrar informações da mensalidade criada
+      if (data.membership) {
+        console.log('✅ Mensalidade criada automaticamente:', data.membership);
+      }
+      
+      return { error: null, membership: data.membership };
     } catch (error) {
       return { error };
     } finally {

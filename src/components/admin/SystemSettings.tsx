@@ -1,152 +1,103 @@
 
 import React, { useState } from 'react';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Switch } from '@/components/ui/switch';
-import { Separator } from '@/components/ui/separator';
-import { Settings, Save, RefreshCw } from 'lucide-react';
-import { useToast } from '@/hooks/use-toast';
-import { supabase } from '@/integrations/supabase/client';
+import { Badge } from '@/components/ui/badge';
+import { AlertTriangle, Trash2, RefreshCw } from 'lucide-react';
+import { deleteAllBookings } from '@/utils/api';
+import { toast } from 'sonner';
 
 const SystemSettings: React.FC = () => {
-  const { toast } = useToast();
-  const [settings, setSettings] = useState({
-    defaultHourlyRate: 2800,
-    maxPassengers: 8,
-    priorityRotationEnabled: true,
-    automaticRotationHours: 24,
-    overnightFee: 1500,
-    cardProcessingFee: 0.02,
-    maintenanceBufferHours: 3,
-    allowSeatSharing: true,
-    requireApproval: false
-  });
+  const [isDeleting, setIsDeleting] = useState(false);
 
-  const handleSave = async () => {
-    try {
-      // Simular salvamento das configurações
-      // Em um sistema real, isso salvaria no banco de dados
-      toast({
-        title: "Sucesso",
-        description: "Configurações salvas com sucesso"
-      });
-    } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro ao salvar configurações",
-        variant: "destructive"
-      });
+  const handleDeleteAllBookings = async () => {
+    if (!confirm('⚠️ ATENÇÃO: Isso irá deletar TODAS as missões do sistema. Esta ação não pode ser desfeita. Tem certeza?')) {
+      return;
     }
-  };
 
-  const handleRotatePriorities = async () => {
     try {
-      const { error } = await supabase.rpc('rotate_priorities');
+      setIsDeleting(true);
+      const result = await deleteAllBookings();
       
-      if (error) throw error;
-
-      toast({
-        title: "Sucesso",
-        description: "Prioridades rotacionadas com sucesso"
-      });
+      toast.success(`✅ ${result.message}`);
+      console.log('Missões deletadas:', result);
+      
+      // Recarregar a página para atualizar o calendário
+      setTimeout(() => {
+        window.location.reload();
+      }, 1000);
+      
     } catch (error) {
-      toast({
-        title: "Erro",
-        description: "Erro ao rotacionar prioridades",
-        variant: "destructive"
-      });
+      console.error('Erro ao deletar missões:', error);
+      toast.error('❌ Erro ao deletar missões');
+    } finally {
+      setIsDeleting(false);
     }
   };
 
   return (
     <div className="space-y-6">
-      <Card className="aviation-card">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold">Configurações do Sistema</h1>
+      </div>
+
+      {/* Seção de Testes */}
+      <Card>
         <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Settings className="h-5 w-5" />
-                Configurações do Sistema
-              </CardTitle>
-              <CardDescription>
-                Configure os parâmetros gerais do clube de aviação
-              </CardDescription>
-            </div>
-            <Button onClick={handleSave} className="bg-aviation-gradient hover:opacity-90">
-              <Save className="h-4 w-4 mr-2" />
-              Salvar
-            </Button>
-          </div>
+          <CardTitle className="flex items-center gap-2">
+            <AlertTriangle className="h-5 w-5 text-orange-500" />
+            Área de Testes
+          </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Sistema de Prioridades */}
-          <div>
-            <h3 className="text-lg font-semibold mb-4">Sistema de Prioridades</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
+        <CardContent className="space-y-4">
+          <div className="bg-orange-50 border border-orange-200 rounded-lg p-4">
+            <h3 className="font-medium text-orange-800 mb-2">⚠️ Limpeza de Dados</h3>
+            <p className="text-sm text-orange-700 mb-4">
+              Esta seção permite limpar dados para testes. Use com cuidado!
+            </p>
+            
+            <div className="space-y-3">
+              <div className="flex items-center justify-between p-3 bg-white border border-orange-200 rounded">
                 <div>
-                  <Label htmlFor="priorityRotation">Rotação Automática de Prioridades</Label>
-                  <p className="text-sm text-gray-500">Ativar rotação automática das posições de prioridade</p>
+                  <h4 className="font-medium text-gray-900">Deletar Todas as Missões</h4>
+                  <p className="text-sm text-gray-600">
+                    Remove todas as missões do sistema para testar o calendário limpo
+                  </p>
                 </div>
-                <Switch
-                  id="priorityRotation"
-                  checked={settings.priorityRotationEnabled}
-                  onCheckedChange={(checked) => setSettings({...settings, priorityRotationEnabled: checked})}
-                />
-              </div>
-              {settings.priorityRotationEnabled && (
-                <div>
-                  <Label htmlFor="rotationHours">Intervalo de Rotação (horas)</Label>
-                  <Input
-                    id="rotationHours"
-                    type="number"
-                    value={settings.automaticRotationHours}
-                    onChange={(e) => setSettings({...settings, automaticRotationHours: parseInt(e.target.value)})}
-                  />
-                </div>
-              )}
-              <div className="pt-4">
-                <Button 
-                  onClick={handleRotatePriorities}
-                  variant="outline"
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={handleDeleteAllBookings}
+                  disabled={isDeleting}
                   className="flex items-center gap-2"
                 >
-                  <RefreshCw className="h-4 w-4" />
-                  Rotacionar Prioridades Manualmente
+                  {isDeleting ? (
+                    <RefreshCw className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Trash2 className="h-4 w-4" />
+                  )}
+                  {isDeleting ? 'Deletando...' : 'Deletar Tudo'}
                 </Button>
               </div>
             </div>
           </div>
-          <Separator />
-          {/* Configurações Gerais */}
-          <div>
-            <h3 className="text-lg font-semibold mb-4">Configurações Gerais</h3>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="seatSharing">Permitir Compartilhamento de Assentos</Label>
-                  <p className="text-sm text-gray-500">Permite que usuários compartilhem assentos em voos</p>
-                </div>
-                <Switch
-                  id="seatSharing"
-                  checked={settings.allowSeatSharing}
-                  onCheckedChange={(checked) => setSettings({...settings, allowSeatSharing: checked})}
-                />
-              </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <Label htmlFor="requireApproval">Exigir Aprovação Manual</Label>
-                  <p className="text-sm text-gray-500">Todas as reservas precisam de aprovação manual</p>
-                </div>
-                <Switch
-                  id="requireApproval"
-                  checked={settings.requireApproval}
-                  onCheckedChange={(checked) => setSettings({...settings, requireApproval: checked})}
-                />
-              </div>
+        </CardContent>
+      </Card>
+
+      {/* Informações do Sistema */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Informações do Sistema</CardTitle>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <h4 className="font-medium text-gray-900">Versão</h4>
+              <p className="text-sm text-gray-600">1.0.0</p>
+            </div>
+            <div className="p-3 bg-gray-50 rounded-lg">
+              <h4 className="font-medium text-gray-900">Ambiente</h4>
+              <p className="text-sm text-gray-600">Desenvolvimento</p>
             </div>
           </div>
         </CardContent>

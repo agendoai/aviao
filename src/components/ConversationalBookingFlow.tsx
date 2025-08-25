@@ -13,6 +13,7 @@ import SeatSelectionStep from './booking-flow/SeatSelectionStep';
 import DestinationStep from './booking-flow/DestinationStep';
 import CalendarStep from './booking-flow/CalendarStep';
 import TimeSelectionStep from './booking-flow/TimeSelectionStep';
+import IntelligentTimeSelectionStep from './booking-flow/IntelligentTimeSelectionStep';
 import StopsStep from './booking-flow/StopsStep';
 import { PassengerCountStep, PassengerDetailsStep } from './booking-flow/PassengerInfoStep';
 import PreReservationStep from './booking-flow/PreReservationStep';
@@ -373,11 +374,25 @@ const ConversationalBookingFlow: React.FC = () => {
           )}
 
           {currentStep === 4 && (
-            <TimeSelectionStep
+            <IntelligentTimeSelectionStep
               title="Selecione o horário de ida"
               selectedDate={departureDate}
               currentMonth={currentMonth}
-              onTimeSelect={(time) => handleTimeSelect(time, 'departure')}
+              selectedAircraft={selectedAircraft}
+              onTimeSelect={(timeSlot) => {
+                if (typeof timeSlot === 'object' && timeSlot.start) {
+                  const timeString = timeSlot.start.toLocaleTimeString('pt-BR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                  });
+                  handleTimeSelect(timeString, 'departure');
+                } else {
+                  handleTimeSelect(timeSlot.toString(), 'departure');
+                }
+              }}
+              onBack={() => setCurrentStep(3)}
+              onAircraftSelect={handleAircraftSelect}
             />
           )}
 
@@ -405,11 +420,25 @@ const ConversationalBookingFlow: React.FC = () => {
           )}
 
           {currentStep === 7 && (
-            <TimeSelectionStep
+            <IntelligentTimeSelectionStep
               title="Selecione o horário de volta"
               selectedDate={returnDate}
               currentMonth={currentMonth}
-              onTimeSelect={(time) => handleTimeSelect(time, 'return')}
+              selectedAircraft={selectedAircraft}
+              onTimeSelect={(timeSlot) => {
+                if (typeof timeSlot === 'object' && timeSlot.start) {
+                  const timeString = timeSlot.start.toLocaleTimeString('pt-BR', {
+                    hour: '2-digit',
+                    minute: '2-digit',
+                    hour12: false
+                  });
+                  handleTimeSelect(timeString, 'return');
+                } else {
+                  handleTimeSelect(timeSlot.toString(), 'return');
+                }
+              }}
+              onBack={() => setCurrentStep(6)}
+              onAircraftSelect={handleAircraftSelect}
             />
           )}
 

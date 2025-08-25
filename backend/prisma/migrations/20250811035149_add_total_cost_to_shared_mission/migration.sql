@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "SharedMission" ADD COLUMN     "totalCost" DOUBLE PRECISION NOT NULL DEFAULT 0;

@@ -7,10 +7,13 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Checkbox } from '@/components/ui/checkbox';
 import { addDays, addHours, format, startOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { Ban, Calendar as CalendarIcon, CheckCircle, Lock, Unlock, Plane, Loader2 } from 'lucide-react';
+import { Ban, Calendar as CalendarIcon, CheckCircle, Lock, Unlock, Plane, Loader2, Clock, Wrench, Settings } from 'lucide-react';
 import { getAllAircrafts, getCalendar, blockTimeSlot, unblockTimeSlot } from '@/utils/api';
 import { Calendar as DatePicker } from '@/components/ui/calendar';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { toast } from 'sonner';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface Aircraft {
   id: number;
@@ -24,9 +27,10 @@ interface CalendarEntry {
   aircraftId: number;
   departure_date: string;
   return_date: string;
-  status: string;
   origin: string;
   destination: string;
+  status: string;
+  blocked_until?: string;
 }
 
 const ScheduleManagement: React.FC = () => {
@@ -37,11 +41,22 @@ const ScheduleManagement: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [blocking, setBlocking] = useState(false);
   const [reason, setReason] = useState('Bloqueio');
-  const defaultDayConfig = {
-    active: false,
-    startHour: 6,
-    endHour: 18,
-  };
+  
+  // Novos estados para bloqueio manual
+  const [showBlockDialog, setShowBlockDialog] = useState(false);
+  const [blockStartDate, setBlockStartDate] = useState<Date>(new Date());
+  const [blockStartTime, setBlockStartTime] = useState('06:00');
+  const [blockEndDate, setBlockEndDate] = useState<Date>(new Date());
+  const [blockEndTime, setBlockEndTime] = useState('10:00');
+  const [blockReason, setBlockReason] = useState('Manutenção');
+  const [includeMaintenance, setIncludeMaintenance] = useState(true);
+  const [maintenanceHours, setMaintenanceHours] = useState(3);
+
+  // Estados para configuração da agenda
+  const [showScheduleConfig, setShowScheduleConfig] = useState(false);
+  const [scheduleStartDate, setScheduleStartDate] = useState<Date>(new Date());
+  const [generatingSchedule, setGeneratingSchedule] = useState(false);
+
   const weekDayLabels = [
     { d: 0, label: 'Domingo' },
     { d: 1, label: 'Segunda' },
@@ -53,14 +68,15 @@ const ScheduleManagement: React.FC = () => {
   ];
 
   const [daysConfig, setDaysConfig] = useState<Record<number, { active: boolean; startHour: number; endHour: number }>>({
-    1: { active: true, startHour: 6, endHour: 18 },
-    2: { active: true, startHour: 6, endHour: 18 },
-    3: { active: true, startHour: 6, endHour: 18 },
-    4: { active: true, startHour: 6, endHour: 18 },
-    5: { active: true, startHour: 6, endHour: 18 },
-    6: { active: false, startHour: 6, endHour: 18 },
-    0: { active: false, startHour: 6, endHour: 18 },
+    1: { active: true, startHour: 6, endHour: 18 }, // Segunda
+    2: { active: true, startHour: 6, endHour: 18 }, // Terça
+    3: { active: true, startHour: 6, endHour: 18 }, // Quarta
+    4: { active: true, startHour: 6, endHour: 18 }, // Quinta
+    5: { active: true, startHour: 6, endHour: 18 }, // Sexta
+    6: { active: false, startHour: 6, endHour: 18 }, // Sábado
+    0: { active: false, startHour: 6, endHour: 18 }, // Domingo
   });
+  
   const [recurrenceStart, setRecurrenceStart] = useState(new Date());
   const [calendarPickerOpen, setCalendarPickerOpen] = useState(false);
 
@@ -70,38 +86,54 @@ const ScheduleManagement: React.FC = () => {
 
   const hours = useMemo(() => {
     // Pega o menor start e maior end dos dias ativos para montar a tabela
-    const activeDays = Object.values(daysConfig).filter(d => d.active);
-    if (activeDays.length === 0) return [];
-    const minStart = Math.min(...activeDays.map(d => d.startHour));
-    const maxEnd = Math.max(...activeDays.map(d => d.endHour));
-    return Array.from({ length: (maxEnd - minStart) + 1 }, (_, i) => minStart + i);
+    const activeConfigs = Object.values(daysConfig).filter(c => c.active);
+    if (activeConfigs.length === 0) return [];
+    
+    const minStart = Math.min(...activeConfigs.map(c => c.startHour));
+    const maxEnd = Math.max(...activeConfigs.map(c => c.endHour));
+    
+    return Array.from({ length: maxEnd - minStart }, (_, i) => minStart + i);
   }, [daysConfig]);
 
   useEffect(() => {
-    const init = async () => {
+    const fetchData = async () => {
       setLoading(true);
       try {
-        const ac = await getAllAircrafts();
-        setAircrafts(ac);
-        if (ac.length > 0 && selectedAircraftId == null) setSelectedAircraftId(ac[0].id);
-        const cal = await getCalendar();
-        setCalendar(cal);
+        const [aircraftsData, calendarData] = await Promise.all([
+          getAllAircrafts(),
+          getCalendar()
+        ]);
+        setAircrafts(aircraftsData);
+        setCalendar(calendarData);
+        if (aircraftsData.length > 0 && !selectedAircraftId) {
+          setSelectedAircraftId(aircraftsData[0].id);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar dados:', error);
+        toast.error('Erro ao carregar dados');
       } finally {
         setLoading(false);
       }
     };
-    init();
-  }, [selectedAircraftId, weekStart]);
 
-  const entriesFor = (aircraftId: number, day: Date, hour: number) => {
+    fetchData();
+  }, []);
+
+  const getEntryForSlot = (day: Date, hour: number): CalendarEntry | undefined => {
+    return calendar.find(entry => {
+      if (entry.aircraftId !== selectedAircraftId) return false;
+      
+      const entryStart = new Date(entry.departure_date);
+      const entryEnd = new Date(entry.return_date);
     const slotStart = new Date(day);
     slotStart.setHours(hour, 0, 0, 0);
-    const slotEnd = addHours(slotStart, 1);
-    return calendar.find(e => e.aircraftId === aircraftId &&
-      new Date(e.departure_date) < slotEnd && new Date(e.return_date) > slotStart);
+      const slotEnd = new Date(day);
+      slotEnd.setHours(hour + 1, 0, 0, 0);
+      
+      return entryStart < slotEnd && entryEnd > slotStart;
+    });
   };
 
-  const isBlocked = (entry?: CalendarEntry) => entry && entry.status === 'blocked';
   const isAvailable = (entry?: CalendarEntry) => entry && entry.status === 'available';
 
   const handleBlock = async () => {
@@ -121,15 +153,110 @@ const ScheduleManagement: React.FC = () => {
       await Promise.all(promises);
       const cal = await getCalendar();
       setCalendar(cal);
+      toast.success('Horários bloqueados com sucesso!');
+    } catch (error) {
+      toast.error('Erro ao bloquear horários');
     } finally {
       setBlocking(false);
     }
   };
 
   const handleUnblock = async (entry: CalendarEntry) => {
+    try {
     await unblockTimeSlot(entry.id);
     const cal = await getCalendar();
     setCalendar(cal);
+      toast.success('Bloqueio removido com sucesso!');
+    } catch (error) {
+      toast.error('Erro ao remover bloqueio');
+    }
+  };
+
+  // Nova função para bloquear horário manual com manutenção
+  const handleManualBlock = async () => {
+    if (!selectedAircraftId) {
+      toast.error('Selecione uma aeronave');
+      return;
+    }
+
+    try {
+      setBlocking(true);
+      
+      // Converter datas para UTC (usuário já inseriu horário brasileiro)
+      const startDateTime = new Date(`${format(blockStartDate, 'yyyy-MM-dd')}T${blockStartTime}:00`);
+      const endDateTime = new Date(`${format(blockEndDate, 'yyyy-MM-dd')}T${blockEndTime}:00`);
+      
+      // Como o usuário já inseriu horário brasileiro, só precisamos criar o ISO string
+      const startUTC = startDateTime.toISOString();
+      let endUTC = endDateTime.toISOString();
+      
+      // Se incluir manutenção, adicionar as horas extras
+      if (includeMaintenance) {
+        const maintenanceEnd = new Date(endDateTime.getTime() + (maintenanceHours * 60 * 60 * 1000));
+        endUTC = maintenanceEnd.toISOString();
+      }
+      
+      console.log('🔒 Bloqueando horário:', {
+        start: startUTC,
+        end: endUTC,
+        reason: blockReason,
+        includeMaintenance
+      });
+      
+      await blockTimeSlot({
+        aircraftId: selectedAircraftId,
+        start: startUTC,
+        end: endUTC,
+        reason: blockReason
+      });
+      
+      const cal = await getCalendar();
+      setCalendar(cal);
+      
+      setShowBlockDialog(false);
+      toast.success('Horário bloqueado com sucesso!');
+      
+    } catch (error) {
+      console.error('Erro ao bloquear horário:', error);
+      toast.error('Erro ao bloquear horário');
+    } finally {
+      setBlocking(false);
+    }
+  };
+
+  // Função para configurar agenda permanente
+  const handleGenerateSchedule = async () => {
+    if (!selectedAircraftId) {
+      toast.error('Selecione uma aeronave');
+      return;
+    }
+
+    try {
+      setGeneratingSchedule(true);
+      
+      await fetch(`/api/calendar/config`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+        },
+        body: JSON.stringify({
+          aircraftId: selectedAircraftId,
+          daysConfig,
+        }),
+      });
+      
+      const cal = await getCalendar();
+      setCalendar(cal);
+      setShowScheduleConfig(false);
+      toast.success('Agenda permanente configurada com sucesso!');
+      
+    } catch (error) {
+      console.error('Erro ao gerar agenda:', error);
+      toast.error('Erro ao configurar agenda permanente');
+    } finally {
+      setGeneratingSchedule(false);
+    }
   };
 
   if (loading) {
@@ -142,185 +269,472 @@ const ScheduleManagement: React.FC = () => {
 
   return (
     <div className="space-y-4">
+      <Tabs defaultValue="overview" className="w-full">
+        <TabsList className="grid w-full grid-cols-3">
+          <TabsTrigger value="overview">Visão Geral</TabsTrigger>
+          <TabsTrigger value="schedule">Configurar Agenda</TabsTrigger>
+          <TabsTrigger value="blocks">Bloqueios</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="overview" className="space-y-4">
+          {/* Seletor de Aeronave */}
       <Card>
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <CalendarIcon className="h-4 w-4" />
-            Gerenciar Agenda
+              <CardTitle className="flex items-center space-x-2">
+                <Plane className="h-5 w-5 text-sky-600" />
+                <span>Gerenciamento de Agenda</span>
           </CardTitle>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            <CardContent>
+              <div className="space-y-4">
             <div>
-              <Label>Aeronave</Label>
-              <Select value={selectedAircraftId?.toString()} onValueChange={(v) => setSelectedAircraftId(parseInt(v))}>
+                  <Label htmlFor="aircraft">Aeronave</Label>
+                  <Select value={selectedAircraftId?.toString() || ''} onValueChange={(value) => setSelectedAircraftId(parseInt(value))}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Selecione" />
+                      <SelectValue placeholder="Selecione uma aeronave" />
                 </SelectTrigger>
                 <SelectContent>
-                  {aircrafts.map(a => (
-                    <SelectItem key={a.id} value={a.id.toString()}>
-                      <div className="flex items-center gap-2">
-                        <Plane className="h-3 w-3" />
-                        {a.model} • {a.registration}
-                      </div>
+                      {aircrafts.map((aircraft) => (
+                        <SelectItem key={aircraft.id} value={aircraft.id.toString()}>
+                          {aircraft.name} ({aircraft.registration})
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Settings className="h-4 w-4" />
+                        Configurar Agenda Base
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-gray-600 mb-3">
+                        Configure os dias e horários disponíveis para agendamento
+                      </p>
+                      <Button 
+                        onClick={() => setShowScheduleConfig(true)}
+                        className="w-full"
+                      >
+                        <Settings className="h-4 w-4 mr-2" />
+                        Configurar
+                      </Button>
+                    </CardContent>
+                  </Card>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-sm flex items-center gap-2">
+                        <Lock className="h-4 w-4" />
+                        Bloqueios Manuais
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <p className="text-sm text-gray-600 mb-3">
+                        Bloqueie horários específicos (manutenção, missões, etc.)
+                      </p>
+                      <Button 
+                        onClick={() => setShowBlockDialog(true)}
+                        className="w-full"
+                      >
+                        <Lock className="h-4 w-4 mr-2" />
+                        Bloquear Horário
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="schedule" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Settings className="h-5 w-5 text-sky-600" />
+                <span>Configurar Agenda Base</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
             <div>
-              <Label>Data de início da agenda</Label>
+                  <Label className="text-base font-medium">Data de Início da Agenda</Label>
+                  <p className="text-sm text-gray-600 mb-2">Escolha a partir de quando a agenda será gerada</p>
               <Popover open={calendarPickerOpen} onOpenChange={setCalendarPickerOpen}>
                 <PopoverTrigger asChild>
                   <Button variant="outline" className="w-full justify-start text-left">
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {format(recurrenceStart, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
+                        {format(scheduleStartDate, "dd 'de' MMMM 'de' yyyy", { locale: ptBR })}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent align="start" className="w-auto p-0">
                   <DatePicker
                     mode="single"
-                    selected={recurrenceStart}
-                    onSelect={date => { if (date) setRecurrenceStart(date); setCalendarPickerOpen(false); }}
+                        selected={scheduleStartDate}
+                        onSelect={date => { if (date) setScheduleStartDate(date); setCalendarPickerOpen(false); }}
                     locale={ptBR}
                     initialFocus
                   />
                 </PopoverContent>
               </Popover>
             </div>
-            <div>
-              <Label>Motivo</Label>
-              <Input value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Ex.: Manutenção, Evento, etc." />
-            </div>
-          </div>
 
-          {/* Ajuste do grid dos cards dos dias da semana */}
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2 md:gap-3 mt-2">
+            <div>
+                  <Label className="text-base font-medium">Configurar Horários por Dia da Semana</Label>
+                  <p className="text-sm text-gray-600 mb-4">Ative os dias e configure os horários de funcionamento</p>
+                  
+                  <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {weekDayLabels.map(({ d, label }) => (
-              <Card key={d} className={daysConfig[d]?.active ? 'border-sky-500' : 'border-gray-200 opacity-60'} style={{ minWidth: 0 }}>
-                <CardHeader className="pb-1 flex flex-row items-center justify-between px-2 py-1">
-                  <CardTitle className="text-xs font-semibold flex items-center gap-2">
-                    {label}
-                  </CardTitle>
+                      <Card key={d} className={`${daysConfig[d]?.active ? 'border-sky-500 bg-sky-50' : 'border-gray-200'}`}>
+                        <CardHeader className="pb-3">
+                          <div className="flex items-center justify-between">
+                            <CardTitle className="text-sm font-medium">{label}</CardTitle>
                   <Checkbox
                     checked={!!daysConfig[d]?.active}
                     onCheckedChange={v => setDaysConfig(prev => ({
                       ...prev,
                       [d]: { ...prev[d], active: Boolean(v) },
                     }))}
-                    className="scale-90"
                   />
+                          </div>
                 </CardHeader>
-                <CardContent className="flex flex-col gap-1 px-2 py-1">
-                  <Label className="text-[10px]">Hora inicial</Label>
+                        <CardContent className="pt-0">
+                          <div className="space-y-3">
+                            <div>
+                              <Label className="text-xs font-medium text-gray-700">Horário de Início</Label>
+                              <div className="flex items-center space-x-2 mt-1">
                   <Input
                     type="number"
                     min={0}
                     max={23}
-                    value={daysConfig[d]?.startHour}
+                                  value={daysConfig[d]?.startHour || 6}
                     disabled={!daysConfig[d]?.active}
                     onChange={e => setDaysConfig(prev => ({
                       ...prev,
-                      [d]: { ...prev[d], startHour: parseInt(e.target.value) || 0 },
-                    }))}
-                    className="h-7 text-xs px-2"
-                  />
-                  <Label className="text-[10px]">Hora final</Label>
+                                    [d]: { ...prev[d], startHour: parseInt(e.target.value) || 6 },
+                                  }))}
+                                  className="h-9 text-sm"
+                                  placeholder="6"
+                                />
+                                <span className="text-xs text-gray-500">horas</span>
+                              </div>
+                            </div>
+                            
+                            <div>
+                              <Label className="text-xs font-medium text-gray-700">Horário de Fim</Label>
+                              <div className="flex items-center space-x-2 mt-1">
                   <Input
                     type="number"
                     min={0}
                     max={23}
-                    value={daysConfig[d]?.endHour}
+                                  value={daysConfig[d]?.endHour || 18}
                     disabled={!daysConfig[d]?.active}
                     onChange={e => setDaysConfig(prev => ({
                       ...prev,
-                      [d]: { ...prev[d], endHour: parseInt(e.target.value) || 0 },
-                    }))}
-                    className="h-7 text-xs px-2"
-                  />
+                                    [d]: { ...prev[d], endHour: parseInt(e.target.value) || 18 },
+                                  }))}
+                                  className="h-9 text-sm"
+                                  placeholder="18"
+                                />
+                                <span className="text-xs text-gray-500">horas</span>
+                              </div>
+                            </div>
+                            
+                            {daysConfig[d]?.active && (
+                              <div className="pt-2 border-t">
+                                <div className="text-xs text-gray-600">
+                                  <span className="font-medium">Período:</span> {daysConfig[d]?.startHour || 6}:00 - {daysConfig[d]?.endHour || 18}:00
+                                </div>
+                                <div className="text-xs text-gray-500">
+                                  ({((daysConfig[d]?.endHour || 18) - (daysConfig[d]?.startHour || 6))} horas disponíveis)
+                                </div>
+                              </div>
+                            )}
+                          </div>
                 </CardContent>
               </Card>
             ))}
+                  </div>
           </div>
 
-          {/* Grade semanal de horários por aeronave */}
-          {selectedAircraftId && (
-            <div className="overflow-auto border rounded-md">
-              <div className="min-w-[720px]">
-                <div className="grid" style={{ gridTemplateColumns: `120px repeat(${weekDays.length}, 1fr)` }}>
-                  <div className="bg-gray-50 p-2 text-xs font-medium">Hora</div>
-                  {weekDays.map((d, idx) => (
-                    <div key={idx} className="bg-gray-50 p-2 text-xs font-medium text-center">
-                      {format(d, "EEE dd/MM", { locale: ptBR })}
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-start space-x-3">
+                    <div className="flex-shrink-0">
+                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                        <Settings className="h-4 w-4 text-blue-600" />
+                      </div>
                     </div>
-                  ))}
-                  {hours.map(h => (
-                    <>
-                      <div key={`h-${h}`} className="p-2 text-xs border-t bg-white">{String(h).padStart(2, '0')}:00</div>
-                      {weekDays.map((d, i) => {
-                        const entry = entriesFor(selectedAircraftId, d, h);
-                        const blocked = isBlocked(entry);
-                        const available = isAvailable(entry);
+                    <div className="flex-1">
+                      <h4 className="text-sm font-medium text-blue-900">Resumo da Configuração</h4>
+                      <div className="mt-2 text-sm text-blue-800">
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                          {weekDayLabels.map(({ d, label }) => {
+                            const config = daysConfig[d];
+                            if (!config?.active) return null;
                         return (
-                          <div
-                            key={`c-${h}-${i}`}
-                            className={`p-1 text-[11px] border-t border-l text-center cursor-pointer select-none ${blocked ? 'bg-red-100 text-red-700' : available ? 'bg-emerald-100 text-emerald-700' : ''}`}
-                            title={entry ? `${entry.status}` : 'Sem entrada'}
-                            onClick={async () => {
-                              if (!selectedAircraftId) return;
-                              const slotStart = new Date(d);
-                              slotStart.setHours(h, 0, 0, 0);
-                              const slotEnd = addHours(slotStart, 1);
-                              if (blocked && entry) {
-                                await handleUnblock(entry);
-                              } else if (!entry || available) {
-                                await blockTimeSlot({ aircraftId: selectedAircraftId, start: slotStart.toISOString(), end: slotEnd.toISOString(), reason });
-                                const cal = await getCalendar();
-                                setCalendar(cal);
-                              }
-                            }}
-                          >
-                            {blocked ? 'Bloqueado' : available ? 'Disponível' : ''}
+                              <div key={d} className="flex justify-between">
+                                <span>{label}:</span>
+                                <span className="font-medium">{config.startHour}:00 - {config.endHour}:00</span>
                           </div>
                         );
                       })}
-                    </>
-                  ))}
+                        </div>
+                        {Object.values(daysConfig).filter(c => c.active).length === 0 && (
+                          <p className="text-blue-600 italic">Nenhum dia configurado ainda</p>
+                        )}
+                      </div>
                 </div>
               </div>
             </div>
-          )}
 
-          {/* Botão gerar agenda recorrente */}
-          <div className="flex items-center gap-2 mt-4">
+                <div className="flex justify-end">
+                  <Button 
+                    onClick={handleGenerateSchedule}
+                    disabled={generatingSchedule || !selectedAircraftId || Object.values(daysConfig).filter(c => c.active).length === 0}
+                    className="flex items-center gap-2"
+                  >
+                    {generatingSchedule ? (
+                      <>
+                        <Loader2 className="h-4 w-4 animate-spin" />
+                        Gerando Agenda...
+                      </>
+                    ) : (
+                      <>
+                        <Settings className="h-4 w-4" />
+                        Configurar Agenda Permanente
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="blocks" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center space-x-2">
+                <Lock className="h-5 w-5 text-sky-600" />
+                <span>Bloqueios Manuais</span>
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-4">
+                <p className="text-sm text-gray-600">
+                  Bloqueie horários específicos para manutenção, missões ou outros motivos.
+                </p>
+                
             <Button
-              onClick={async () => {
-                if (!selectedAircraftId) return;
-                await fetch(`/api/calendar/generate`, {
-                  method: 'POST',
-                  headers: {
-                    'Content-Type': 'application/json',
-                    'Authorization': `Bearer ${localStorage.getItem('token')}`,
-                  },
-                  body: JSON.stringify({
-                    aircraftId: selectedAircraftId,
-                    startDate: recurrenceStart,
-                    daysConfig,
-                  }),
-                });
-                const cal = await getCalendar();
-                setCalendar(cal);
-              }}
-              className="flex items-center gap-2 h-8 text-xs px-3"
-            >
-              Gerar Agenda Recorrente
+                  onClick={() => setShowBlockDialog(true)}
+                  className="flex items-center gap-2"
+                >
+                  <Lock className="h-4 w-4" />
+                  Novo Bloqueio
             </Button>
           </div>
         </CardContent>
       </Card>
+        </TabsContent>
+      </Tabs>
 
-      <div className="mt-4 text-xs text-gray-500 italic text-center">A agenda será gerada automaticamente para a aeronave selecionada, a partir da data escolhida, seguindo a configuração dos dias e horários acima. Recomenda-se revisar bloqueios e exceções após a geração.</div>
+      {/* Calendário Semanal */}
+      {selectedAircraftId && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center justify-between">
+              <span>Agenda Semanal</span>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setWeekStart(addDays(weekStart, -7))}
+                >
+                  Semana Anterior
+                </Button>
+                <span className="text-sm text-gray-600">
+                  {format(weekStart, 'dd/MM/yyyy', { locale: ptBR })} - {format(addDays(weekStart, 6), 'dd/MM/yyyy', { locale: ptBR })}
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setWeekStart(addDays(weekStart, 7))}
+                >
+                  Próxima Semana
+                </Button>
+              </div>
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="overflow-x-auto">
+              <table className="w-full border-collapse">
+                <thead>
+                  <tr>
+                    <th className="border p-2 text-xs">Hora</th>
+                    {weekDayLabels.map(({ d, label }) => (
+                      <th key={d} className="border p-2 text-xs">
+                        {label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {hours.map(hour => (
+                    <tr key={hour}>
+                      <td className="border p-2 text-xs font-medium">
+                        {hour.toString().padStart(2, '0')}:00
+                      </td>
+                      {weekDays.map((day, dayIndex) => {
+                        const entry = getEntryForSlot(day, hour);
+                        const isBlocked = entry && entry.status === 'blocked';
+                        const isAvailable = entry && entry.status === 'available';
+                        const isBooked = entry && ['pendente', 'confirmada', 'paga'].includes(entry.status);
+                        
+                        return (
+                          <td key={dayIndex} className="border p-2 text-xs">
+                            {entry ? (
+                              <div className="flex items-center justify-between">
+                                <span className={`text-xs ${
+                                  isBlocked ? 'text-red-600' :
+                                  isBooked ? 'text-blue-600' :
+                                  'text-green-600'
+                                }`}>
+                                  {isBlocked ? '🔒' : isBooked ? '✈️' : '✅'}
+                                </span>
+                                {isBlocked && (
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => handleUnblock(entry)}
+                                    className="h-4 w-4 p-0"
+                                  >
+                                    <Unlock className="h-3 w-3" />
+                                  </Button>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400">-</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Dialog para Bloqueio Manual */}
+      <Dialog open={showBlockDialog} onOpenChange={setShowBlockDialog}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Bloquear Horário</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Data Início</Label>
+                <Input
+                  type="date"
+                  value={format(blockStartDate, 'yyyy-MM-dd')}
+                  onChange={(e) => setBlockStartDate(new Date(e.target.value))}
+                />
+              </div>
+              <div>
+                <Label>Hora Início</Label>
+                <Input
+                  type="time"
+                  value={blockStartTime}
+                  onChange={(e) => setBlockStartTime(e.target.value)}
+                />
+              </div>
+            </div>
+            
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <Label>Data Fim</Label>
+                <Input
+                  type="date"
+                  value={format(blockEndDate, 'yyyy-MM-dd')}
+                  onChange={(e) => setBlockEndDate(new Date(e.target.value))}
+                />
+              </div>
+              <div>
+                <Label>Hora Fim</Label>
+                <Input
+                  type="time"
+                  value={blockEndTime}
+                  onChange={(e) => setBlockEndTime(e.target.value)}
+                />
+              </div>
+            </div>
+            
+            <div>
+              <Label>Motivo</Label>
+              <Input
+                value={blockReason}
+                onChange={(e) => setBlockReason(e.target.value)}
+                placeholder="Ex: Manutenção, Missão, etc."
+              />
+            </div>
+            
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="includeMaintenance"
+                checked={includeMaintenance}
+                onCheckedChange={(checked) => setIncludeMaintenance(checked as boolean)}
+              />
+              <Label htmlFor="includeMaintenance" className="flex items-center gap-2">
+                <Wrench className="h-4 w-4" />
+                Incluir tempo de manutenção (+{maintenanceHours}h)
+              </Label>
+            </div>
+            
+            {includeMaintenance && (
+              <div>
+                <Label>Horas de Manutenção</Label>
+                <Input
+                  type="number"
+                  min="1"
+                  max="24"
+                  value={maintenanceHours}
+                  onChange={(e) => setMaintenanceHours(parseInt(e.target.value))}
+                />
+              </div>
+            )}
+            
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setShowBlockDialog(false)}>
+                Cancelar
+              </Button>
+              <Button onClick={handleManualBlock} disabled={blocking}>
+                {blocking ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Bloqueando...
+                  </>
+                ) : (
+                  <>
+                    <Lock className="h-4 w-4 mr-2" />
+                    Bloquear
+                  </>
+                )}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <div className="mt-4 text-xs text-gray-500 italic text-center">
+        Configure a agenda base primeiro para definir os horários disponíveis. Depois use bloqueios para reservar horários específicos.
+      </div>
     </div>
   );
 };

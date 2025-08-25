@@ -35,7 +35,11 @@ interface WeeklyScheduleProps {
 }
 
 const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ aircraft, onCreateMission }) => {
-  const [currentWeek, setCurrentWeek] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
+  const [currentWeek, setCurrentWeek] = useState(() => {
+    // Iniciar na semana atual, começando na segunda-feira
+    const today = new Date();
+    return startOfWeek(today, { weekStartsOn: 1 });
+  });
   const [reservations, setReservations] = useState<Reservation[]>([]);
   const [loading, setLoading] = useState(true);
   
@@ -50,8 +54,8 @@ const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ aircraft, onCreateMissi
         const formattedReservations: Reservation[] = bookingsData.map((booking: any) => ({
           id: booking.id,
           aircraftId: booking.aircraftId,
-          start: new Date(booking.departure_date || booking.createdAt),
-          end: new Date(booking.return_date || new Date(booking.createdAt).getTime() + 8 * 60 * 60 * 1000),
+          start: new Date((booking.departure_date || booking.createdAt).replace('Z', '-03:00')),
+          end: new Date((booking.return_date || new Date(booking.createdAt).getTime() + 8 * 60 * 60 * 1000).replace('Z', '-03:00')),
           user: booking.user?.name || 'Usuário',
           destination: booking.destination || 'N/A',
           status: booking.status

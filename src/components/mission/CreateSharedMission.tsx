@@ -351,19 +351,25 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
 
   const handleSubmit = async () => {
     if (!validateForm()) return;
-    try {
-      await createSharedMission({
-        title: `Missão compartilhada de ${missionData.origin} para ${missionData.destination}`,
-        description: missionData.notes,
-        origin: missionData.origin,
-        destination: missionData.destination,
-        departure_date: `${missionData.departureDate}T${missionData.departureTime}`,
-        return_date: `${missionData.returnDate}T${missionData.returnTime}`,
-        aircraftId: selectedAircraft!.id,
-        totalSeats: missionData.availableSeats,
-        pricePerSeat: 0,
-        overnightFee: selectedAircraft?.overnight_fee || 0
-      });
+    
+    // Calcular o preço por assento baseado no custo total dividido pelos assentos disponíveis
+    const totalCost = calculateOwnerCost();
+    const pricePerSeat = missionData.availableSeats > 0 ? Math.ceil(totalCost / missionData.availableSeats) : 0;
+    
+         try {
+       await createSharedMission({
+         title: `Missão compartilhada de ${missionData.origin} para ${missionData.destination}`,
+         description: missionData.notes,
+         origin: missionData.origin,
+         destination: missionData.destination,
+         departure_date: `${missionData.departureDate}T${missionData.departureTime}`,
+         return_date: `${missionData.returnDate}T${missionData.returnTime}`,
+         aircraftId: selectedAircraft!.id,
+         totalSeats: missionData.availableSeats,
+         pricePerSeat: pricePerSeat,
+         totalCost: totalCost,
+         overnightFee: selectedAircraft?.overnight_fee || 0
+       });
       toast.success('Missão compartilhada criada com sucesso!');
       onMissionCreated({
         aircraft: selectedAircraft!,
@@ -376,7 +382,7 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
         stops: missionData.stops,
         notes: missionData.notes,
         availableSeats: missionData.availableSeats,
-        totalCost: calculateOwnerCost()
+        totalCost: totalCost
       });
     } catch (error) {
       toast.error('Erro ao criar missão compartilhada');

@@ -139,8 +139,10 @@ BEGIN
 
     -- Se tem saldo suficiente, confirmar automaticamente
     IF v_user_balance >= v_reservation.total_cost THEN
-      -- Calcular bloqueio pós-voo (duração do voo + 3h)
-      v_blocked_until := (v_reservation.return_date + v_reservation.return_time) + interval '3 hours';
+      -- Calcular bloqueio pós-voo (retorno + flight_hours/2 + 3h)
+      v_blocked_until := (v_reservation.return_date + v_reservation.return_time) + 
+                        ((v_reservation.flight_hours / 2) || ' hours')::interval + 
+                        interval '3 hours';
 
       -- Criar booking confirmado
       INSERT INTO public.bookings (

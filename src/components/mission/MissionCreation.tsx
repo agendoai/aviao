@@ -5,11 +5,12 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Plane, CheckCircle, Clock, MapPin, DollarSign, Calendar, ArrowLeft } from 'lucide-react';
+import { Plane, CheckCircle, Clock, MapPin, DollarSign, ArrowLeft } from 'lucide-react';
 import { format } from 'date-fns';
-import { ptBR } from 'date-fns/locale';
 import { createBooking } from '@/utils/api';
 import { toast } from 'sonner';
+import { convertBrazilianDateToUTCString } from '@/utils/dateUtils';
+import DateTimePicker from '@/components/ui/DateTimePicker';
 
 interface Aircraft {
   id: number;
@@ -77,6 +78,20 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
       return;
     }
 
+    if (!departureDate || !departureTime || !returnDate || !returnTime) {
+      toast.error('Por favor, preencha todas as datas e horários');
+      return;
+    }
+
+    // Validar se a data de retorno não é anterior à data de partida
+    const departureDateTime = new Date(`${departureDate}T${departureTime}:00`);
+    const returnDateTime = new Date(`${returnDate}T${returnTime}:00`);
+    
+    if (returnDateTime <= departureDateTime) {
+      toast.error('A data/hora de retorno deve ser posterior à data/hora de partida');
+      return;
+    }
+
     if (passengers > aircraft.max_passengers) {
       toast.error(`Máximo de ${aircraft.max_passengers} passageiros para esta aeronave`);
       return;
@@ -84,12 +99,28 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
 
     setCreating(true);
     try {
+      // Converter datas para UTC antes de enviar
+      console.log('🔍 Valores das datas antes da conversão:');
+      console.log('🔍 departureDate:', departureDate);
+      console.log('🔍 departureTime:', departureTime);
+      console.log('🔍 returnDate:', returnDate);
+      console.log('🔍 returnTime:', returnTime);
+      
+      const departureDateTime = new Date(`${departureDate}T${departureTime}:00`);
+      const returnDateTime = new Date(`${returnDate}T${returnTime}:00`);
+      
+      console.log('🔍 Datas criadas:');
+      console.log('🔍 departureDateTime:', departureDateTime);
+      console.log('🔍 returnDateTime:', returnDateTime);
+      console.log('🔍 departureDateTime válida:', !isNaN(departureDateTime.getTime()));
+      console.log('🔍 returnDateTime válida:', !isNaN(returnDateTime.getTime()));
+      
       const bookingData = {
         aircraftId: aircraft.id,
         origin,
         destination,
-        departure_date: `${departureDate}T${departureTime}:00`,
-        return_date: `${returnDate}T${returnTime}:00`,
+        departure_date: convertBrazilianDateToUTCString(departureDateTime),
+        return_date: convertBrazilianDateToUTCString(returnDateTime),
         passengers,
         flight_hours: flightHours,
         overnight_stays: overnightStays,
@@ -204,45 +235,26 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
             </div>
 
             <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="departureDate">Data Partida</Label>
-                <Input
-                  id="departureDate"
-                  type="date"
-                  value={departureDate}
-                  onChange={(e) => setDepartureDate(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="departureTime">Hora Partida</Label>
-                <Input
-                  id="departureTime"
-                  type="time"
-                  value={departureTime}
-                  onChange={(e) => setDepartureTime(e.target.value)}
-                />
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="returnDate">Data Retorno</Label>
-                <Input
-                  id="returnDate"
-                  type="date"
-                  value={returnDate}
-                  onChange={(e) => setReturnDate(e.target.value)}
-                />
-              </div>
-              <div>
-                <Label htmlFor="returnTime">Hora Retorno</Label>
-                <Input
-                  id="returnTime"
-                  type="time"
-                  value={returnTime}
-                  onChange={(e) => setReturnTime(e.target.value)}
-                />
-              </div>
+              <DateTimePicker
+                label="Data e Horário de Partida"
+                date={departureDate}
+                time={departureTime}
+                onDateChange={setDepartureDate}
+                onTimeChange={setDepartureTime}
+                minDate={new Date()}
+              />
+              <DateTimePicker
+                label="Data e Horário de Retorno"
+                date={returnDate}
+                time={returnTime}
+                onDateChange={setReturnDate}
+                onTimeChange={setReturnTime}
+                disabled={(date) => {
+                  if (!departureDate) return date < new Date();
+                  const departureDateObj = new Date(departureDate);
+                  return date < departureDateObj;
+                }}
+              />
             </div>
 
             <div className="grid grid-cols-2 gap-4">

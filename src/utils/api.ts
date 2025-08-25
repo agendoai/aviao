@@ -102,8 +102,13 @@ export async function getBookings() {
       'Content-Type': 'application/json',
     }
   });
+  
+  if (!res.ok) {
+    const errorData = await res.json();
+    throw new Error(errorData.error || 'Erro ao buscar reservas');
+  }
+  
   const data = await res.json();
-
   return data;
 }
 
@@ -195,6 +200,7 @@ export async function createSharedMission(data: {
   totalSeats: number;
   availableSeats?: number;
   pricePerSeat: number;
+  totalCost: number;
   overnightFee?: number;
 }) {
   const token = localStorage.getItem('token');
@@ -555,4 +561,115 @@ export const rejectParticipationRequest = async (requestId: number) => {
   }
 
   return response.json();
+};
+
+// Obter contagem de mensagens não lidas
+export const getMessageCounts = async () => {
+  const response = await fetch(`${backendUrl}/shared-missions/participation-requests/message-counts`, {
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('token')}`
+    }
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Erro ao buscar contagem de mensagens');
+  }
+
+  return response.json();
+};
+
+// Marcar mensagens como lidas
+export const markMessagesAsRead = async (requestId: number) => {
+  const response = await fetch(`${backendUrl}/shared-missions/participation-requests/${requestId}/mark-read`, {
+    method: 'PUT',
+    headers: {
+      'Authorization': `Bearer ${localStorage.getItem('token')}`
+    }
+  });
+
+  if (!response.ok) {
+    const error = await response.json();
+    throw new Error(error.error || 'Erro ao marcar mensagens como lidas');
+  }
+
+  return response.json();
 }; 
+
+// Buscar slots de tempo para uma semana
+export const getTimeSlots = async (
+  aircraftId: number, 
+  weekStart: string, 
+  selectedStart?: string, 
+  selectedEnd?: string,
+  missionDuration?: number
+): Promise<any[]> => {
+  const token = localStorage.getItem('token');
+  const params = new URLSearchParams({
+    weekStart,
+    ...(selectedStart && { selectedStart }),
+    ...(selectedEnd && { selectedEnd }),
+    ...(missionDuration && { missionDuration: missionDuration.toString() })
+  });
+
+  const res = await fetch(`${backendUrl}/bookings/time-slots/${aircraftId}?${params}`, {
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    }
+  });
+  
+  if (!res.ok) {
+    throw new Error('Erro ao buscar slots de tempo');
+  }
+  
+  return res.json();
+};
+
+export const suggestAvailableSlots = async (
+  aircraftId: number,
+  desiredStart: string,
+  missionDuration: number
+): Promise<Date[]> => {
+  try {
+    const response = await fetch(
+      `${backendUrl}/bookings/suggest-slots/${aircraftId}?desiredStart=${desiredStart}&missionDuration=${missionDuration}`,
+      {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      }
+    );
+    
+    if (!response.ok) {
+      throw new Error('Erro ao buscar sugestões de horários');
+    }
+    
+    const suggestions = await response.json();
+    return suggestions.map((date: string) => new Date(date));
+  } catch (error) {
+    console.error('Erro ao buscar sugestões:', error);
+    throw error;
+  }
+};
+
+// Deletar todas as missões (apenas para testes)
+export const deleteAllBookings = async (): Promise<any> => {
+  const token = localStorage.getItem('token');
+  
+  const res = await fetch(`${backendUrl}/bookings/delete-all`, {
+    method: 'DELETE',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    }
+  });
+  
+  if (!res.ok) {
+    throw new Error('Erro ao deletar missões');
+  }
+  
+  return res.json();
+};

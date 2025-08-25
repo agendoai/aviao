@@ -81,6 +81,10 @@ const CreateSharedMissionForm: React.FC<CreateSharedMissionFormProps> = ({ onSuc
 
     setLoading(true);
     try {
+      // Calcular custo total baseado na aeronave selecionada
+      const selectedAircraft = aircrafts.find(a => a.id === formData.aircraftId);
+      const totalCost = selectedAircraft ? (selectedAircraft.hourly_rate * 2) + (formData.overnightFee * formData.totalSeats) : 0;
+      
       await createSharedMission({
         title: formData.title,
         description: formData.description,
@@ -90,7 +94,8 @@ const CreateSharedMissionForm: React.FC<CreateSharedMissionFormProps> = ({ onSuc
         return_date: formData.return_date.toISOString(),
         aircraftId: formData.aircraftId,
         totalSeats: formData.totalSeats,
-        pricePerSeat: 0,
+        pricePerSeat: Math.ceil(totalCost / formData.totalSeats),
+        totalCost: totalCost,
         overnightFee: formData.overnightFee
       });
 

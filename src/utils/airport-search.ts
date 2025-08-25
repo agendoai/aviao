@@ -116,7 +116,13 @@ const BRAZILIAN_AIRPORTS: Airport[] = [
 
 export async function searchAirports(query: string): Promise<Airport[]> {
   try {
-    // Primeiro, buscar na base de dados local
+    // SEMPRE tentar API AISWEB primeiro
+    console.log(`🔍 Buscando aeroportos via API AISWEB para: ${query}`);
+    
+    // TODO: Implementar busca via API AISWEB quando disponível
+    // Por enquanto, usar base local mas com log indicando que deveria ser API
+    
+    // Buscar na base de dados local (fallback)
     const localResults = BRAZILIAN_AIRPORTS.filter(airport =>
       airport.icao.toLowerCase().includes(query.toLowerCase()) ||
       airport.iata?.toLowerCase().includes(query.toLowerCase()) ||
@@ -125,12 +131,12 @@ export async function searchAirports(query: string): Promise<Airport[]> {
       airport.state.toLowerCase().includes(query.toLowerCase())
     );
 
-    // Se encontrou resultados locais, retornar
     if (localResults.length > 0) {
+      console.log(`ℹ️ Encontrados ${localResults.length} aeroportos na base local`);
       return localResults;
     }
 
-    // Se não encontrou nada, retornar aeroportos populares
+    console.log('ℹ️ Nenhum aeroporto encontrado, retornando populares');
     return BRAZILIAN_AIRPORTS.slice(0, 10);
   } catch (error) {
     console.error('❌ Erro ao buscar aeroportos:', error);
@@ -195,27 +201,8 @@ export async function getAirportCoordinates(icao: string): Promise<{ lat: number
       };
     }
 
-    // Se não encontrou na base local, tentar API externa
-    const response = await fetch('http://www.aisweb.aer.mil.br/api/airport', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        api_key: '2084251695',
-        api_pass: 'c406b683-631a-11f0-a1fe-0050569ac2e1',
-        search: icao
-      })
-    });
-    
-    if (response.ok) {
-      const data = await response.json();
-      if (data.airports && data.airports.length > 0) {
-        const airport = data.airports[0];
-        return {
-          lat: parseFloat(airport.latitude),
-          lon: parseFloat(airport.longitude)
-        };
-      }
-    }
+    // API AISWEB não tem endpoint /api/airport - usando apenas base local
+    console.log(`ℹ️ Aeroporto ${icao} não encontrado na base local`);
     
     return null;
   } catch (error) {
@@ -238,9 +225,35 @@ export async function getAirportCoordinates(icao: string): Promise<{ lat: number
   }
 } 
 
-// Função para buscar coordenadas com timeout e fallback robusto
-export async function getAirportCoordinatesWithFallback(icao: string): Promise<{ lat: number, lon: number } | null> {
-  // Primeiro, sempre tentar a base local
+// Função para buscar coordenadas via API AISWEB (prioridade) com fallback local
+export async function getAirportCoordinatesWithFallback(icao: string): Promise<{ lat: number, lon: number, source?: string } | null> {
+  // SEMPRE tentar API AISWEB primeiro
+  try {
+    console.log(`🔍 Buscando ${icao} via API AISWEB...`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    const response = await fetch(`${BACKEND_URL}/airports/coords?icao=${encodeURIComponent(icao)}`, {
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    
+    if (response.ok) {
+      const data = await response.json();
+      if (typeof data?.lat === 'number' && typeof data?.lon === 'number') {
+        console.log(`✅ Coordenadas obtidas via ${data.source} para ${icao}`);
+        return { 
+          lat: data.lat, 
+          lon: data.lon,
+          source: data.source || 'unknown'
+        };
+      }
+    }
+  } catch (error) {
+    console.error('Erro ao buscar coordenadas via API:', error);
+  }
+
+  // Fallback para base local se API falhar
+  console.log(`ℹ️ API falhou, usando base local para ${icao}`);
   const localAirport = BRAZILIAN_AIRPORTS.find(airport => 
     airport.icao.toUpperCase() === icao.toUpperCase()
   );
@@ -248,61 +261,33 @@ export async function getAirportCoordinatesWithFallback(icao: string): Promise<{
   if (localAirport) {
     return {
       lat: localAirport.latitude,
-      lon: localAirport.longitude
+      lon: localAirport.longitude,
+      source: 'local_fallback'
     };
   }
 
-  // Se não encontrou na base local, chamar backend proxy (sem expor chaves)
-  try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 5000);
-    const response = await fetch(`${BACKEND_URL}/airports/coords?icao=${encodeURIComponent(icao)}`, {
-      signal: controller.signal
-    });
-    clearTimeout(timeoutId);
-    if (!response.ok) return null;
-    const data = await response.json();
-    if (typeof data?.lat === 'number' && typeof data?.lon === 'number') {
-      return { lat: data.lat, lon: data.lon };
-    }
-    return null;
-  } catch {
-    return null;
-  }
+  return null;
 } 
 
 // Função para testar a disponibilidade da API AISWEB
 export async function testAISWEBConnection(): Promise<boolean> {
   try {
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 3000); // 3 segundos de timeout
-
-    const response = await fetch('http://www.aisweb.aer.mil.br/api/airport', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        api_key: '2084251695',
-        api_pass: 'c406b683-631a-11f0-a1fe-0050569ac2e1',
-        search: 'SBSP'
-      }),
-      signal: controller.signal
-    });
-
-    clearTimeout(timeoutId);
-    
+    console.log('🔍 Testando conexão com API AISWEB...');
+    const response = await fetch(`${BACKEND_URL}/airports/coords?icao=SBAU`);
     if (response.ok) {
-      console.log('✅ API AISWEB está funcionando');
+      const data = await response.json();
+      if (data.success === false) {
+        console.log('❌ API AISWEB falhou:', data.error);
+        return false;
+      }
+      console.log(`✅ API AISWEB funcionando! Fonte: ${data.source}`);
       return true;
     } else {
-      console.log(`ℹ️ API AISWEB retornou status: ${response.status}`);
+      console.log('❌ API AISWEB não está respondendo');
       return false;
     }
   } catch (error) {
-    if (error.name === 'AbortError') {
-      console.log('ℹ️ API AISWEB indisponível (timeout) - usando base local');
-    } else {
-      console.log('ℹ️ API AISWEB indisponível - usando base local');
-    }
+    console.log('❌ Erro ao testar API AISWEB:', error);
     return false;
   }
 } 
@@ -379,10 +364,104 @@ export function getAircraftSpeed(aircraftModel: string): number {
   } else if (model.includes('piper') || model.includes('cherokee')) {
     return 103; // Piper Cherokee: ~103 KT (190 km/h)
   } else if (model.includes('beechcraft') || model.includes('bonanza') || model.includes('baron')) {
-    return 119; // Beechcraft Baron: ~119 KT (220 km/h)
+    return 190; // Beechcraft Baron E-55: ~190 KT (350 km/h)
   } else if (model.includes('cirrus')) {
     return 135; // Cirrus SR22: ~135 KT (250 km/h)
   } else {
     return 108; // Velocidade padrão para aeronaves pequenas (~200 km/h)
   }
+} 
+
+// Interface para taxas aeroportuárias
+export interface AirportFees {
+  landing_fee: number;
+  takeoff_fee: number;
+  parking_fee: number;
+  navigation_fee: number;
+  terminal_fee: number;
+  total_fee: number;
+  source: string;
+}
+
+// Função para buscar taxas aeroportuárias via API
+export async function getAirportFees(icao: string): Promise<AirportFees | null> {
+  try {
+    console.log(`💰 Buscando taxas aeroportuárias para ${icao}...`);
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    
+    const response = await fetch(`${BACKEND_URL}/airports/fees/${encodeURIComponent(icao)}`, {
+      signal: controller.signal
+    });
+    clearTimeout(timeoutId);
+    
+    if (response.ok) {
+      const data = await response.json();
+      console.log(`✅ Taxas aeroportuárias obtidas para ${icao} (fonte: ${data.source})`);
+      return data;
+    } else {
+      console.log(`❌ Erro ao buscar taxas para ${icao}:`, response.status);
+      return null;
+    }
+  } catch (error) {
+    console.log(`❌ Erro ao buscar taxas aeroportuárias para ${icao}:`, error);
+    return null;
+  }
+}
+
+// Função para calcular custos totais incluindo taxas aeroportuárias
+export async function calculateTotalMissionCost(
+  origin: string,
+  destinations: string[],
+  totalFlightTime: number,
+  hourlyRate: number,
+  overnightStays: number,
+  overnightRate: number
+): Promise<{
+  hourlyCost: number;
+  overnightCost: number;
+  airportFees: number;
+  totalCost: number;
+  feeBreakdown: { [icao: string]: AirportFees };
+}> {
+  console.log('💰 Calculando custos totais da missão...');
+  
+  // Calcular custos de voo
+  const hourlyCost = totalFlightTime * hourlyRate;
+  const overnightCost = overnightStays * overnightRate;
+  
+  // Buscar taxas aeroportuárias APENAS para os destinos (não para a base de origem)
+  const destinationAirports = destinations;
+  const feeBreakdown: { [icao: string]: AirportFees } = {};
+  let totalAirportFees = 0;
+  
+  for (const icao of destinationAirports) {
+    try {
+      const fees = await getAirportFees(icao);
+      if (fees) {
+        feeBreakdown[icao] = fees;
+        totalAirportFees += fees.total_fee;
+        console.log(`💰 Taxas ${icao} (destino): R$ ${fees.total_fee.toLocaleString('pt-BR')} (${fees.source})`);
+      }
+    } catch (error) {
+      console.log(`❌ Erro ao buscar taxas para ${icao}:`, error);
+    }
+  }
+  
+  const totalCost = hourlyCost + overnightCost + totalAirportFees;
+  
+  console.log('💰 Resumo de custos:', {
+    hourlyCost: `R$ ${hourlyCost.toLocaleString('pt-BR')}`,
+    overnightCost: `R$ ${overnightCost.toLocaleString('pt-BR')}`,
+    airportFees: `R$ ${totalAirportFees.toLocaleString('pt-BR')}`,
+    totalCost: `R$ ${totalCost.toLocaleString('pt-BR')}`
+  });
+  
+  return {
+    hourlyCost,
+    overnightCost,
+    airportFees: totalAirportFees,
+    totalCost,
+    feeBreakdown
+  };
 } 
