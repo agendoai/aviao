@@ -95,7 +95,7 @@ async function handleOverdueWebhook(req: any, res: any) {
   try {
     const { payment } = req.body;
     
-    console.log(`⏰ Pagamento vencido - Payment ID: ${payment.id}`);
+    // console.log(`⏰ Pagamento vencido - Payment ID: ${payment.id}`);
     
 
     
@@ -114,7 +114,7 @@ async function handleOverdueWebhook(req: any, res: any) {
       // Atualizar status do usuário
       await updateUserStatus(membershipPayment.userId);
 
-      console.log(`✅ Mensalidade ID ${membershipPayment.id} marcada como atrasada`);
+      // console.log(`✅ Mensalidade ID ${membershipPayment.id} marcada como atrasada`);
     }
 
     res.sendStatus(200);
@@ -129,15 +129,15 @@ async function handleNewChargeWebhook(req: any, res: any) {
   try {
     const { payment, subscription } = req.body;
     
-    console.log('📥 Webhook PAYMENT_CREATED recebido - Nova cobrança de assinatura criada pelo Asaas');
-    console.log('📊 Payment ID:', payment.id);
-    console.log('📊 Due Date:', payment.dueDate);
-    console.log('📊 Value:', payment.value);
-    console.log('🔍 Verificando se é cobrança de assinatura...');
+    // console.log('📥 Webhook PAYMENT_CREATED recebido - Nova cobrança de assinatura criada pelo Asaas');
+    // console.log('📊 Payment ID:', payment.id);
+    // console.log('📊 Due Date:', payment.dueDate);
+    // console.log('📊 Value:', payment.value);
+    // console.log('🔍 Verificando se é cobrança de assinatura...');
     
     // Verificar se payment existe
     if (!payment || !payment.id) {
-      console.log('❌ Payment não encontrado no payload');
+      // console.log('❌ Payment não encontrado no payload');
       return res.sendStatus(400);
     }
     
@@ -155,10 +155,10 @@ async function handleNewChargeWebhook(req: any, res: any) {
       return res.sendStatus(200);
     }
     
-    console.log(`✅ Cobrança de assinatura confirmada - Payment ID: ${payment.id}, Subscription ID: ${subscriptionId}`);
-    console.log(`🔄 Processando criação da próxima mensalidade local...`);
-    console.log(`📅 Data de vencimento: ${payment.dueDate}`);
-    console.log(`💰 Valor: R$ ${(payment.value / 100).toFixed(2)}`);
+    // console.log(`✅ Cobrança de assinatura confirmada - Payment ID: ${payment.id}, Subscription ID: ${subscriptionId}`);
+    // console.log(`🔄 Processando criação da próxima mensalidade local...`);
+    // console.log(`📅 Data de vencimento: ${payment.dueDate}`);
+    // console.log(`💰 Valor: R$ ${(payment.value / 100).toFixed(2)}`);
     
     // Buscar usuário diretamente pelo asaasSubscriptionId
     const user = await prisma.user.findFirst({
@@ -202,10 +202,10 @@ async function handleNewChargeWebhook(req: any, res: any) {
           }
         });
         
-        console.log(`✅ Nova mensalidade criada: ID ${newMembership.id}, vencimento ${dueDate.toLocaleDateString('pt-BR')}, valor R$ ${membershipValue}`);
-        console.log(`🎯 Usuário ${user.name} agora tem nova mensalidade pendente!`);
-        console.log(`🔄 Frontend será atualizado em até 5 segundos via polling`);
-        console.log(`📱 Usuário verá: "Mensalidade Atual (PAGA)" + "Próxima Mensalidade (PENDENTE)"`);
+        // console.log(`✅ Nova mensalidade criada: ID ${newMembership.id}, vencimento ${dueDate.toLocaleDateString('pt-BR')}, valor R$ ${membershipValue}`);
+        // console.log(`🎯 Usuário ${user.name} agora tem nova mensalidade pendente!`);
+        // console.log(`🔄 Frontend será atualizado em até 5 segundos via polling`);
+        // console.log(`📱 Usuário verá: "Mensalidade Atual (PAGA)" + "Próxima Mensalidade (PENDENTE)"`);
       } else {
         // Atualizar paymentId da mensalidade existente
         await prisma.membershipPayment.update({
@@ -213,11 +213,11 @@ async function handleNewChargeWebhook(req: any, res: any) {
           data: { paymentId: payment.id }
         });
         
-        console.log(`ℹ️ Mensalidade existente atualizada: ID ${periodMembership.id} com paymentId ${payment.id}`);
+        // console.log(`ℹ️ Mensalidade existente atualizada: ID ${periodMembership.id} com paymentId ${payment.id}`);
       }
     } else {
-      console.log(`❌ Nenhuma mensalidade encontrada para subscriptionId: ${subscriptionId}`);
-      console.log('🔍 Tentando buscar mensalidades existentes...');
+      // console.log(`❌ Nenhuma mensalidade encontrada para subscriptionId: ${subscriptionId}`);
+      // console.log('🔍 Tentando buscar mensalidades existentes...');
       
       // Listar todas as mensalidades para debug
       const allMemberships = await prisma.membershipPayment.findMany({
@@ -225,7 +225,7 @@ async function handleNewChargeWebhook(req: any, res: any) {
         include: { user: true }
       });
       
-      console.log('📋 SubscriptionIds no banco:', allMemberships.map(m => ({ subscriptionId: m.subscriptionId, userId: m.userId, userName: m.user.name })));
+      // console.log('📋 SubscriptionIds no banco:', allMemberships.map(m => ({ subscriptionId: m.subscriptionId, userId: m.userId, userName: m.user.name })));
     }
 
     res.sendStatus(200);
@@ -239,7 +239,7 @@ async function handleNewChargeWebhook(req: any, res: any) {
 async function handleSubscriptionCreatedWebhook(req: any, res: any) {
   try {
     const { subscription } = req.body;
-    console.log('✅ Assinatura criada:', subscription.id);
+    // console.log('✅ Assinatura criada:', subscription.id);
     res.sendStatus(200);
   } catch (error) {
     console.error('❌ Erro no webhook de assinatura criada:', error);
@@ -251,7 +251,7 @@ async function handleSubscriptionCreatedWebhook(req: any, res: any) {
 async function handleSubscriptionCancelledWebhook(req: any, res: any) {
   try {
     const { subscription } = req.body;
-    console.log('❌ Assinatura cancelada:', subscription.id);
+    // console.log('❌ Assinatura cancelada:', subscription.id);
     
     // Marcar mensalidades da assinatura como canceladas
     await prisma.membershipPayment.updateMany({
@@ -389,10 +389,10 @@ router.post('/shared-mission', async (req, res) => {
         }
       });
 
-      console.log('✅ Missão compartilhada confirmada:', sharedMission.id);
+      // console.log('✅ Missão compartilhada confirmada:', sharedMission.id);
 
     } else if (event === 'PAYMENT_OVERDUE' || event === 'PAYMENT_DELETED') {
-      console.log('❌ Pagamento de missão compartilhada cancelado/expirado:', payment.id);
+      // console.log('❌ Pagamento de missão compartilhada cancelado/expirado:', payment.id);
       
       // Buscar e cancelar missão se necessário
       const sharedMission = await prisma.sharedMission.findFirst({
@@ -412,7 +412,7 @@ router.post('/shared-mission', async (req, res) => {
           }
         });
 
-        console.log('❌ Missão compartilhada cancelada:', sharedMission.id);
+        // console.log('❌ Missão compartilhada cancelada:', sharedMission.id);
       }
     }
 

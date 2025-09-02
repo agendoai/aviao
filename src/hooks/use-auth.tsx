@@ -1,5 +1,6 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { buildApiUrl } from '@/config/api';
 
 interface User {
   id: number;
@@ -21,7 +22,7 @@ interface AuthContextType {
   profile: Profile | null;
   loading: boolean;
   signIn: (email: string, password: string) => Promise<{ error: any }>;
-  signUp: (name: string, email: string, password: string) => Promise<{ error: any }>;
+  signUp: (name: string, email: string, cpfCnpj: string, phone: string, password: string) => Promise<{ error: any; membership?: any }>;
   signOut: () => Promise<void>;
   isAuthenticated: boolean;
 }
@@ -46,8 +47,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const token = localStorage.getItem('token');
     if (token) {
       // Buscar perfil do usuário
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || '/api';
-      fetch(`${backendUrl}/auth/me`, {
+      fetch(buildApiUrl('/api/auth/me'), {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
@@ -76,8 +76,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signIn = async (email: string, password: string) => {
     setLoading(true);
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || '/api';
-      const res = await fetch(`${backendUrl}/auth/login`, {
+      const res = await fetch(buildApiUrl('/api/auth/login'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password })
@@ -104,8 +103,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signUp = async (name: string, email: string, cpfCnpj: string, phone: string, password: string) => {
     setLoading(true);
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || '/api';
-      const res = await fetch(`${backendUrl}/auth/register`, {
+      const res = await fetch(buildApiUrl('/api/auth/register'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name, email, cpfCnpj, phone, password })
@@ -122,7 +120,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       
       // Mostrar informações da mensalidade criada
       if (data.membership) {
-        console.log('✅ Mensalidade criada automaticamente:', data.membership);
+        // // console.log('✅ Mensalidade criada automaticamente:', data.membership);
       }
       
       return { error: null, membership: data.membership };
@@ -136,8 +134,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const signOut = async () => {
     setLoading(true);
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || '/api';
-      await fetch(`${backendUrl}/auth/logout`, { method: 'POST' });
+      await fetch(buildApiUrl('/api/auth/logout'), { method: 'POST' });
       setUser(null);
       setIsAuthenticated(false);
       localStorage.removeItem('token');

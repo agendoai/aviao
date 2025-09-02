@@ -29,7 +29,7 @@ const PassengerDetailsCollection: React.FC<PassengerDetailsCollectionProps> = ({
   onPassengersSubmitted,
   onBack
 }) => {
-  console.log('👥 PassengerDetailsCollection maxPassengers:', maxPassengers);
+  // console.log('👥 PassengerDetailsCollection maxPassengers:', maxPassengers);
   
   const [passengers, setPassengers] = useState<Passenger[]>([
     { name: '', document: '', documentType: 'cpf' }

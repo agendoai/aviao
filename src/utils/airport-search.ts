@@ -1,5 +1,5 @@
 // Função para buscar aeroportos usando base local (com fallback AISWEB em outras funções)
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://72.60.62.143:4000';
 
 /**
  * Busca o nome do aeroporto por código ICAO
@@ -127,7 +127,7 @@ const BRAZILIAN_AIRPORTS: Airport[] = [
 export async function searchAirports(query: string): Promise<Airport[]> {
   try {
     // SEMPRE tentar API AISWEB primeiro
-    console.log(`🔍 Buscando aeroportos via API AISWEB para: ${query}`);
+    // console.log(`🔍 Buscando aeroportos via API AISWEB para: ${query}`);
     
     // TODO: Implementar busca via API AISWEB quando disponível
     // Por enquanto, usar base local mas com log indicando que deveria ser API
@@ -142,11 +142,11 @@ export async function searchAirports(query: string): Promise<Airport[]> {
     );
 
     if (localResults.length > 0) {
-      console.log(`ℹ️ Encontrados ${localResults.length} aeroportos na base local`);
+      // console.log(`ℹ️ Encontrados ${localResults.length} aeroportos na base local`);
       return localResults;
     }
 
-    console.log('ℹ️ Nenhum aeroporto encontrado, retornando populares');
+    // console.log('ℹ️ Nenhum aeroporto encontrado, retornando populares');
     return BRAZILIAN_AIRPORTS.slice(0, 10);
   } catch (error) {
     console.error('❌ Erro ao buscar aeroportos:', error);
@@ -212,7 +212,7 @@ export async function getAirportCoordinates(icao: string): Promise<{ lat: number
     }
 
     // API AISWEB não tem endpoint /api/airport - usando apenas base local
-    console.log(`ℹ️ Aeroporto ${icao} não encontrado na base local`);
+    // console.log(`ℹ️ Aeroporto ${icao} não encontrado na base local`);
     
     return null;
   } catch (error) {
@@ -224,7 +224,7 @@ export async function getAirportCoordinates(icao: string): Promise<{ lat: number
     );
     
     if (localAirport) {
-      console.log(`Usando coordenadas locais para ${icao}`);
+      // console.log(`Usando coordenadas locais para ${icao}`);
       return {
         lat: localAirport.latitude,
         lon: localAirport.longitude
@@ -239,10 +239,10 @@ export async function getAirportCoordinates(icao: string): Promise<{ lat: number
 export async function getAirportCoordinatesWithFallback(icao: string): Promise<{ lat: number, lon: number, source?: string } | null> {
   // SEMPRE tentar API AISWEB primeiro
   try {
-    console.log(`🔍 Buscando ${icao} via API AISWEB...`);
+    // console.log(`🔍 Buscando ${icao} via API AISWEB...`);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
-    const response = await fetch(`${BACKEND_URL}/airports/coords?icao=${encodeURIComponent(icao)}`, {
+    const response = await fetch(`${BACKEND_URL}/api/airports/coords?icao=${encodeURIComponent(icao)}`, {
       signal: controller.signal
     });
     clearTimeout(timeoutId);
@@ -250,7 +250,7 @@ export async function getAirportCoordinatesWithFallback(icao: string): Promise<{
     if (response.ok) {
       const data = await response.json();
       if (typeof data?.lat === 'number' && typeof data?.lon === 'number') {
-        console.log(`✅ Coordenadas obtidas via ${data.source} para ${icao}`);
+        // console.log(`✅ Coordenadas obtidas via ${data.source} para ${icao}`);
         return { 
           lat: data.lat, 
           lon: data.lon,
@@ -263,7 +263,7 @@ export async function getAirportCoordinatesWithFallback(icao: string): Promise<{
   }
 
   // Fallback para base local se API falhar
-  console.log(`ℹ️ API falhou, usando base local para ${icao}`);
+  // console.log(`ℹ️ API falhou, usando base local para ${icao}`);
   const localAirport = BRAZILIAN_AIRPORTS.find(airport => 
     airport.icao.toUpperCase() === icao.toUpperCase()
   );
@@ -282,29 +282,29 @@ export async function getAirportCoordinatesWithFallback(icao: string): Promise<{
 // Função para testar a disponibilidade da API AISWEB
 export async function testAISWEBConnection(): Promise<boolean> {
   try {
-    console.log('🔍 Testando conexão com API AISWEB...');
-    const response = await fetch(`${BACKEND_URL}/airports/coords?icao=SBAU`);
+    // console.log('🔍 Testando conexão com API AISWEB...');
+    const response = await fetch(`${BACKEND_URL}/api/airports/coords?icao=SBAU`);
     if (response.ok) {
       const data = await response.json();
       if (data.success === false) {
-        console.log('❌ API AISWEB falhou:', data.error);
+        // console.log('❌ API AISWEB falhou:', data.error);
         return false;
       }
-      console.log(`✅ API AISWEB funcionando! Fonte: ${data.source}`);
+      // console.log(`✅ API AISWEB funcionando! Fonte: ${data.source}`);
       return true;
     } else {
-      console.log('❌ API AISWEB não está respondendo');
+      // console.log('❌ API AISWEB não está respondendo');
       return false;
     }
   } catch (error) {
-    console.log('❌ Erro ao testar API AISWEB:', error);
+    // console.log('❌ Erro ao testar API AISWEB:', error);
     return false;
   }
 } 
 
 // Função para verificar se as distâncias estão corretas
 export function verifyDistances() {
-  console.log('🔍 Verificando distâncias conhecidas:');
+  // console.log('🔍 Verificando distâncias conhecidas:');
   
   // SBAU (Araçatuba) → SBSP (Congonhas)
   const araçatuba = BRAZILIAN_AIRPORTS.find(a => a.icao === 'SBAU');
@@ -315,7 +315,7 @@ export function verifyDistances() {
       araçatuba.latitude, araçatuba.longitude,
       congonhas.latitude, congonhas.longitude
     );
-    console.log(`SBAU → SBSP: ${distance.toFixed(1)} NM (Real: ~216 NM)`);
+    // console.log(`SBAU → SBSP: ${distance.toFixed(1)} NM (Real: ~216 NM)`);
   }
   
   // SBAU (Araçatuba) → SBAR (Aracaju)
@@ -326,7 +326,7 @@ export function verifyDistances() {
       araçatuba.latitude, araçatuba.longitude,
       aracaju.latitude, aracaju.longitude
     );
-    console.log(`SBAU → SBAR: ${distance.toFixed(1)} NM (Real: ~648 NM)`);
+    // console.log(`SBAU → SBAR: ${distance.toFixed(1)} NM (Real: ~648 NM)`);
   }
   
   // SBSP (Congonhas) → SBGR (Guarulhos)
@@ -337,7 +337,7 @@ export function verifyDistances() {
       congonhas.latitude, congonhas.longitude,
       guarulhos.latitude, guarulhos.longitude
     );
-    console.log(`SBSP → SBGR: ${distance.toFixed(1)} NM (Real: ~13.5 NM)`);
+    // console.log(`SBSP → SBGR: ${distance.toFixed(1)} NM (Real: ~13.5 NM)`);
   }
 } 
 
@@ -352,13 +352,13 @@ export function verifySBAUtoSBSV() {
       salvador.latitude, salvador.longitude
     );
     
-    console.log('🔍 Verificação SBAU → SBSV:');
-    console.log('🔍 Araçatuba:', araçatuba.latitude, araçatuba.longitude);
-    console.log('🔍 Salvador:', salvador.latitude, salvador.longitude);
-    console.log('🔍 Distância calculada:', distance.toFixed(1), 'NM');
-    console.log('🔍 Distância real (Google Maps): ~1080 NM');
-    console.log('🔍 Diferença:', Math.abs(distance - 1080).toFixed(1), 'NM');
-    console.log('🔍 Tempo de voo estimado:', Math.ceil(distance / 108), 'horas');
+    // console.log('🔍 Verificação SBAU → SBSV:');
+    // console.log('🔍 Araçatuba:', araçatuba.latitude, araçatuba.longitude);
+    // console.log('🔍 Salvador:', salvador.latitude, salvador.longitude);
+    // console.log('🔍 Distância calculada:', distance.toFixed(1), 'NM');
+    // console.log('🔍 Distância real (Google Maps): ~1080 NM');
+    // console.log('🔍 Diferença:', Math.abs(distance - 1080).toFixed(1), 'NM');
+    // console.log('🔍 Tempo de voo estimado:', Math.ceil(distance / 108), 'horas');
     
     return distance;
   }
@@ -396,25 +396,25 @@ export interface AirportFees {
 // Função para buscar taxas aeroportuárias via API
 export async function getAirportFees(icao: string): Promise<AirportFees | null> {
   try {
-    console.log(`💰 Buscando taxas aeroportuárias para ${icao}...`);
+    // console.log(`💰 Buscando taxas aeroportuárias para ${icao}...`);
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 5000);
     
-    const response = await fetch(`${BACKEND_URL}/airports/fees/${encodeURIComponent(icao)}`, {
+    const response = await fetch(`${BACKEND_URL}/api/airports/fees/${encodeURIComponent(icao)}`, {
       signal: controller.signal
     });
     clearTimeout(timeoutId);
     
     if (response.ok) {
       const data = await response.json();
-      console.log(`✅ Taxas aeroportuárias obtidas para ${icao} (fonte: ${data.source})`);
+      // console.log(`✅ Taxas aeroportuárias obtidas para ${icao} (fonte: ${data.source})`);
       return data;
     } else {
-      console.log(`❌ Erro ao buscar taxas para ${icao}:`, response.status);
+      // console.log(`❌ Erro ao buscar taxas para ${icao}:`, response.status);
       return null;
     }
   } catch (error) {
-    console.log(`❌ Erro ao buscar taxas aeroportuárias para ${icao}:`, error);
+    // console.log(`❌ Erro ao buscar taxas aeroportuárias para ${icao}:`, error);
     return null;
   }
 }
@@ -434,7 +434,7 @@ export async function calculateTotalMissionCost(
   totalCost: number;
   feeBreakdown: { [icao: string]: AirportFees };
 }> {
-  console.log('💰 Calculando custos totais da missão...');
+  // console.log('💰 Calculando custos totais da missão...');
   
   // Calcular custos de voo
   const hourlyCost = totalFlightTime * hourlyRate;
@@ -451,21 +451,21 @@ export async function calculateTotalMissionCost(
       if (fees) {
         feeBreakdown[icao] = fees;
         totalAirportFees += fees.total_fee;
-        console.log(`💰 Taxas ${icao} (destino): R$ ${fees.total_fee.toLocaleString('pt-BR')} (${fees.source})`);
+        // console.log(`💰 Taxas ${icao} (destino): R$ ${fees.total_fee.toLocaleString('pt-BR')} (${fees.source})`);
       }
     } catch (error) {
-      console.log(`❌ Erro ao buscar taxas para ${icao}:`, error);
+      // console.log(`❌ Erro ao buscar taxas para ${icao}:`, error);
     }
   }
   
   const totalCost = hourlyCost + overnightCost + totalAirportFees;
   
-  console.log('💰 Resumo de custos:', {
-    hourlyCost: `R$ ${hourlyCost.toLocaleString('pt-BR')}`,
-    overnightCost: `R$ ${overnightCost.toLocaleString('pt-BR')}`,
-    airportFees: `R$ ${totalAirportFees.toLocaleString('pt-BR')}`,
-    totalCost: `R$ ${totalCost.toLocaleString('pt-BR')}`
-  });
+  // console.log('💰 Resumo de custos:', {
+  //   hourlyCost: `R$ ${hourlyCost.toLocaleString('pt-BR')}`,
+  //   overnightCost: `R$ ${overnightCost.toLocaleString('pt-BR')}`,
+  //   airportFees: `R$ ${totalAirportFees.toLocaleString('pt-BR')}`,
+  //   totalCost: `R$ ${totalCost.toLocaleString('pt-BR')}`
+  // });
   
   return {
     hourlyCost,

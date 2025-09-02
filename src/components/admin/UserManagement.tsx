@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Users, UserCheck, UserX, Plane, DollarSign, Calendar, Eye } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
+import { buildApiUrl } from '@/config/api';
 import { toast } from 'sonner';
 
 interface User {
@@ -63,7 +64,7 @@ export default function UserManagement() {
     try {
       const token = localStorage.getItem('token');
       
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://72.60.62.143:4000/api';
       
       const response = await fetch(`${backendUrl}/users`, {
         headers: {
@@ -89,7 +90,7 @@ export default function UserManagement() {
   const updateUserStatus = async (userId: number, status: 'active' | 'blocked' | 'inactive') => {
     try {
       const token = localStorage.getItem('token');
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://72.60.62.143:4000/api';
       const response = await fetch(`${backendUrl}/users/${userId}/status`, {
         method: 'PATCH',
         headers: {
@@ -112,7 +113,7 @@ export default function UserManagement() {
   const updateBookingStatus = async (bookingId: number, status: string) => {
     try {
       const token = localStorage.getItem('token');
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://72.60.62.143:4000/api';
       const response = await fetch(`${backendUrl}/users/bookings/${bookingId}/status`, {
         method: 'PATCH',
         headers: {
@@ -135,7 +136,7 @@ export default function UserManagement() {
   const updateMissionStatus = async (missionId: number, status: string) => {
     try {
       const token = localStorage.getItem('token');
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://72.60.62.143:4000/api';
       const response = await fetch(`${backendUrl}/users/missions/${missionId}/status`, {
         method: 'PATCH',
         headers: {
@@ -158,7 +159,7 @@ export default function UserManagement() {
   const updatePaymentStatus = async (paymentId: number, status: string) => {
     try {
       const token = localStorage.getItem('token');
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://72.60.62.143:4000/api';
       const response = await fetch(`${backendUrl}/users/membership/${paymentId}/status`, {
         method: 'PATCH',
         headers: {
@@ -214,8 +215,7 @@ export default function UserManagement() {
   const checkUserStatus = async (userId: number) => {
     try {
       const token = localStorage.getItem('token');
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
-      const response = await fetch(`${backendUrl}/users/status/check/${userId}`, {
+      const response = await fetch(buildApiUrl(`/api/users/status/check/${userId}`), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -240,8 +240,7 @@ export default function UserManagement() {
   const checkAllUsersStatus = async () => {
     try {
       const token = localStorage.getItem('token');
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
-      const response = await fetch(`${backendUrl}/users/status/check-all`, {
+      const response = await fetch(buildApiUrl('/api/users/status/check-all'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${token}`,

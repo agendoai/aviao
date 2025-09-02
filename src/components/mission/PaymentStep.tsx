@@ -21,6 +21,7 @@ import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 
 import { convertBrazilianDateToUTCString } from '@/utils/dateUtils';
+import { buildApiUrl } from '@/config/api';
 import { useAuth } from '@/hooks/use-auth';
 
 interface PaymentStepProps {
@@ -146,7 +147,7 @@ const PaymentStep: React.FC<PaymentStepProps> = ({
     if (!paymentId) return;
     
     try {
-      const response = await fetch(`/api/bookings/pix-payment/${paymentId}/verify`, {
+      const response = await fetch(buildApiUrl(`/api/bookings/pix-payment/${paymentId}/verify`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

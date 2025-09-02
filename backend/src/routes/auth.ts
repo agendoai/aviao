@@ -155,7 +155,7 @@ router.post('/register', async (req, res) => {
       );
       subscriptionId = subscription.id;
       
-      console.log(`✅ Assinatura recorrente criada: ${subscription.id} para usuário ${user.name}`);
+      // console.log(`✅ Assinatura recorrente criada: ${subscription.id} para usuário ${user.name}`);
     } catch (subscriptionError) {
       console.error('❌ Erro ao criar assinatura recorrente:', subscriptionError);
       // Continuar sem assinatura recorrente
@@ -181,9 +181,9 @@ router.post('/register', async (req, res) => {
         }
       });
       
-      console.log(`✅ SubscriptionId ${subscriptionId} salvo no usuário!`);
-      console.log(`✅ Primeira mensalidade criada: ID ${firstMembership.id}, vencimento ${dueDate.toLocaleDateString('pt-BR')}, valor R$ ${membershipValue}`);
-      console.log(`🎯 Usuário ${user.name} já tem mensalidade pendente pronta para pagamento!`);
+      // console.log(`✅ SubscriptionId ${subscriptionId} salvo no usuário!`);
+      // console.log(`✅ Primeira mensalidade criada: ID ${firstMembership.id}, vencimento ${dueDate.toLocaleDateString('pt-BR')}, valor R$ ${membershipValue}`);
+      // console.log(`🎯 Usuário ${user.name} já tem mensalidade pendente pronta para pagamento!`);
     }
 
     const payload: AuthPayload = { userId: user.id, email: user.email, role: user.role };

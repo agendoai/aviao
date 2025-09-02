@@ -109,8 +109,8 @@ router.put('/membership-config', authMiddleware, requireAdmin, async (req, res) 
     // Se o valor mudou, atualizar todas as assinaturas ativas no Asaas
     if (isValueChanged) {
       try {
-        console.log(`🔄 Valor da mensalidade mudou de R$ ${currentValue} para R$ ${membershipValue}`);
-        console.log('🔄 Atualizando todas as assinaturas ativas no Asaas...');
+        // console.log(`🔄 Valor da mensalidade mudou de R$ ${currentValue} para R$ ${membershipValue}`);
+        // console.log('🔄 Atualizando todas as assinaturas ativas no Asaas...');
         
         // Buscar todas as assinaturas ativas
         const activeMemberships = await prisma.membershipPayment.findMany({
@@ -123,7 +123,7 @@ router.put('/membership-config', authMiddleware, requireAdmin, async (req, res) 
           }
         });
 
-        console.log(`📊 Encontradas ${activeMemberships.length} assinaturas ativas para atualizar`);
+        // console.log(`📊 Encontradas ${activeMemberships.length} assinaturas ativas para atualizar`);
 
         const { updateSubscription } = await import('../services/asaas');
         let updatedCount = 0;
@@ -133,7 +133,7 @@ router.put('/membership-config', authMiddleware, requireAdmin, async (req, res) 
           try {
             if (membership.subscriptionId) {
               await updateSubscription(membership.subscriptionId, membershipValue);
-              console.log(`✅ Assinatura ${membership.subscriptionId} (${membership.user.name}) atualizada`);
+              // console.log(`✅ Assinatura ${membership.subscriptionId} (${membership.user.name}) atualizada`);
               updatedCount++;
             }
           } catch (error) {
@@ -142,7 +142,7 @@ router.put('/membership-config', authMiddleware, requireAdmin, async (req, res) 
           }
         }
 
-        console.log(`🎯 Atualização concluída: ${updatedCount} sucessos, ${errorCount} erros`);
+        // console.log(`🎯 Atualização concluída: ${updatedCount} sucessos, ${errorCount} erros`);
 
         res.json({
           message: `Configuração atualizada com sucesso. ${updatedCount} assinaturas atualizadas no Asaas.`,

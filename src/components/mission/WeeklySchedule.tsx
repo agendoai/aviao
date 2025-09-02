@@ -62,7 +62,7 @@ const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ aircraft, onCreateMissi
         }));
         
         setReservations(formattedReservations);
-        console.log('✅ Reservas carregadas:', formattedReservations);
+        // console.log('✅ Reservas carregadas:', formattedReservations);
       } catch (error) {
         console.error('❌ Erro ao carregar reservas:', error);
         setReservations([]);

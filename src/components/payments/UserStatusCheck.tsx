@@ -57,7 +57,7 @@ export function UserStatusCheck() {
       const response = await api.post(`/payments/membership/${user.id}`);
       
       // Aqui você pode abrir o QR Code em um modal ou nova página
-      console.log('QR Code gerado:', response.data);
+      // console.log('QR Code gerado:', response.data);
       
       // Recarregar status após alguns segundos
       setTimeout(() => {

@@ -67,7 +67,7 @@ const SimpleCalendar: React.FC<SimpleCalendarProps> = ({
   }, [selectedAircraft]);
 
   const resolveBackendUrl = () => {
-    const raw = (import.meta as any).env.VITE_BACKEND_URL || 'http://localhost:4000';
+    const raw = (import.meta as any).env.VITE_BACKEND_URL || 'http://72.60.62.143:4000';
     return raw.endsWith('/api') ? raw : `${raw}/api`;
   };
 
@@ -125,8 +125,8 @@ const SimpleCalendar: React.FC<SimpleCalendarProps> = ({
       const bookingsData = await bookingsResponse.json();
       const calendarData = await calendarResponse.json();
       
-      console.log('📅 Bookings recebidos:', bookingsData);
-      console.log('📅 Calendar (slots admin) recebidos:', calendarData);
+      // // console.log('📅 Bookings recebidos:', bookingsData);
+      // // console.log('📅 Calendar (slots admin) recebidos:', calendarData);
       
       // Combinar reservas normais com slots configurados pelo admin
       let allBookings = [];
@@ -147,7 +147,7 @@ const SimpleCalendar: React.FC<SimpleCalendarProps> = ({
         allBookings = [...allBookings, ...adminSlots];
       }
       
-      console.log('📅 Todos os bookings combinados:', allBookings);
+      // console.log('📅 Todos os bookings combinados:', allBookings);
       setBookings(allBookings);
       
     } catch (error) {
@@ -160,7 +160,7 @@ const SimpleCalendar: React.FC<SimpleCalendarProps> = ({
 
   // Calcular períodos bloqueados (apenas missões reais, não slots disponíveis)
   const blockedPeriods = useMemo(() => {
-    console.log('🔍 Calculando blockedPeriods, bookings:', bookings);
+    // console.log('🔍 Calculando blockedPeriods, bookings:', bookings);
     
     // Garantir que bookings seja sempre um array
     if (!bookings || !Array.isArray(bookings)) {
@@ -174,7 +174,7 @@ const SimpleCalendar: React.FC<SimpleCalendarProps> = ({
       (booking.origin !== 'AGENDA' && booking.destination !== 'AGENDA')
     );
     
-    console.log('🎯 Missões reais encontradas:', realMissions.length);
+    // console.log('🎯 Missões reais encontradas:', realMissions.length);
     
     return realMissions.map(booking => {
       // Converter datas UTC para horário brasileiro
@@ -192,13 +192,13 @@ const SimpleCalendar: React.FC<SimpleCalendarProps> = ({
         const flightEnd = new Date(returnDate.getTime() + (returnFlightDurationMinutes * 60 * 1000));
         end = new Date(flightEnd.getTime() + (3 * 60 * 60 * 1000)); // +3h de manutenção
         
-        console.log(`🔍 Cálculo de bloqueio para missão ${booking.id}:`);
-        console.log(`🔍   Partida: ${start.toLocaleString('pt-BR')}`);
-        console.log(`🔍   Retorno: ${returnDate.toLocaleString('pt-BR')}`);
-        console.log(`🔍   Tempo total de voo: ${totalFlightDuration}h`);
-        console.log(`🔍   Tempo de voo de volta: ${returnFlightDuration}h`);
-        console.log(`🔍   Fim do voo de volta: ${flightEnd.toLocaleString('pt-BR')}`);
-        console.log(`🔍   Bloqueado até: ${end.toLocaleString('pt-BR')}`);
+        // console.log(`🔍 Cálculo de bloqueio para missão ${booking.id}:`);
+        // console.log(`🔍   Partida: ${start.toLocaleString('pt-BR')}`);
+        // console.log(`🔍   Retorno: ${returnDate.toLocaleString('pt-BR')}`);
+        // console.log(`🔍   Tempo total de voo: ${totalFlightDuration}h`);
+        // console.log(`🔍   Tempo de voo de volta: ${returnFlightDuration}h`);
+        // console.log(`🔍   Fim do voo de volta: ${flightEnd.toLocaleString('pt-BR')}`);
+        // console.log(`🔍   Bloqueado até: ${end.toLocaleString('pt-BR')}`);
       }
 
       return {
@@ -248,7 +248,7 @@ const SimpleCalendar: React.FC<SimpleCalendarProps> = ({
     });
 
     if (hasConflict) {
-      console.log(`❌ Horário ${hour}:00 do dia ${format(date, 'dd/MM/yyyy')} está bloqueado`);
+      // console.log(`❌ Horário ${hour}:00 do dia ${format(date, 'dd/MM/yyyy')} está bloqueado`);
     }
 
     return !hasConflict;
@@ -278,7 +278,7 @@ const SimpleCalendar: React.FC<SimpleCalendarProps> = ({
       return format(bookingDate, 'yyyy-MM-dd') === format(date, 'yyyy-MM-dd');
     });
     
-    console.log('🔍 Slots admin para', format(date, 'dd/MM/yyyy'), ':', adminSlots);
+    // console.log('🔍 Slots admin para', format(date, 'dd/MM/yyyy'), ':', adminSlots);
     
     // Se há slots configurados pelo admin, mostrar horários disponíveis
     if (adminSlots.length > 0) {

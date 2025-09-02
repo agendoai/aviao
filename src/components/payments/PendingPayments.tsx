@@ -28,7 +28,7 @@ export function PendingPayments() {
   // Função utilitária para fazer chamadas HTTP
   const apiCall = async (endpoint: string, options: RequestInit = {}) => {
     const token = localStorage.getItem('token');
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://72.60.62.143:4000';
     
     const response = await fetch(`${backendUrl}/api${endpoint}`, {
       ...options,

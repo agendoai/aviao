@@ -82,7 +82,7 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
         if (response && Array.isArray(response) && response.length > 0) {
           setAircraft(response);
         } else {
-          console.log('ℹ️ Usando aeronaves locais de fallback');
+          // console.log('ℹ️ Usando aeronaves locais de fallback');
           // Dados locais de fallback
           const fallbackAircraft: Aircraft[] = [
             {
@@ -109,7 +109,7 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
           setAircraft(fallbackAircraft);
         }
       } catch (error) {
-        console.log('ℹ️ Erro ao buscar aeronaves - usando dados locais');
+        // console.log('ℹ️ Erro ao buscar aeronaves - usando dados locais');
         // Dados locais de fallback
         const fallbackAircraft: Aircraft[] = [
           {

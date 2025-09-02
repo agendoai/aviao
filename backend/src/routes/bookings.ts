@@ -66,9 +66,9 @@ router.get('/time-slots/:aircraftId', authMiddleware, async (req, res) => {
 
     // Log para debug: verificar slots bloqueados
     const blockedSlots = slots.filter(slot => slot.status === 'blocked');
-    console.log(`📊 Slots enviados: ${slots.length}, Bloqueados: ${blockedSlots.length}`);
+    // console.log(`📊 Slots enviados: ${slots.length}, Bloqueados: ${blockedSlots.length}`);
     if (blockedSlots.length > 0) {
-      console.log(`🚫 Slots bloqueados:`, blockedSlots.slice(0, 3).map(s => ({
+      // console.log(`🚫 Slots bloqueados:`, blockedSlots.slice(0, 3).map(s => ({
         time: s.start.toLocaleTimeString('pt-BR'),
         reason: s.reason,
         blockType: s.blockType
@@ -259,8 +259,8 @@ router.get('/aircraft/:aircraftId', authMiddleware, async (req, res) => {
     const { aircraftId } = req.params;
     const { startDate, endDate } = req.query;
 
-    console.log('🔍 Buscando reservas para aeronave:', aircraftId);
-    console.log('🔍 Período:', { startDate, endDate });
+    // console.log('🔍 Buscando reservas para aeronave:', aircraftId);
+    // console.log('🔍 Período:', { startDate, endDate });
 
     // Se não foram fornecidas datas, buscar todas as reservas da aeronave
     let whereClause: any = {
@@ -325,7 +325,7 @@ router.get('/', authMiddleware, async (req, res) => {
     
     // Se foi fornecido aircraftId, permitir acesso para usuários comuns
     if (aircraftId) {
-      console.log('🔍 Buscando reservas para aeronave:', aircraftId);
+      // console.log('🔍 Buscando reservas para aeronave:', aircraftId);
       
       const bookings = await prisma.booking.findMany({
         where: {
@@ -353,7 +353,7 @@ router.get('/', authMiddleware, async (req, res) => {
         orderBy: { departure_date: 'asc' }
       });
 
-      console.log('✅ Reservas encontradas:', bookings.length);
+      // console.log('✅ Reservas encontradas:', bookings.length);
       
       return res.json({
         success: true,

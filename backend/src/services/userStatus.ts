@@ -24,11 +24,11 @@ export async function updateUserStatus(userId: number): Promise<{ status: string
     let userStatus = 'active';
     let message = '';
 
-    console.log(`🔍 Debug updateUserStatus:`);
-    console.log(`  - Status da mensalidade: ${latestMembership.status}`);
-    console.log(`  - Data atual: ${now.toISOString()}`);
-    console.log(`  - Data de vencimento: ${dueDate.toISOString()}`);
-    console.log(`  - Está vencida: ${now > dueDate}`);
+    // console.log(`🔍 Debug updateUserStatus:`);
+    // console.log(`  - Status da mensalidade: ${latestMembership.status}`);
+    // console.log(`  - Data atual: ${now.toISOString()}`);
+    // console.log(`  - Data de vencimento: ${dueDate.toISOString()}`);
+    // console.log(`  - Está vencida: ${now > dueDate}`);
 
     if (latestMembership.status === 'confirmada' || latestMembership.status === 'paga') {
       // Se a mensalidade está confirmada ou paga, usuário sempre ativo
@@ -53,10 +53,10 @@ export async function updateUserStatus(userId: number): Promise<{ status: string
       message = `Mensalidade com status ${latestMembership.status} - usuário marcado como inativo`;
     }
 
-    console.log(`  - Status final do usuário: ${userStatus}`);
-    console.log(`  - Mensagem: ${message}`);
+    // console.log(`  - Status final do usuário: ${userStatus}`);
+    // console.log(`  - Mensagem: ${message}`);
 
-    console.log(`🔄 updateUserStatus: Atualizando usuário ID ${userId} para status: ${userStatus}`);
+    // console.log(`🔄 updateUserStatus: Atualizando usuário ID ${userId} para status: ${userStatus}`);
     
     // Atualizar status do usuário
     await prisma.user.update({
@@ -64,7 +64,7 @@ export async function updateUserStatus(userId: number): Promise<{ status: string
       data: { status: userStatus }
     });
     
-    console.log(`✅ updateUserStatus: Usuário ID ${userId} atualizado para: ${userStatus}`);
+    // console.log(`✅ updateUserStatus: Usuário ID ${userId} atualizado para: ${userStatus}`);
 
     return { status: userStatus, message };
   } catch (error) {

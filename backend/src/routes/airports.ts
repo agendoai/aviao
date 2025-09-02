@@ -25,7 +25,7 @@ router.get('/', async (req, res) => {
 
 // GET /airports/coords - Buscar coordenadas via AISWEB API
 router.get('/coords', async (req, res) => {
-  console.log('🔍 Endpoint /coords chamado com query:', req.query);
+  // console.log('🔍 Endpoint /coords chamado com query:', req.query);
   try {
     const icao = String(req.query.icao || '').toUpperCase();
     if (!icao) {
@@ -35,23 +35,23 @@ router.get('/coords', async (req, res) => {
     // SEMPRE tentar AISWEB API primeiro
     if (isAPIKeyConfigured('AISWEB')) {
       try {
-        console.log(`🔍 Buscando ${icao} na API AISWEB...`);
+        // console.log(`🔍 Buscando ${icao} na API AISWEB...`);
         const credentials = getAISWEBCredentials();
         const url = `${API_KEYS.AISWEB.URL}/rotaer/${icao}?apiKey=${credentials.key}&apiPass=${credentials.pass}`;
-        console.log(`🔍 Tentando URL: ${url}`);
+        // console.log(`🔍 Tentando URL: ${url}`);
         const response = await fetch(url, {
           headers: {
             'Content-Type': 'application/json'
           }
         });
 
-        console.log(`🔍 Status da resposta: ${response.status}`);
-        console.log(`🔍 Headers da resposta:`, Object.fromEntries(response.headers.entries()));
+        // console.log(`🔍 Status da resposta: ${response.status}`);
+        // console.log(`🔍 Headers da resposta:`, Object.fromEntries(response.headers.entries()));
 
         if (response.ok) {
           const data = await response.json();
           if (data.latitude && data.longitude) {
-            console.log(`✅ Coordenadas obtidas via AISWEB para ${icao}`);
+            // console.log(`✅ Coordenadas obtidas via AISWEB para ${icao}`);
             return res.json({
               lat: parseFloat(data.latitude),
               lon: parseFloat(data.longitude),
@@ -60,14 +60,14 @@ router.get('/coords', async (req, res) => {
           }
         }
       } catch (error) {
-        console.log(`❌ Erro na API AISWEB para ${icao}:`, error.message);
+        // console.log(`❌ Erro na API AISWEB para ${icao}:`, error.message);
       }
     } else {
-      console.log(`⚠️ API AISWEB não configurada para ${icao}`);
+      // console.log(`⚠️ API AISWEB não configurada para ${icao}`);
     }
 
     // Fallback para base local se API falhar
-    console.log(`ℹ️ API AISWEB falhou, usando base local para ${icao}`);
+    // console.log(`ℹ️ API AISWEB falhou, usando base local para ${icao}`);
     const localAirport = getLocalAirportCoordinates(icao);
     if (localAirport) {
       return res.json({
@@ -94,12 +94,12 @@ router.get('/fees/:icao', async (req, res) => {
     // SEMPRE tentar AISWEB API primeiro
     if (isAPIKeyConfigured('AISWEB')) {
       try {
-        console.log(`💰 Buscando taxas aeroportuárias para ${icao} na API AISWEB...`);
+        // console.log(`💰 Buscando taxas aeroportuárias para ${icao} na API AISWEB...`);
         const credentials = getAISWEBCredentials();
         
                         // Buscar dados do aeroporto via ROTAER (dados completos dos aeródromos)
                 const url = `${API_KEYS.AISWEB.URL}/rotaer/${icao}?apiKey=${credentials.key}&apiPass=${credentials.pass}`;
-                console.log(`🔍 Tentando URL: ${url}`);
+                // console.log(`🔍 Tentando URL: ${url}`);
                 const response = await fetch(url, {
                   headers: {
                     'Content-Type': 'application/json'
@@ -108,7 +108,7 @@ router.get('/fees/:icao', async (req, res) => {
 
         if (response.ok) {
           const data = await response.json();
-          console.log(`✅ Taxas aeroportuárias obtidas via AISWEB para ${icao}`);
+          // console.log(`✅ Taxas aeroportuárias obtidas via AISWEB para ${icao}`);
           
           // Extrair taxas aeroportuárias dos dados do ROTAER
           const fees = {
@@ -127,14 +127,14 @@ router.get('/fees/:icao', async (req, res) => {
           return res.json(fees);
         }
       } catch (error) {
-        console.log(`❌ Erro na API AISWEB para taxas de ${icao}:`, error.message);
+        // console.log(`❌ Erro na API AISWEB para taxas de ${icao}:`, error.message);
       }
     } else {
-      console.log('ℹ️ API AISWEB não configurada para taxas aeroportuárias');
+      // console.log('ℹ️ API AISWEB não configurada para taxas aeroportuárias');
     }
 
     // Fallback: taxas padrão baseadas no tipo de aeroporto
-    console.log(`ℹ️ Usando taxas padrão para ${icao}`);
+    // console.log(`ℹ️ Usando taxas padrão para ${icao}`);
     const defaultFees = getDefaultAirportFees(icao);
     
     res.json({

@@ -79,7 +79,7 @@ const ProfessionalCalendar: React.FC<ProfessionalCalendarProps> = ({
   }, [selectedAircraft]);
 
   const resolveBackendUrl = () => {
-    const raw = (import.meta as any).env.VITE_BACKEND_URL || 'http://localhost:4000';
+    const raw = (import.meta as any).env.VITE_BACKEND_URL || 'http://72.60.62.143:4000';
     return raw.endsWith('/api') ? raw : `${raw}/api`;
   };
 
@@ -126,7 +126,7 @@ const ProfessionalCalendar: React.FC<ProfessionalCalendarProps> = ({
       }
 
       const data = await response.json();
-      console.log('📅 Bookings recebidos:', data);
+      // console.log('📅 Bookings recebidos:', data);
       setBookings(data);
     } catch (error) {
       console.error('Erro ao buscar bookings:', error);

@@ -43,7 +43,7 @@ const CalendarDebug: React.FC = () => {
           getBookings(),
           (async () => {
             const token = localStorage.getItem('token');
-            const res = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api'}/calendar`, {
+            const res = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://72.60.62.143:4000'}/api/calendar`, {
               headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json',
@@ -57,10 +57,10 @@ const CalendarDebug: React.FC = () => {
         setBookings(bookingsData);
         setCalendarData(calendarData);
         
-        console.log('🔍 DEBUG - Dados carregados no frontend:');
-        console.log('🔍 Aircraft:', aircraftData);
-        console.log('🔍 Bookings:', bookingsData);
-        console.log('🔍 Calendar:', calendarData);
+        // console.log('🔍 DEBUG - Dados carregados no frontend:');
+        // console.log('🔍 Aircraft:', aircraftData);
+        // console.log('🔍 Bookings:', bookingsData);
+        // console.log('🔍 Calendar:', calendarData);
         
       } catch (error) {
         console.error('❌ Erro ao carregar dados:', error);
@@ -76,13 +76,13 @@ const CalendarDebug: React.FC = () => {
     const aircraftId = 2; // PR-FOM
     const selectedDate = new Date('2025-08-21');
     
-    console.log('🧪 Testando cálculo de slots no frontend...');
-    console.log('🧪 Aircraft ID:', aircraftId);
-    console.log('🧪 Selected Date:', selectedDate);
+    // console.log('🧪 Testando cálculo de slots no frontend...');
+    // console.log('🧪 Aircraft ID:', aircraftId);
+    // console.log('🧪 Selected Date:', selectedDate);
     
     // Filtrar reservas para a aeronave
     const bookingsForAircraft = bookings.filter(b => b.aircraftId === aircraftId);
-    console.log('🧪 Bookings for aircraft:', bookingsForAircraft);
+    // console.log('🧪 Bookings for aircraft:', bookingsForAircraft);
     
     // Testar cada hora
     for (let hour = 6; hour < 20; hour++) {
@@ -111,7 +111,7 @@ const CalendarDebug: React.FC = () => {
         `(Conflito: ${conflictingBooking.origin} → ${conflictingBooking.destination}, bloqueado até: ${conflictingBooking.blocked_until || 'N/A'})` : 
         '';
 
-      console.log(`   ${hour.toString().padStart(2, '0')}:00 - ${status} ${reason}`);
+      // console.log(`   ${hour.toString().padStart(2, '0')}:00 - ${status} ${reason}`);
     }
   };
 

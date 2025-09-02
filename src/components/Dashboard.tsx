@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { buildApiUrl } from '@/config/api';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -142,7 +143,7 @@ const Dashboard: React.FC = () => {
   // Forçar atualização da mensalidade
   useEffect(() => {
     if (user) {
-      console.log('🔄 Forçando atualização da mensalidade...');
+      // // console.log('🔄 Forçando atualização da mensalidade...');
       fetchMembership();
     }
   }, []);
@@ -349,9 +350,7 @@ const Dashboard: React.FC = () => {
 
   const fetchMembership = async () => {
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
-      
-      const res = await fetch(`${backendUrl}/api/users/status/${user.id}`);
+      const res = await fetch(buildApiUrl(`/api/users/status/${user.id}`));
       const data = await res.json();
       
       // Usar a mensalidade atual (do mês atual)
@@ -379,11 +378,9 @@ const Dashboard: React.FC = () => {
   const handlePay = async () => {
     setPaying(true);
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
-      
       // Verificar se já existe uma cobrança PIX válida (menos de 24h)
       if (membership?.paymentId) {
-        const res = await fetch(`${backendUrl}/api/payments/continue/${membership.paymentId}`, { 
+        const res = await fetch(buildApiUrl(`/api/payments/continue/${membership.paymentId}`), { 
           method: 'POST',
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -413,7 +410,7 @@ const Dashboard: React.FC = () => {
       }
       
       // Se não há cobrança válida, criar nova
-      const res = await fetch(`${backendUrl}/api/payments/membership/${user.id}`, { 
+      const res = await fetch(buildApiUrl(`/api/payments/membership/${user.id}`), { 
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -437,9 +434,7 @@ const Dashboard: React.FC = () => {
 
   const handleVerifyPayment = async () => {
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
-      
-      const res = await fetch(`${backendUrl}/api/payments/membership/${user.id}/verify-payment`, { 
+      const res = await fetch(buildApiUrl(`/api/payments/membership/${user.id}/verify-payment`), { 
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -467,10 +462,8 @@ const Dashboard: React.FC = () => {
   const handlePayForMembership = async (targetMembership: any) => {
     setPaying(true);
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
-      
       // Usar o mesmo endpoint que funciona para pagamento
-      const res = await fetch(`${backendUrl}/api/payments/membership/${user.id}`, { 
+      const res = await fetch(buildApiUrl(`/api/payments/membership/${user.id}`), { 
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -505,8 +498,7 @@ const Dashboard: React.FC = () => {
     
     const checkPaymentStatus = async () => {
       try {
-        const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
-        const res = await fetch(`${backendUrl}/api/payments/membership/status/${paymentId}`);
+              const res = await fetch(buildApiUrl(`/api/payments/membership/status/${paymentId}`));
         const data = await res.json();
         setStatus(data.status);
         

@@ -150,7 +150,7 @@ const MissionSystem: React.FC = () => {
 
   // Monitorar mudanças no currentView para debug
   useEffect(() => {
-    console.log('🎯 Current view mudou para:', currentView);
+    // Debug removido para produção
   }, [currentView]);
 
   // Handle pending navigation to open specific chat
@@ -162,16 +162,13 @@ const MissionSystem: React.FC = () => {
 
   // Monitorar mudanças no returnDate para debug
   useEffect(() => {
-    console.log('🎯 ReturnDate mudou para:', returnDate);
-    console.log('🎯 ReturnDate type:', typeof returnDate);
-    console.log('🎯 ReturnDate length:', returnDate?.length);
+    // Debug removido para produção
   }, [returnDate]);
 
   // Verificar se usuário está logado
   useEffect(() => {
     const token = localStorage.getItem('token');
-    console.log('👤 Usuário logado:', user);
-    console.log('🔑 Token disponível:', token ? 'Sim' : 'Não');
+    // Debug removido para produção
   }, [user]);
 
   // Buscar aeronaves e reservas da API
@@ -187,7 +184,7 @@ const MissionSystem: React.FC = () => {
         // Testar conectividade da API AISWEB
         const isAISWEBAvailable = await testAISWEBConnection();
         if (!isAISWEBAvailable) {
-          console.log('ℹ️ Usando base local de aeroportos');
+          // Debug removido para produção
         }
 
         const [aircraftData, bookingsData, calendarData] = await Promise.all([
@@ -195,7 +192,7 @@ const MissionSystem: React.FC = () => {
           getBookings(),
           (async () => {
             const token = localStorage.getItem('token');
-            const res = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api'}/calendar`, {
+            const res = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://72.60.62.143:4000'}/api/calendar`, {
               headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json',
@@ -210,14 +207,12 @@ const MissionSystem: React.FC = () => {
         setAircraft(availableAircraft);
         setBookings(bookingsData);
         setCalendarEntries(calendarData);
-        console.log('✅ Aeronaves carregadas:', availableAircraft);
-        console.log('✅ Reservas carregadas:', bookingsData);
-        console.log('✅ Calendário carregado:', calendarData);
+        // Debug removido para produção
         
         // Log detalhado das reservas com bloqueios
         bookingsData.forEach((booking: any) => {
           if (booking.blocked_until) {
-            console.log(`🔒 Reserva ${booking.id} bloqueada até:`, booking.blocked_until);
+            // Debug removido para produção
           }
         });
       } catch (error) {
@@ -290,14 +285,10 @@ const MissionSystem: React.FC = () => {
 
       const conflicting = conflictingCalendar || conflictingBooking;
 
-      // Log de debug para slots conflitantes
-      if (conflicting) {
-        console.log(`❌ Slot ${hour}:00 conflitante:`, {
-          slotStart: slotStart.toISOString(),
-          slotEnd: slotEnd.toISOString(),
-          conflicting: conflicting
-        });
-      }
+             // Log de debug para slots conflitantes
+       if (conflicting) {
+         // Debug removido para produção
+       }
 
       slots.push({
         start: slotStart,
@@ -315,17 +306,13 @@ const MissionSystem: React.FC = () => {
 
   // Cálculo de custos baseado em dados reais de voo
   const calculateFlightCosts = (dest: string, returnTime: string, distance: number, returnDate?: string, selectedDate?: Date) => {
-    console.log('💰 calculateFlightCosts chamado');
-    console.log('💰 Parâmetros:', { dest, returnTime, distance, departureTime, returnDate });
-    console.log('💰 Selected Aircraft:', selectedAircraft);
-    console.log('💰 Aircraft hourly_rate:', selectedAircraft?.hourly_rate);
-    console.log('💰 Aircraft overnight_fee:', selectedAircraft?.overnight_fee);
+    // Debug removido para produção
     
     setDistance(distance);
     
     // Verificar se departureTime está definido
     if (!departureTime) {
-      console.log('❌ departureTime não está definido');
+      // Debug removido para produção
       setFlightHours(1); // Valor padrão
       setOvernightStays(0);
       return;
@@ -335,16 +322,11 @@ const MissionSystem: React.FC = () => {
     const aircraftSpeed = selectedAircraft ? getAircraftSpeed(selectedAircraft.model) : 108; // Velocidade em nós (KT)
     const flightTimeHours = distance / aircraftSpeed; // Tempo em horas
     
-    console.log('💰 Dados de voo:', {
-      distance: `${distance.toFixed(1)} NM`,
-      aircraftModel: selectedAircraft?.model || 'Desconhecido',
-      aircraftSpeed: `${aircraftSpeed} KT`,
-      flightTimeHours: `${flightTimeHours.toFixed(2)}h`
-    });
+    // Debug removido para produção
 
     // Calcular tempo total (ida + volta)
     const flightHours = Math.max(1, Math.ceil(flightTimeHours * 2)); // Multiplicar por 2 para ida e volta
-    console.log('💰 Horas de voo calculadas (ida + volta):', flightHours);
+    // Debug removido para produção
     setFlightHours(flightHours);
 
     // Calcular pernoite baseado no horário de retorno e data
@@ -353,8 +335,7 @@ const MissionSystem: React.FC = () => {
     const returnHour = parseInt(returnTime.split(':')[0]);
     const returnMinute = parseInt(returnTime.split(':')[1]);
     
-    console.log('💰 Horários:', { departureHour, departureMinute, returnHour, returnMinute });
-    console.log('💰 Datas:', { departureDate: selectedDate, returnDate });
+    // Debug removido para produção
     
     let overnight = 0;
     
@@ -364,11 +345,7 @@ const MissionSystem: React.FC = () => {
       const departureDateObj = new Date(selectedDate || new Date());
       const returnDateObj = new Date(`${returnDate}T00:00:00`); // Adicionar horário para evitar conversão UTC
       
-      console.log('💰 Debug datas:');
-      console.log('💰 selectedDate:', selectedDate);
-      console.log('💰 returnDate:', returnDate);
-      console.log('💰 departureDateObj:', departureDateObj);
-      console.log('💰 returnDateObj:', returnDateObj);
+      // Debug removido para produção
       
       // Calcular diferença em dias
       const timeDiff = returnDateObj.getTime() - departureDateObj.getTime();
@@ -377,44 +354,28 @@ const MissionSystem: React.FC = () => {
       // Número de pernoites = dias de diferença
       // Exemplo: dia 2 → dia 4 = 2 dias de diferença = 2 pernoites
       overnight = daysDiff;
-      console.log('💰 Pernoite detectada: datas diferentes');
-      console.log('💰 Data de partida:', format(departureDateObj, 'dd/MM/yyyy'));
-      console.log('💰 Data de retorno:', format(returnDateObj, 'dd/MM/yyyy'));
-      console.log('💰 Dias de diferença:', daysDiff);
-      console.log('💰 Pernoites calculadas:', overnight);
+      // Debug removido para produção
     } else {
       // Mesmo dia, verificar se passa da meia-noite
       if (returnHour >= 0 && returnHour < 6) {
         // Entre 00:00 e 05:59 = pernoite
         overnight = 1;
-        console.log('💰 Pernoite detectada: retorno após meia-noite (00:00-05:59)');
+        // Debug removido para produção
       } else if (returnHour >= 22) {
         // Após 22:00 = pernoite (voo noturno)
         overnight = 1;
-        console.log('💰 Pernoite detectada: retorno após 22:00 (voo noturno)');
+        // Debug removido para produção
       }
     }
     
-    console.log('💰 Pernoites calculadas:', overnight);
+    // Debug removido para produção
     setOvernightStays(overnight);
     
-    console.log('💰 calculateFlightCosts finalizado');
-    console.log('💰 Resumo:', {
-      distance: `${distance.toFixed(1)} NM`,
-      aircraftSpeed: `${aircraftSpeed} KT`,
-      flightHours,
-      overnight
-    });
+    // Debug removido para produção
     
     // Exemplo de cálculo para SBAU → SBAR (259 NM)
     if (Math.abs(distance - 259) < 1) {
-      console.log('📊 Exemplo SBAU → SBAR:');
-      console.log('📊 Distância: 259 NM');
-      console.log('📊 Velocidade: 108 KT');
-      console.log('📊 Tempo de voo (ida): 259 ÷ 108 = 2.4h');
-      console.log('📊 Tempo de voo (ida + volta): 2.4h × 2 = 4.8h');
-      console.log('📊 Arredondado: 5h');
-      console.log('📊 Custo: 5h × R$ 2800 = R$ 14.000');
+      // Debug removido para produção
     }
   };
 
@@ -466,7 +427,7 @@ const MissionSystem: React.FC = () => {
 
   const handleBookSharedMission = (mission: any) => {
     // Implementar lógica de reserva
-    console.log('Reservando missão compartilhada:', mission);
+    // Debug removido para produção
     toast.success('Funcionalidade de reserva em desenvolvimento');
   };
 
@@ -502,7 +463,7 @@ const MissionSystem: React.FC = () => {
   };
 
   const handleTripTypeSelection = (type: 'solo' | 'shared-missions') => {
-    console.log('🎯 Trip type selected:', type);
+    // Debug removido para produção
     setTripType(type);
     
     if (type === 'solo') {
@@ -513,10 +474,7 @@ const MissionSystem: React.FC = () => {
   };
 
   const handleAircraftSelection = (aircraftItem: Aircraft) => {
-    console.log('🎯 Aircraft selected:', aircraftItem);
-    console.log('💰 Aircraft hourly_rate:', aircraftItem.hourly_rate);
-    console.log('💰 Aircraft overnight_fee:', aircraftItem.overnight_fee);
-    console.log('👥 Aircraft max_passengers:', aircraftItem.max_passengers);
+    // Debug removido para produção
     setSelectedAircraftForSchedule(aircraftItem);
     
     // Calcular slots disponíveis para a data selecionada
@@ -525,11 +483,10 @@ const MissionSystem: React.FC = () => {
   };
 
   const handleTimeSlotSelection = (slot: TimeSlot) => {
-    console.log('⏰ Time slot selected:', slot);
-    console.log('✈️ Selected Aircraft for Schedule:', selectedAircraftForSchedule);
+    // Debug removido para produção
     setSelectedTimeSlot(slot);
     setSelectedAircraft(selectedAircraftForSchedule);
-    console.log('✈️ Selected Aircraft after setting:', selectedAircraftForSchedule);
+    // Debug removido para produção
     setDepartureTime(format(slot.start, 'HH:mm'));
     setSelectedDate(slot.start);
     // Ir para o novo fluxo base-destino
@@ -537,15 +494,14 @@ const MissionSystem: React.FC = () => {
   };
 
   const handleBaseDestinationFlowCompleted = (missionData: any) => {
-    console.log('🎯 Base-Destination flow completed:', missionData);
+    // Debug removido para produção
     
     // Extrair dados da missão
     setOrigin(missionData.origin);
     setDestination(missionData.destinations[0]?.airport.icao || '');
-    console.log('🔍 missionData.returnDate:', missionData.returnDate);
-    console.log('🔍 missionData.returnDate type:', typeof missionData.returnDate);
+    // Debug removido para produção
     const formattedReturnDate = format(missionData.returnDate, 'yyyy-MM-dd', { locale: ptBR });
-    console.log('🔍 formattedReturnDate:', formattedReturnDate);
+    // Debug removido para produção
     setReturnDate(formattedReturnDate);
     setReturnTime(missionData.returnTime);
     setDistance(missionData.totalFlightTime * 108); // Aproximação: 108 NM/hora
@@ -562,13 +518,13 @@ const MissionSystem: React.FC = () => {
   };
 
   const handlePassengersSubmitted = (passengerList: Array<{name: string, document: string, documentType: 'rg' | 'passport'}>) => {
-    console.log('🎯 Passengers submitted:', passengerList);
+    // Debug removido para produção
     setPassengers(passengerList);
     setCurrentView('payment');
   };
 
   const handlePaymentCompleted = () => {
-    console.log('🎯 Payment completed');
+    // Debug removido para produção
     setCurrentView('confirmation');
   };
 
@@ -615,7 +571,7 @@ const MissionSystem: React.FC = () => {
 
   return (
     <div className="space-y-6">
-      {console.log('🎯 Current view:', currentView)}
+
       {currentView === 'trip-type' && (
         <TripTypeSelection onSelect={handleTripTypeSelection} />
       )}
@@ -681,7 +637,7 @@ const MissionSystem: React.FC = () => {
                   currentMonth={selectedDate || new Date()}
                   selectedAircraft={selectedAircraftForSchedule}
                   onTimeSelect={(timeSlot) => {
-                    console.log('🎯 Slot selecionado:', timeSlot);
+                    // Debug removido para produção
                     
                     if (typeof timeSlot === 'object' && timeSlot.start) {
                       const timeString = timeSlot.start.toLocaleTimeString('pt-BR', {
@@ -798,8 +754,7 @@ const MissionSystem: React.FC = () => {
 
       {currentView === 'passengers' && selectedAircraft && (
         <div>
-          {console.log('🎯 Renderizando PassengerDetailsCollection, selectedAircraft:', selectedAircraft)}
-          {console.log('👥 selectedAircraft.max_passengers:', selectedAircraft.max_passengers)}
+
           <PassengerDetailsCollection
             maxPassengers={selectedAircraft.max_passengers}
             onPassengersSubmitted={handlePassengersSubmitted}
@@ -810,8 +765,7 @@ const MissionSystem: React.FC = () => {
 
       {currentView === 'payment' && selectedAircraft && (
         <>
-          {console.log('🎯 PaymentStep - returnDate being passed:', returnDate)}
-          {console.log('🎯 PaymentStep - returnTime being passed:', returnTime)}
+
           <PaymentStep
             aircraft={selectedAircraft}
             origin={origin}
@@ -868,14 +822,13 @@ const MissionSystem: React.FC = () => {
                 <div>
                   <span className="text-gray-600">Data de Volta:</span>
                   <div className="font-medium">{returnDate ? (() => {
-                    console.log('🔍 Exibindo data de volta:');
-                    console.log('🔍 returnDate:', returnDate);
+                    // Debug removido para produção
                     const dateWithTime = `${returnDate}T00:00:00`;
-                    console.log('🔍 dateWithTime:', dateWithTime);
+                    // Debug removido para produção
                     const dateObj = new Date(dateWithTime);
-                    console.log('🔍 dateObj:', dateObj);
+                    // Debug removido para produção
                     const formatted = format(dateObj, 'dd/MM/yyyy', { locale: ptBR });
-                    console.log('🔍 formatted:', formatted);
+                    // Debug removido para produção
                     return formatted;
                   })() : 'N/A'}</div>
                 </div>

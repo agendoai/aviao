@@ -18,6 +18,7 @@ import {
 import { format, addDays, startOfWeek, endOfWeek, addHours } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { getTimeSlots, getAircrafts } from '@/utils/api';
+import { buildApiUrl } from '@/config/api';
 import { toast } from 'sonner';
 // Removido: não precisamos mais validar no frontend
 // O backend já faz toda a validação corretamente
@@ -113,7 +114,7 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
         try {
           const token = localStorage.getItem('token');
           
-          const response = await fetch(`/api/bookings/aircraft/${selectedAircraft.id}`, {
+          const response = await fetch(buildApiUrl(`/api/bookings/aircraft/${selectedAircraft.id}`), {
             headers: {
               'Authorization': `Bearer ${token}`,
               'Content-Type': 'application/json',

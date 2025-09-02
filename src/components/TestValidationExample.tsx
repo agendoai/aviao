@@ -52,15 +52,15 @@ const TestValidationExample: React.FC = () => {
     const result = validarHorarioCalendario(testTime, mockBookings, 2);
     setValidationResult(result);
     
-    console.log('🔍 Teste de validação:');
-    console.log('🔍 Horário testado:', testTime.toLocaleString('pt-BR'));
-    console.log('🔍 Resultado:', result);
+    // console.log('🔍 Teste de validação:');
+    // console.log('🔍 Horário testado:', testTime.toLocaleString('pt-BR'));
+    // console.log('🔍 Resultado:', result);
     
     // Debug detalhado
-    console.log('🔍 Voo existente: 14:00 - 16:00');
-    console.log('🔍 Pós-voo: 16:00 - 19:00 (3h)');
-    console.log('🔍 Para decolar às', timeString, 'precisa de 3h livres antes');
-    console.log('🔍 Período necessário:', new Date(testTime.getTime() - 3 * 60 * 60 * 1000).toLocaleTimeString('pt-BR'), 'até', testTime.toLocaleTimeString('pt-BR'));
+    // console.log('🔍 Voo existente: 14:00 - 16:00');
+    // console.log('🔍 Pós-voo: 16:00 - 19:00 (3h)');
+    // console.log('🔍 Para decolar às', timeString, 'precisa de 3h livres antes');
+    // console.log('🔍 Período necessário:', new Date(testTime.getTime() - 3 * 60 * 60 * 1000).toLocaleTimeString('pt-BR'), 'até', testTime.toLocaleTimeString('pt-BR'));
   };
 
   return (

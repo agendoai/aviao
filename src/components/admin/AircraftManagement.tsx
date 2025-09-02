@@ -10,6 +10,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Plus, Plane, Loader2, Edit, Trash2 } from 'lucide-react';
 import { getAllAircrafts, createAircraft } from '@/utils/api';
+import { buildApiUrl } from '@/config/api';
 import { toast } from 'sonner';
 
 interface Aircraft {
@@ -45,9 +46,9 @@ const AircraftManagement: React.FC = () => {
 
   const fetchAircraft = async () => {
     try {
-      console.log('🔍 Iniciando busca de aeronaves...');
+      // // console.log('🔍 Iniciando busca de aeronaves...');
       const data = await getAllAircrafts();
-      console.log('✅ Aeronaves carregadas:', data.length);
+      // // console.log('✅ Aeronaves carregadas:', data.length);
       setAircraft(data);
     } catch (error) {
       console.error('💥 Erro ao carregar aeronaves:', error);
@@ -59,7 +60,7 @@ const AircraftManagement: React.FC = () => {
 
   const addAircraft = async () => {
     try {
-      console.log('🚀 Criando aeronave:', newAircraft);
+      // // console.log('🚀 Criando aeronave:', newAircraft);
       
       // Validar campos obrigatórios
       if (!newAircraft.name || !newAircraft.model || !newAircraft.registration) {
@@ -78,7 +79,7 @@ const AircraftManagement: React.FC = () => {
         status: newAircraft.status,
       });
 
-      console.log('✅ Resposta da API:', response);
+      // // console.log('✅ Resposta da API:', response);
 
       if (response.error) {
         throw new Error(response.error);
@@ -109,7 +110,7 @@ const AircraftManagement: React.FC = () => {
     if (!editingAircraft) return;
     
     try {
-      console.log('✏️ Editando aeronave:', editingAircraft);
+      // // console.log('✏️ Editando aeronave:', editingAircraft);
       
       // Validar campos obrigatórios
       if (!editingAircraft.name || !editingAircraft.model || !editingAircraft.registration) {
@@ -118,7 +119,7 @@ const AircraftManagement: React.FC = () => {
       }
 
       // Chamar API para atualizar aeronave
-      const response = await fetch(`/api/aircrafts/${editingAircraft.id}`, {
+      const response = await fetch(buildApiUrl(`/api/aircrafts/${editingAircraft.id}`), {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',

@@ -8,6 +8,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Plane, User, Calendar, DollarSign, Eye, AlertTriangle, Edit, Save, X } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { getAllBookings } from '@/utils/api';
+import { buildApiUrl } from '@/config/api';
 
 interface Booking {
   id: number;
@@ -44,18 +45,18 @@ export default function BookingManagement() {
   const { user } = useAuth();
 
   useEffect(() => {
-    console.log('🎯 BookingManagement - Componente carregado');
-    console.log('👤 User:', user);
-    console.log('🔑 Token no localStorage:', localStorage.getItem('token'));
+    // // console.log('🎯 BookingManagement - Componente carregado');
+    // // console.log('👤 User:', user);
+    // // console.log('🔑 Token no localStorage:', localStorage.getItem('token'));
     
     const token = localStorage.getItem('token');
     if (!token) {
-      console.log('❌ Nenhum token encontrado');
+      // // console.log('❌ Nenhum token encontrado');
       return;
     }
     
     if (!user) {
-      console.log('❌ Usuário não autenticado');
+      // // console.log('❌ Usuário não autenticado');
       return;
     }
     
@@ -67,12 +68,12 @@ export default function BookingManagement() {
 
   const fetchBookings = async () => {
     try {
-      console.log('🔍 Iniciando busca de reservas...');
+      // // console.log('🔍 Iniciando busca de reservas...');
       const token = localStorage.getItem('token');
-      console.log('🔑 Token encontrado:', token ? 'Sim' : 'Não');
+      // // console.log('🔑 Token encontrado:', token ? 'Sim' : 'Não');
       
       const data = await getAllBookings();
-      console.log('✅ Reservas carregadas:', data.length);
+      // // console.log('✅ Reservas carregadas:', data.length);
       setBookings(data);
     } catch (error) {
       console.error('💥 Erro ao buscar reservas:', error);
@@ -84,9 +85,7 @@ export default function BookingManagement() {
   const updateBookingStatus = async (bookingId: number, status: string) => {
     try {
       const token = localStorage.getItem('token');
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
-      
-      const response = await fetch(`${backendUrl}/bookings/${bookingId}/status`, {
+      const response = await fetch(buildApiUrl(`/api/bookings/${bookingId}/status`), {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -109,9 +108,8 @@ export default function BookingManagement() {
   const cancelBooking = async (bookingId: number) => {
     try {
       const token = localStorage.getItem('token');
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
       
-      const response = await fetch(`${backendUrl}/bookings/${bookingId}`, {
+      const response = await fetch(buildApiUrl(`/api/bookings/${bookingId}`), {
         method: 'DELETE',
         headers: {
           'Authorization': `Bearer ${token}`,
@@ -133,9 +131,8 @@ export default function BookingManagement() {
   const saveBookingEdit = async (bookingId: number, updatedData: any) => {
     try {
       const token = localStorage.getItem('token');
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
       
-      const response = await fetch(`${backendUrl}/bookings/${bookingId}`, {
+      const response = await fetch(buildApiUrl(`/api/bookings/${bookingId}`), {
         method: 'PATCH',
         headers: {
           'Authorization': `Bearer ${token}`,

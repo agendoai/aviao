@@ -20,7 +20,7 @@ const SystemSettings: React.FC = () => {
       const result = await deleteAllBookings();
       
       toast.success(`✅ ${result.message}`);
-      console.log('Missões deletadas:', result);
+      // console.log('Missões deletadas:', result);
       
       // Recarregar a página para atualizar o calendário
       setTimeout(() => {

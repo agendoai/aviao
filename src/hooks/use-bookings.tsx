@@ -21,7 +21,7 @@ export const useBookings = () => {
     queryFn: async () => {
       if (!user) return [];
       
-      console.log('Fetching bookings for user:', user.id);
+      // // console.log('Fetching bookings for user:', user.id);
       
       const { data, error } = await supabase
         .from('bookings')
@@ -41,7 +41,7 @@ export const useBookings = () => {
         throw error;
       }
       
-      console.log('Bookings fetched:', data);
+              // // console.log('Bookings fetched:', data);
       return data || [];
     },
     enabled: !!user,
@@ -49,7 +49,7 @@ export const useBookings = () => {
 
   const createBookingMutation = useMutation({
     mutationFn: async (bookingData: BookingInsert) => {
-      console.log('Creating booking:', bookingData);
+              // // console.log('Creating booking:', bookingData);
       
       const { data, error } = await supabase
         .from('bookings')
@@ -62,7 +62,7 @@ export const useBookings = () => {
         throw error;
       }
       
-      console.log('Booking created:', data);
+              // // console.log('Booking created:', data);
       return data;
     },
     onSuccess: () => {
@@ -77,7 +77,7 @@ export const useBookings = () => {
 
   const cancelBookingMutation = useMutation({
     mutationFn: async (bookingId: string) => {
-      console.log('Cancelling booking:', bookingId);
+              // // console.log('Cancelling booking:', bookingId);
       
       const { error } = await supabase
         .from('bookings')

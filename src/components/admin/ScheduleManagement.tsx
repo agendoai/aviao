@@ -9,6 +9,7 @@ import { addDays, addHours, format, startOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { Ban, Calendar as CalendarIcon, CheckCircle, Lock, Unlock, Plane, Loader2, Clock, Wrench, Settings } from 'lucide-react';
 import { getAllAircrafts, getCalendar, blockTimeSlot, unblockTimeSlot } from '@/utils/api';
+import { buildApiUrl } from '@/config/api';
 import { Calendar as DatePicker } from '@/components/ui/calendar';
 import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
@@ -196,12 +197,12 @@ const ScheduleManagement: React.FC = () => {
         endUTC = maintenanceEnd.toISOString();
       }
       
-      console.log('🔒 Bloqueando horário:', {
-        start: startUTC,
-        end: endUTC,
-        reason: blockReason,
-        includeMaintenance
-      });
+      // console.log('🔒 Bloqueando horário:', {
+      //   start: startUTC,
+      //   end: endUTC,
+      //   reason: blockReason,
+      //   includeMaintenance
+      // });
       
       await blockTimeSlot({
         aircraftId: selectedAircraftId,
@@ -234,7 +235,7 @@ const ScheduleManagement: React.FC = () => {
     try {
       setGeneratingSchedule(true);
       
-      await fetch(`/api/calendar/config`, {
+      await fetch(buildApiUrl('/api/calendar/config'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

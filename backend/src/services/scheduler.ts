@@ -7,11 +7,11 @@ export class Scheduler {
   // Iniciar o scheduler
   static start(): void {
     if (this.isRunning) {
-      console.log('⚠️ Scheduler já está rodando');
+      // console.log('⚠️ Scheduler já está rodando');
       return;
     }
 
-    console.log('🚀 Iniciando scheduler de agenda...');
+    // console.log('🚀 Iniciando scheduler de agenda...');
     this.isRunning = true;
 
     // Limpeza diária às 02:00
@@ -20,25 +20,25 @@ export class Scheduler {
     // Verificação a cada 6 horas
     this.cleanupInterval = setInterval(async () => {
       try {
-        console.log('🔄 Executando limpeza automática da agenda...');
+        // console.log('🔄 Executando limpeza automática da agenda...');
         await ScheduleService.cleanupOldSlots();
-        console.log('✅ Limpeza automática concluída');
+        // console.log('✅ Limpeza automática concluída');
       } catch (error) {
         console.error('❌ Erro na limpeza automática:', error);
       }
     }, 6 * 60 * 60 * 1000); // 6 horas
 
-    console.log('✅ Scheduler iniciado com sucesso');
+    // console.log('✅ Scheduler iniciado com sucesso');
   }
 
   // Parar o scheduler
   static stop(): void {
     if (!this.isRunning) {
-      console.log('⚠️ Scheduler não está rodando');
+      // console.log('⚠️ Scheduler não está rodando');
       return;
     }
 
-    console.log('🛑 Parando scheduler...');
+    // console.log('🛑 Parando scheduler...');
     this.isRunning = false;
 
     if (this.cleanupInterval) {
@@ -46,7 +46,7 @@ export class Scheduler {
       this.cleanupInterval = null;
     }
 
-    console.log('✅ Scheduler parado');
+    // console.log('✅ Scheduler parado');
   }
 
   // Agendar limpeza diária
@@ -64,9 +64,9 @@ export class Scheduler {
 
     setTimeout(async () => {
       try {
-        console.log('🧹 Executando limpeza diária da agenda...');
+        // console.log('🧹 Executando limpeza diária da agenda...');
         await ScheduleService.cleanupOldSlots();
-        console.log('✅ Limpeza diária concluída');
+        // console.log('✅ Limpeza diária concluída');
         
         // Agendar próxima limpeza (24 horas)
         this.scheduleDailyCleanup();
@@ -75,15 +75,15 @@ export class Scheduler {
       }
     }, timeUntilCleanup);
 
-    console.log(`📅 Próxima limpeza diária agendada para: ${nextCleanup.toLocaleString('pt-BR')}`);
+    // console.log(`📅 Próxima limpeza diária agendada para: ${nextCleanup.toLocaleString('pt-BR')}`);
   }
 
   // Executar limpeza manual
   static async runManualCleanup(): Promise<void> {
     try {
-      console.log('🧹 Executando limpeza manual...');
+      // console.log('🧹 Executando limpeza manual...');
       await ScheduleService.cleanupOldSlots();
-      console.log('✅ Limpeza manual concluída');
+      // console.log('✅ Limpeza manual concluída');
     } catch (error) {
       console.error('❌ Erro na limpeza manual:', error);
       throw error;

@@ -196,7 +196,7 @@ export async function getAirportCoordinates(icao: string): Promise<{ lat: number
     }
 
     // API AISWEB não tem endpoint /api/airport - usando apenas base local
-    console.log(`ℹ️ Aeroporto ${icao} não encontrado na base local`);
+    // console.log(`ℹ️ Aeroporto ${icao} não encontrado na base local`);
     
     return null;
   } catch (error) {
@@ -208,7 +208,7 @@ export async function getAirportCoordinates(icao: string): Promise<{ lat: number
     );
     
     if (localAirport) {
-      console.log(`Usando coordenadas locais para ${icao}`);
+      // console.log(`Usando coordenadas locais para ${icao}`);
       return {
         lat: localAirport.latitude,
         lon: localAirport.longitude
@@ -254,13 +254,13 @@ export async function getAirportCoordinatesWithFallback(icao: string): Promise<{
 
 // Função para testar a disponibilidade da API AISWEB
 export async function testAISWEBConnection(): Promise<boolean> {
-  console.log('ℹ️ API AISWEB não tem endpoint /api/airport - usando apenas base local');
+  // console.log('ℹ️ API AISWEB não tem endpoint /api/airport - usando apenas base local');
   return false;
 } 
 
 // Função para verificar se as distâncias estão corretas
 export function verifyDistances() {
-  console.log('🔍 Verificando distâncias conhecidas:');
+  // console.log('🔍 Verificando distâncias conhecidas:');
   
   // SBAU (Araçatuba) → SBSP (Congonhas)
   const araçatuba = BRAZILIAN_AIRPORTS.find(a => a.icao === 'SBAU');
@@ -271,7 +271,7 @@ export function verifyDistances() {
       araçatuba.latitude, araçatuba.longitude,
       congonhas.latitude, congonhas.longitude
     );
-    console.log(`SBAU → SBSP: ${distance.toFixed(1)} NM (Real: ~216 NM)`);
+    // console.log(`SBAU → SBSP: ${distance.toFixed(1)} NM (Real: ~216 NM)`);
   }
   
   // SBAU (Araçatuba) → SBAR (Aracaju)
@@ -282,7 +282,7 @@ export function verifyDistances() {
       araçatuba.latitude, araçatuba.longitude,
       aracaju.latitude, aracaju.longitude
     );
-    console.log(`SBAU → SBAR: ${distance.toFixed(1)} NM (Real: ~648 NM)`);
+    // console.log(`SBAU → SBAR: ${distance.toFixed(1)} NM (Real: ~648 NM)`);
   }
   
   // SBSP (Congonhas) → SBGR (Guarulhos)
@@ -293,7 +293,7 @@ export function verifyDistances() {
       congonhas.latitude, congonhas.longitude,
       guarulhos.latitude, guarulhos.longitude
     );
-    console.log(`SBSP → SBGR: ${distance.toFixed(1)} NM (Real: ~13.5 NM)`);
+    // console.log(`SBSP → SBGR: ${distance.toFixed(1)} NM (Real: ~13.5 NM)`);
   }
 } 
 
@@ -308,13 +308,13 @@ export function verifySBAUtoSBSV() {
       salvador.latitude, salvador.longitude
     );
     
-    console.log('🔍 Verificação SBAU → SBSV:');
-    console.log('🔍 Araçatuba:', araçatuba.latitude, araçatuba.longitude);
-    console.log('🔍 Salvador:', salvador.latitude, salvador.longitude);
-    console.log('🔍 Distância calculada:', distance.toFixed(1), 'NM');
-    console.log('🔍 Distância real (Google Maps): ~1080 NM');
-    console.log('🔍 Diferença:', Math.abs(distance - 1080).toFixed(1), 'NM');
-    console.log('🔍 Tempo de voo estimado:', Math.ceil(distance / 108), 'horas');
+    // console.log('🔍 Verificação SBAU → SBSV:');
+    // console.log('🔍 Araçatuba:', araçatuba.latitude, araçatuba.longitude);
+    // console.log('🔍 Salvador:', salvador.latitude, salvador.longitude);
+    // console.log('🔍 Distância calculada:', distance.toFixed(1), 'NM');
+    // console.log('🔍 Distância real (Google Maps): ~1080 NM');
+    // console.log('🔍 Diferença:', Math.abs(distance - 1080).toFixed(1), 'NM');
+    // console.log('🔍 Tempo de voo estimado:', Math.ceil(distance / 108), 'horas');
     
     return distance;
   }

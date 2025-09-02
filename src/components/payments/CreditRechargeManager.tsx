@@ -70,7 +70,7 @@ const CreditRechargeManager: React.FC = () => {
       const amount = parseFloat(rechargeAmount);
       const selectedMethod = paymentMethods.find(method => method.id === selectedPaymentMethod);
       
-      console.log('Processando recarga:', { amount, selectedPaymentMethod, selectedMethod });
+      // console.log('Processando recarga:', { amount, selectedPaymentMethod, selectedMethod });
       
       // Chamar função do banco para processar recarga
       const { data, error } = await supabase.rpc('process_credit_recharge', {
@@ -80,7 +80,7 @@ const CreditRechargeManager: React.FC = () => {
         p_external_payment_id: `recharge_${Date.now()}`
       });
 
-      console.log('Resposta da recarga:', { data, error });
+      // console.log('Resposta da recarga:', { data, error });
 
       if (error) {
         console.error('Erro na função RPC:', error);

@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { useAuth } from '@/hooks/use-auth';
 import { toast } from 'sonner';
+import { buildApiUrl } from '@/config/api';
 
 interface UserStatusData {
   user: {
@@ -47,7 +48,7 @@ const UserStatusCheck: React.FC<{ children: React.ReactNode }> = ({ children }) 
     
     setLoading(true);
     try {
-      const response = await fetch(`/api/users/status/${user.id}`);
+      const response = await fetch(buildApiUrl(`/api/users/status/${user.id}`));
       const data = await response.json();
       setStatusData(data);
     } catch (error) {
@@ -68,7 +69,7 @@ const UserStatusCheck: React.FC<{ children: React.ReactNode }> = ({ children }) 
       
       // Se tem paymentId, continuar pagamento existente
       if (statusData.currentMembership.paymentId) {
-        response = await fetch(`/api/payments/continue/${statusData.currentMembership.paymentId}`, {
+        response = await fetch(buildApiUrl(`/api/payments/continue/${statusData.currentMembership.paymentId}`), {
           method: 'POST'
         });
         data = await response.json();
@@ -82,7 +83,7 @@ const UserStatusCheck: React.FC<{ children: React.ReactNode }> = ({ children }) 
         }
       } else {
         // Se não tem paymentId, gerar nova cobrança
-        response = await fetch(`/api/payments/membership/${user.id}`, {
+        response = await fetch(buildApiUrl(`/api/payments/membership/${user.id}`), {
           method: 'POST'
         });
         data = await response.json();
@@ -108,7 +109,7 @@ const UserStatusCheck: React.FC<{ children: React.ReactNode }> = ({ children }) 
     
     setCheckingPayment(true);
     try {
-      const response = await fetch(`/api/payments/status/${statusData.currentMembership.paymentId}`);
+      const response = await fetch(buildApiUrl(`/api/payments/status/${statusData.currentMembership.paymentId}`));
       const data = await response.json();
       
       if (data.status === 'CONFIRMED' || data.status === 'RECEIVED') {
@@ -145,7 +146,7 @@ const UserStatusCheck: React.FC<{ children: React.ReactNode }> = ({ children }) 
     
     setSyncing(true);
     try {
-      const response = await fetch(`/api/payments/sync-user/${user.id}`, {
+      const response = await fetch(buildApiUrl(`/api/payments/sync-user/${user.id}`), {
         method: 'POST'
       });
       const data = await response.json();

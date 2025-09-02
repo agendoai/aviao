@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { CreditCard, CheckCircle, Clock, AlertTriangle, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useAuth } from '@/hooks/use-auth';
+import { buildApiUrl } from '@/config/api';
 import { toast } from 'sonner';
 
 const MembershipPayment: React.FC = () => {
@@ -25,7 +26,7 @@ const MembershipPayment: React.FC = () => {
   const fetchMemberships = async () => {
     setLoading(true);
     try {
-      const res = await fetch(`/payments/membership/${user.id}`);
+      const res = await fetch(buildApiUrl(`/api/payments/membership/${user.id}`));
       const data = await res.json();
       setMemberships(data);
     } catch {
@@ -38,7 +39,7 @@ const MembershipPayment: React.FC = () => {
   const handlePay = async () => {
     setPaying(true);
     try {
-      const res = await fetch(`/payments/membership/${user.id}`, { method: 'POST' });
+      const res = await fetch(buildApiUrl(`/api/payments/membership/${user.id}`), { method: 'POST' });
       const data = await res.json();
       setQrCode(data.pixQrCodeImage);
       setCopiaCola(data.pixCopiaCola);
@@ -55,7 +56,7 @@ const MembershipPayment: React.FC = () => {
   const handleCreateSubscription = async () => {
     setCreatingSubscription(true);
     try {
-      const res = await fetch(`/payments/membership/subscription/${user.id}`, { method: 'POST' });
+      const res = await fetch(buildApiUrl(`/api/payments/membership/subscription/${user.id}`), { method: 'POST' });
       const data = await res.json();
       
       if (res.ok) {
@@ -75,7 +76,7 @@ const MembershipPayment: React.FC = () => {
     if (!confirm('Tem certeza que deseja cancelar a assinatura recorrente?')) return;
     
     try {
-      const res = await fetch(`/payments/membership/subscription/${subscriptionId}/cancel`, { method: 'POST' });
+      const res = await fetch(buildApiUrl(`/api/payments/membership/subscription/${subscriptionId}/cancel`), { method: 'POST' });
       const data = await res.json();
       
       if (res.ok) {
@@ -113,11 +114,11 @@ const MembershipPayment: React.FC = () => {
     
     setCheckingPayment(true);
     try {
-      const res = await fetch(`/payments/membership/status/${paymentId}`);
+      const res = await fetch(buildApiUrl(`/api/payments/membership/status/${paymentId}`));
       const data = await res.json();
       setStatus(data.status);
       
-      console.log('🔍 Status do pagamento:', data.status);
+      // // console.log('🔍 Status do pagamento:', data.status);
       
       if (isPaymentConfirmed(data.status)) {
         setPaymentConfirmed(true);

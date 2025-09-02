@@ -52,6 +52,7 @@ import {
 import { searchAirports, getPopularAirports, getAirportsByRegion, Airport, calculateDistance, getAircraftSpeed, getAirportCoordinatesWithFallback, getAirportNameByICAO } from '@/utils/airport-search';
 import { getCalendar } from '@/utils/api';
 import IntelligentTimeSelectionStep from '../booking-flow/IntelligentTimeSelectionStep';
+import { buildApiUrl } from '@/config/api';
 
 interface Aircraft {
   id: number;
@@ -287,7 +288,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
 
           // If still not found or data is incomplete, we might need to load the data first
           // This could happen if the component just mounted or data is still loading
-          console.log('Request not found or incomplete, might need to load data first');
+          // console.log('Request not found or incomplete, might need to load data first');
           
           // Try to reload data if we don't have it
           if (myRequests.length === 0) {
@@ -875,7 +876,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
         if (origin && dest) {
           const nm = calculateDistance(origin.lat, origin.lon, dest.lat, dest.lon);
           setResolvedDistanceNM(nm);
-          console.log('🔎 Distância (NM) resolvida via AISWEB/local:', nm.toFixed(1));
+          // console.log('🔎 Distância (NM) resolvida via AISWEB/local:', nm.toFixed(1));
         } else {
           setResolvedDistanceNM(null);
         }
@@ -1009,7 +1010,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
   };
 
   const handleReturnSlotSelect = (timeSlot: any) => {
-    console.log('🎯 Horário de retorno selecionado:', timeSlot);
+    // console.log('🎯 Horário de retorno selecionado:', timeSlot);
     
     if (typeof timeSlot === 'object' && timeSlot.start) {
       setSelectedReturnSlot(timeSlot);
@@ -1049,14 +1050,12 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
     let intervalId: NodeJS.Timeout;
     
     if (autoVerification && paymentId && showPixModal) {
-      console.log('🔄 Iniciando verificação automática do pagamento...');
+      // console.log('🔄 Iniciando verificação automática do pagamento...');
       
       // Verificar a cada 5 segundos
       intervalId = setInterval(async () => {
         try {
-          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
-          
-          const response = await fetch(`${backendUrl}/api/shared-missions/pix-payment/${paymentId}/verify`, {
+          const response = await fetch(buildApiUrl(`/api/shared-missions/pix-payment/${paymentId}/verify`), {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -1067,7 +1066,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
           const data = await response.json();
           
           if (data.success) {
-            console.log('✅ Pagamento confirmado automaticamente!');
+            // console.log('✅ Pagamento confirmado automaticamente!');
             
             // Parar verificação automática
             setAutoVerification(false);
@@ -1116,13 +1115,13 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
   };
 
   // Debug: verificar estado do modal
-  console.log('🔍 Estado atual - showPixModal:', showPixModal, 'qrCode:', qrCode ? 'tem' : 'não tem', 'copiaCola:', copiaCola ? 'tem' : 'não tem');
+  // console.log('🔍 Estado atual - showPixModal:', showPixModal, 'qrCode:', qrCode ? 'tem' : 'não tem', 'copiaCola:', copiaCola ? 'tem' : 'não tem');
 
 
 
   // Função para gerar pagamento PIX
   const handleGeneratePix = async () => {
-    console.log('🚀 handleGeneratePix iniciado');
+    // console.log('🚀 handleGeneratePix iniciado');
     
     if (!selectedAircraft || !selectedDestination || !departureDate || !returnDate || !departureTime || !returnTime) {
       toast({
@@ -1191,13 +1190,13 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
       const thirtyMinutes = 30 * 60 * 1000; // 30 minutos em ms
       
       if (pendingPayment && (now - pendingPayment.createdAt) < thirtyMinutes) {
-        console.log('🔄 Reutilizando pagamento pendente existente');
+        // console.log('🔄 Reutilizando pagamento pendente existente');
         
         // Verificar se os dados da missão são os mesmos
         const isSameMission = JSON.stringify(pendingPayment.missionData) === JSON.stringify(missionData);
         
         if (isSameMission) {
-          console.log('✅ Dados da missão são os mesmos, reutilizando QR Code');
+          // console.log('✅ Dados da missão são os mesmos, reutilizando QR Code');
           setQrCode(pendingPayment.qrCode);
           setCopiaCola(pendingPayment.copiaCola);
           setPaymentId(pendingPayment.paymentId);
@@ -1211,15 +1210,14 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
           setPaying(false);
           return;
         } else {
-          console.log('⚠️ Dados da missão mudaram, criando novo pagamento');
+          // console.log('⚠️ Dados da missão mudaram, criando novo pagamento');
         }
       }
 
-      console.log('🆕 Criando novo pagamento PIX');
+      // console.log('🆕 Criando novo pagamento PIX');
       
       // Chamar API para gerar PIX
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
-      const response = await fetch(`${backendUrl}/api/shared-missions/pix-payment`, {
+      const response = await fetch(buildApiUrl('/api/shared-missions/pix-payment'), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -1234,7 +1232,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
         throw new Error(data.error || 'Erro ao gerar pagamento PIX');
       }
 
-      console.log('🔍 Dados do PIX recebidos:', data);
+      // console.log('🔍 Dados do PIX recebidos:', data);
       
       // Salvar no cache
       const newPendingPayment = {
@@ -1273,9 +1271,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
   // Função para verificar pagamento
   const handleVerifyPayment = async () => {
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
-      
-      const response = await fetch(`${backendUrl}/api/shared-missions/pix-payment/${paymentId}/verify`, {
+              const response = await fetch(buildApiUrl(`/api/shared-missions/pix-payment/${paymentId}/verify`), {
         method: 'POST',
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`,
@@ -1418,7 +1414,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
 
   // Modal do QR Code PIX (renderizado globalmente para todas as views)
   if (showPixModal) {
-    console.log('🔍 Renderizando modal PIX real!');
+    // console.log('🔍 Renderizando modal PIX real!');
     return (
       <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3">
         <div className="bg-white rounded-lg w-full max-w-sm md:max-w-md p-4 md:p-6">
@@ -1550,13 +1546,13 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
       const flightTimeHours = distanceNM / aircraftSpeed;
       const flightHours = flightTimeHours * 2; // Ida e volta
       
-      console.log(`🔍 FRONTEND FLIGHT HOURS DEBUG:`);
-      console.log(`🔍   Origin coords: ${originCoords.lat}, ${originCoords.lon}`);
-      console.log(`🔍   Dest coords: ${destCoords.lat}, ${destCoords.lon}`);
-      console.log(`🔍   Distance NM: ${distanceNM}`);
-      console.log(`🔍   Aircraft Speed: ${aircraftSpeed}`);
-      console.log(`🔍   Flight Time Hours: ${flightTimeHours}`);
-      console.log(`🔍   Flight Hours: ${flightHours}`);
+      // console.log(`🔍 FRONTEND FLIGHT HOURS DEBUG:`);
+      // console.log(`🔍   Origin coords: ${originCoords.lat}, ${originCoords.lon}`);
+      // console.log(`🔍   Dest coords: ${destCoords.lat}, ${destCoords.lon}`);
+      // console.log(`🔍   Distance NM: ${distanceNM}`);
+      // console.log(`🔍   Aircraft Speed: ${aircraftSpeed}`);
+      // console.log(`🔍   Flight Time Hours: ${flightTimeHours}`);
+      // console.log(`🔍   Flight Hours: ${flightHours}`);
       
 
       
@@ -2593,7 +2589,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
                 </CardContent>
               </Card>
             ))
-        )}
+          )}
         </div>
 
         {/* Chat Modal */}

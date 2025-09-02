@@ -18,7 +18,7 @@ const MembershipConfig: React.FC = () => {
   const loadMembershipConfig = async () => {
     setLoading(true);
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://72.60.62.143:4000/api';
       const response = await fetch(`${backendUrl}/admin/membership-config`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -42,7 +42,7 @@ const MembershipConfig: React.FC = () => {
   const saveMembershipConfig = async () => {
     setSaving(true);
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://72.60.62.143:4000/api';
       const response = await fetch(`${backendUrl}/admin/membership-config`, {
         method: 'PUT',
         headers: {

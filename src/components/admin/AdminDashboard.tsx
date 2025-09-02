@@ -6,6 +6,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Shield, Users, Calendar, MapPin, Plane, DollarSign, Activity, CalendarIcon } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { getAllAircrafts } from '@/utils/api';
+import { buildApiUrl } from '@/config/api';
 import UserManagement from './UserManagement';
 import BookingManagement from './BookingManagement';
 import AircraftManagement from './AircraftManagement';
@@ -68,30 +69,29 @@ const AdminDashboard: React.FC = () => {
 
   const fetchStats = async () => {
     try {
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
       const token = localStorage.getItem('token');
       
       const [usersRes, aircraftRes, bookingsRes, financialsRes, sharedMissionsRes] = await Promise.all([
-        fetch(`${backendUrl}/users`, {
+        fetch(buildApiUrl('/api/users'), {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
           }
         }),
         getAllAircrafts(),
-        fetch(`${backendUrl}/bookings`, {
+        fetch(buildApiUrl('/api/bookings'), {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
           }
         }),
-        fetch(`${backendUrl}/admin/financials`, {
+        fetch(buildApiUrl('/api/admin/financials'), {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
           }
         }),
-        fetch(`${backendUrl}/shared-missions`, {
+        fetch(buildApiUrl('/api/shared-missions'), {
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',

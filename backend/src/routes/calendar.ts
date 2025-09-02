@@ -44,7 +44,7 @@ router.post('/block', authMiddleware, async (req: any, res) => {
       return res.status(400).json({ error: 'aircraftId, start, end são obrigatórios' });
     }
     
-    console.log('🔒 Criando bloqueio:', { aircraftId, start, end, reason });
+    // console.log('🔒 Criando bloqueio:', { aircraftId, start, end, reason });
     
     // Criar booking com status 'blocked' e blocked_until
     const block = await prisma.booking.create({
@@ -67,7 +67,7 @@ router.post('/block', authMiddleware, async (req: any, res) => {
       }
     });
     
-    console.log('✅ Bloqueio criado:', block);
+    // console.log('✅ Bloqueio criado:', block);
     res.status(201).json(block);
   } catch (e) {
     console.error('❌ Erro ao bloquear horário:', e);
@@ -103,7 +103,7 @@ router.post('/config', authMiddleware, async (req: any, res) => {
     // Configurar agenda usando o serviço
     await ScheduleService.configureSchedule(aircraftId, daysConfig);
     
-    console.log(`✅ Agenda configurada para aeronave ${aircraftId}`);
+    // console.log(`✅ Agenda configurada para aeronave ${aircraftId}`);
     res.json({ 
       message: 'Agenda configurada com sucesso',
       aircraftId

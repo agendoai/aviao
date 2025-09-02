@@ -16,7 +16,11 @@ import airportRoutes from './routes/airports';
 const app = express();
 
 app.use(cors({
-  origin: process.env.FRONTEND_URL || 'http://localhost:8080',
+  origin: [
+    process.env.FRONTEND_URL || 'http://localhost:8080',
+    'http://localhost:8081',
+    'http://72.60.62.143:4000'
+  ],
   credentials: true
 }));
 
@@ -41,8 +45,8 @@ const PORT = process.env.PORT || 4000;
 import { Scheduler } from './services/scheduler';
 
 app.listen(PORT, () => {
-  console.log(`🚀 Servidor rodando na porta ${PORT}`);
-  console.log(`📡 Webhook Asaas: /api/webhooks/asaas`);
+  // console.log(`🚀 Servidor rodando na porta ${PORT}`);
+  // console.log(`📡 Webhook Asaas: /api/webhooks/asaas`);
   
   // Iniciar scheduler de agenda
   Scheduler.start();

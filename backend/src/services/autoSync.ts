@@ -5,7 +5,7 @@ import { updateUserStatus } from './userStatus';
 // Função para sincronizar automaticamente todas as cobranças pendentes
 export async function autoSyncAllPayments(): Promise<{ updated: number; errors: number }> {
   try {
-    console.log('🔄 Iniciando sincronização automática de cobranças...');
+    // console.log('🔄 Iniciando sincronização automática de cobranças...');
     
     // Buscar todos os usuários com mensalidades pendentes
     const usersWithPendingPayments = await prisma.user.findMany({
@@ -30,7 +30,7 @@ export async function autoSyncAllPayments(): Promise<{ updated: number; errors: 
       }
     });
 
-    console.log(`📊 Encontrados ${usersWithPendingPayments.length} usuários com cobranças pendentes`);
+    // console.log(`📊 Encontrados ${usersWithPendingPayments.length} usuários com cobranças pendentes`);
 
     let updated = 0;
     let errors = 0;
@@ -38,12 +38,12 @@ export async function autoSyncAllPayments(): Promise<{ updated: number; errors: 
     for (const user of usersWithPendingPayments) {
       try {
         if (user.membershipPayments.length > 0 && user.membershipPayments[0].subscriptionId) {
-          console.log(`🔄 Sincronizando usuário ${user.name} (ID: ${user.id})...`);
+          // console.log(`🔄 Sincronizando usuário ${user.name} (ID: ${user.id})...`);
           
           const result = await syncUserPaymentsStatus(user.id, user.membershipPayments[0].subscriptionId);
           
           if (result.updated > 0) {
-            console.log(`✅ Usuário ${user.name} atualizado: ${result.updated} mudanças`);
+            // console.log(`✅ Usuário ${user.name} atualizado: ${result.updated} mudanças`);
             updated += result.updated;
           }
           
@@ -55,7 +55,7 @@ export async function autoSyncAllPayments(): Promise<{ updated: number; errors: 
       }
     }
 
-    console.log(`🎯 Sincronização automática concluída: ${updated} atualizações, ${errors} erros`);
+    // console.log(`🎯 Sincronização automática concluída: ${updated} atualizações, ${errors} erros`);
     return { updated, errors };
     
   } catch (error) {
@@ -67,7 +67,7 @@ export async function autoSyncAllPayments(): Promise<{ updated: number; errors: 
 // Função para verificar automaticamente cobranças vencidas
 export async function checkOverduePayments(): Promise<{ updated: number; errors: number }> {
   try {
-    console.log('⏰ Verificando cobranças vencidas automaticamente...');
+    // console.log('⏰ Verificando cobranças vencidas automaticamente...');
     
     const now = new Date();
     
@@ -84,14 +84,14 @@ export async function checkOverduePayments(): Promise<{ updated: number; errors:
       }
     });
 
-    console.log(`📊 Encontradas ${overdueMemberships.length} mensalidades vencidas`);
+    // console.log(`📊 Encontradas ${overdueMemberships.length} mensalidades vencidas`);
 
     let updated = 0;
     let errors = 0;
 
     for (const membership of overdueMemberships) {
       try {
-        console.log(`🔄 Marcando mensalidade ${membership.id} como atrasada...`);
+        // console.log(`🔄 Marcando mensalidade ${membership.id} como atrasada...`);
         
         // Marcar como atrasada
         await prisma.membershipPayment.update({
@@ -102,7 +102,7 @@ export async function checkOverduePayments(): Promise<{ updated: number; errors:
         // Atualizar status do usuário
         await updateUserStatus(membership.userId);
         
-        console.log(`✅ Mensalidade ${membership.id} marcada como atrasada`);
+        // console.log(`✅ Mensalidade ${membership.id} marcada como atrasada`);
         updated++;
         
       } catch (error) {
@@ -111,7 +111,7 @@ export async function checkOverduePayments(): Promise<{ updated: number; errors:
       }
     }
 
-    console.log(`🎯 Verificação de vencimentos concluída: ${updated} atualizações, ${errors} erros`);
+    // console.log(`🎯 Verificação de vencimentos concluída: ${updated} atualizações, ${errors} erros`);
     return { updated, errors };
     
   } catch (error) {
@@ -123,7 +123,7 @@ export async function checkOverduePayments(): Promise<{ updated: number; errors:
 // Função principal que executa todas as verificações automáticas
 export async function runAutoChecks(): Promise<void> {
   try {
-    console.log('🤖 Iniciando verificações automáticas...');
+    // console.log('🤖 Iniciando verificações automáticas...');
     
     // 1. Verificar cobranças vencidas
     const overdueResult = await checkOverduePayments();
@@ -131,10 +131,10 @@ export async function runAutoChecks(): Promise<void> {
     // 2. Sincronizar com Asaas
     const syncResult = await autoSyncAllPayments();
     
-    console.log('🎯 Verificações automáticas concluídas:');
-    console.log(`  - Vencimentos verificados: ${overdueResult.updated} atualizações`);
-    console.log(`  - Sincronizações: ${syncResult.updated} atualizações`);
-    console.log(`  - Total de erros: ${overdueResult.errors + syncResult.errors}`);
+    // console.log('🎯 Verificações automáticas concluídas:');
+    // console.log(`  - Vencimentos verificados: ${overdueResult.updated} atualizações`);
+    // console.log(`  - Sincronizações: ${syncResult.updated} atualizações`);
+    // console.log(`  - Total de erros: ${overdueResult.errors + syncResult.errors}`);
     
   } catch (error) {
     console.error('❌ Erro nas verificações automáticas:', error);

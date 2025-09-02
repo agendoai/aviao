@@ -67,7 +67,7 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
   }, [selectedAircraft, currentMonth]);
 
   const resolveBackendUrl = () => {
-    const raw = (import.meta as any).env.VITE_BACKEND_URL || 'http://localhost:4000';
+    const raw = (import.meta as any).env.VITE_BACKEND_URL || 'http://72.60.62.143:4000';
     return raw.endsWith('/api') ? raw : `${raw}/api`;
   };
 
@@ -130,7 +130,7 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
       }
 
       const data = await response.json();
-      console.log('📅 Dados recebidos do backend:', data);
+      // console.log('📅 Dados recebidos do backend:', data);
       
       if (data && Array.isArray(data.bookings)) {
         const scheduleEvents: ScheduleEvent[] = data.bookings.map((booking: any) => {
@@ -148,12 +148,12 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
           const startDate = new Date(booking.departure_date);
           const endDate = new Date(booking.return_date);
 
-          console.log(`📅 Processando booking ${booking.id}:`);
-          console.log(`   Status: ${booking.status}`);
-          console.log(`   Partida: ${startDate.toLocaleString()}`);
-          console.log(`   Retorno: ${endDate.toLocaleString()}`);
-          console.log(`   Blocked until: ${booking.blocked_until ? new Date(booking.blocked_until).toLocaleString() : 'N/A'}`);
-          console.log(`   Blocked until (ISO): ${booking.blocked_until || 'N/A'}`);
+          // console.log(`📅 Processando booking ${booking.id}:`);
+          // console.log(`   Status: ${booking.status}`);
+          // console.log(`   Partida: ${startDate.toLocaleString()}`);
+          // console.log(`   Retorno: ${endDate.toLocaleString()}`);
+          // console.log(`   Blocked until: ${booking.blocked_until ? new Date(booking.blocked_until).toLocaleString() : 'N/A'}`);
+          // console.log(`   Blocked until (ISO): ${booking.blocked_until || 'N/A'}`);
 
           return {
             id: booking.id.toString(),
@@ -167,7 +167,7 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
           };
         });
         
-        console.log('📅 Eventos processados:', scheduleEvents.map(e => ({
+        // console.log('📅 Eventos processados:', scheduleEvents.map(e => ({
           title: e.title,
           start: e.start.toLocaleString(),
           end: e.end.toLocaleString(),
@@ -230,13 +230,13 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
        if (date.getDate() === 18) {
          const now = new Date();
          const currentHour = now.getHours();
-         console.log(`🔍 Dia 18: ${date.toISOString()}, eventos: ${dayEvents.length}, hora atual: ${currentHour}h, disponível: ${isAvailable}`);
+         // console.log(`🔍 Dia 18: ${date.toISOString()}, eventos: ${dayEvents.length}, hora atual: ${currentHour}h, disponível: ${isAvailable}`);
        }
       
       return isAvailable;
     });
     
-    console.log(`📅 Datas disponíveis: ${available.map(d => d.getDate()).join(', ')}`);
+    // console.log(`📅 Datas disponíveis: ${available.map(d => d.getDate()).join(', ')}`);
     setAvailableDates(available);
   };
 
@@ -274,11 +274,11 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
     const now = new Date();
     const isToday = isSameDay(date, now);
     
-         console.log('🔍 SmartCalendar - Calculando slots para:', date.toLocaleDateString());
-     console.log('🔍 Eventos relevantes:', relevantEvents.length);
+         // console.log('🔍 SmartCalendar - Calculando slots para:', date.toLocaleDateString());
+     // console.log('🔍 Eventos relevantes:', relevantEvents.length);
      relevantEvents.forEach((event, index) => {
-       console.log(`   Evento ${index + 1}: ${event.title} - ${format(event.start, 'HH:mm')} até ${format(event.end, 'HH:mm')}`);
-       console.log(`   Blocked until: ${event.resource?.blocked_until ? format(new Date(event.resource.blocked_until), 'HH:mm') : 'N/A'}`);
+       // console.log(`   Evento ${index + 1}: ${event.title} - ${format(event.start, 'HH:mm')} até ${format(event.end, 'HH:mm')}`);
+       // console.log(`   Blocked until: ${event.resource?.blocked_until ? format(new Date(event.resource.blocked_until), 'HH:mm') : 'N/A'}`);
      });
     
     return TIME_SLOTS.map(time => {
@@ -320,7 +320,7 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
          if (event.resource?.blocked_until) {
            // Se tem blocked_until, usar ele (inclui retorno + tempo de voo de volta + 3h de manutenção)
            blockedUntil = new Date(event.resource.blocked_until);
-           console.log(`🔍 Usando blocked_until: ${blockedUntil.toLocaleString()} (inclui retorno + voo de volta + manutenção)`);
+           // console.log(`🔍 Usando blocked_until: ${blockedUntil.toLocaleString()} (inclui retorno + voo de volta + manutenção)`);
          } else {
            // Se não tem blocked_until, calcular: retorno + tempo de voo de volta + 3h de manutenção
            const returnTime = new Date(event.end); // Horário de retorno
@@ -328,7 +328,7 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
            const returnFlightDuration = totalFlightDuration / 2; // tempo de voo de volta (metade do total)
            const flightEnd = new Date(returnTime.getTime() + (returnFlightDuration * 60 * 60 * 1000)); // Retorno + tempo de voo de volta
            blockedUntil = new Date(flightEnd.getTime() + (3 * 60 * 60 * 1000)); // +3 horas de manutenção
-           console.log(`🔍 Calculado: retorno ${returnTime.toLocaleString()} + ${returnFlightDuration}h voo de volta + 3h manutenção = ${blockedUntil.toLocaleString()}`);
+           // console.log(`🔍 Calculado: retorno ${returnTime.toLocaleString()} + ${returnFlightDuration}h voo de volta + 3h manutenção = ${blockedUntil.toLocaleString()}`);
          }
          
                    // CORREÇÃO: Verificar se o slot atual está dentro do período bloqueado
@@ -340,12 +340,12 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
           
           // Debug para entender o problema específico
           if (slotDateTime.getHours() === 0 || slotDateTime.getHours() === 12 || slotDateTime.getHours() === 11) {
-            console.log(`🔍 VIROU DIA DEBUG ${slotDateTime.getHours()}h:`);
-            console.log(`   slotDateTime: ${slotDateTime.toLocaleString()}`);
-            console.log(`   event.start: ${event.start.toLocaleString()}`);
-            console.log(`   blockedUntil: ${blockedUntil.toLocaleString()}`);
-            console.log(`   >= start: ${slotDateTime >= event.start}, <= end: ${slotDateTime <= blockedUntil}`);
-            console.log(`   isBlocked = ${isBlocked}`);
+            // console.log(`🔍 VIROU DIA DEBUG ${slotDateTime.getHours()}h:`);
+            // console.log(`   slotDateTime: ${slotDateTime.toLocaleString()}`);
+            // console.log(`   event.start: ${event.start.toLocaleString()}`);
+            // console.log(`   blockedUntil: ${blockedUntil.toLocaleString()}`);
+            // console.log(`   >= start: ${slotDateTime >= event.start}, <= end: ${slotDateTime <= blockedUntil}`);
+            // console.log(`   isBlocked = ${isBlocked}`);
           }
           
 
@@ -357,8 +357,8 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
       
              // Debug: log para slots bloqueados
        if (!isAvailable) {
-         console.log(`❌ Slot ${time} BLOQUEADO por: ${conflictingEvent?.title}`);
-         console.log(`   Evento: ${conflictingEvent?.start.toLocaleString()} → ${conflictingEvent?.resource?.blocked_until ? new Date(conflictingEvent.resource.blocked_until).toLocaleString() : conflictingEvent?.end.toLocaleString()}`);
+         // console.log(`❌ Slot ${time} BLOQUEADO por: ${conflictingEvent?.title}`);
+         // console.log(`   Evento: ${conflictingEvent?.start.toLocaleString()} → ${conflictingEvent?.resource?.blocked_until ? new Date(conflictingEvent.resource.blocked_until).toLocaleString() : conflictingEvent?.end.toLocaleString()}`);
        }
       
       return {

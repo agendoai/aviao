@@ -50,20 +50,20 @@ const DestinationStep: React.FC<DestinationStepProps> = ({
   useEffect(() => {
     const fetchAircrafts = async () => {
       try {
-        console.log('🔍 Carregando aeronaves...');
+        // console.log('🔍 Carregando aeronaves...');
         const aircraftsData = await getAircrafts();
-        console.log('🔍 Aeronaves carregadas:', aircraftsData);
+        // console.log('🔍 Aeronaves carregadas:', aircraftsData);
         setAircrafts(aircraftsData);
         
         // Selecionar primeira aeronave disponível
         if (aircraftsData.length > 0) {
           const availableAircraft = aircraftsData.find(a => a.status === 'available');
-          console.log('🔍 Aeronave disponível encontrada:', availableAircraft);
+          // console.log('🔍 Aeronave disponível encontrada:', availableAircraft);
           if (availableAircraft) {
             setSelectedAircraft(availableAircraft);
           } else {
             // Se não houver aeronave disponível, usar a primeira
-            console.log('🔍 Usando primeira aeronave como fallback:', aircraftsData[0]);
+            // console.log('🔍 Usando primeira aeronave como fallback:', aircraftsData[0]);
             setSelectedAircraft(aircraftsData[0]);
           }
         }
@@ -124,15 +124,15 @@ const DestinationStep: React.FC<DestinationStepProps> = ({
   };
 
   const handleReturnTimeSelect = (timeSlot: any) => {
-    console.log('🔍 Slot de retorno selecionado:', timeSlot);
-    console.log('🔍 Tipo do timeSlot:', typeof timeSlot);
-    console.log('🔍 timeSlot completo:', timeSlot);
+    // console.log('🔍 Slot de retorno selecionado:', timeSlot);
+    // console.log('🔍 Tipo do timeSlot:', typeof timeSlot);
+    // console.log('🔍 timeSlot completo:', timeSlot);
     
     try {
       if (typeof timeSlot === 'object' && timeSlot.start) {
         // Caso do IntelligentTimeSelectionStep que passa objeto com start/end
         const selectedDate = new Date(timeSlot.start);
-        console.log('🔍 Data selecionada (objeto):', selectedDate);
+        // console.log('🔍 Data selecionada (objeto):', selectedDate);
         
         if (isNaN(selectedDate.getTime())) {
           throw new Error('Data inválida recebida do calendário');
@@ -145,15 +145,15 @@ const DestinationStep: React.FC<DestinationStepProps> = ({
           hour12: false
         });
         
-        console.log('🔍 Data formatada:', formattedDate);
-        console.log('🔍 Hora formatada:', formattedTime);
+        // console.log('🔍 Data formatada:', formattedDate);
+        // console.log('🔍 Hora formatada:', formattedTime);
         
         setReturnDate(formattedDate);
         setReturnTime(formattedTime);
         toast.success(`✅ Data/Hora de retorno selecionada: ${formattedDate} às ${formattedTime}`);
       } else if (typeof timeSlot === 'string') {
         // Fallback para string (compatibilidade)
-        console.log('🔍 Processando timeSlot como string:', timeSlot);
+        // console.log('🔍 Processando timeSlot como string:', timeSlot);
         
         const today = new Date();
         const [hours, minutes] = timeSlot.split(':');
@@ -189,25 +189,25 @@ const DestinationStep: React.FC<DestinationStepProps> = ({
   };
 
   const handleContinue = async () => {
-    console.log('🔍 handleContinue chamado');
-    console.log('🔍 selectedDestination:', selectedDestination);
-    console.log('🔍 returnDate:', returnDate);
-    console.log('🔍 returnTime:', returnTime);
-    console.log('🔍 returnDate type:', typeof returnDate);
-    console.log('🔍 returnDate length:', returnDate?.length);
+    // console.log('🔍 handleContinue chamado');
+    // console.log('🔍 selectedDestination:', selectedDestination);
+    // console.log('🔍 returnDate:', returnDate);
+    // console.log('🔍 returnTime:', returnTime);
+    // console.log('🔍 returnDate type:', typeof returnDate);
+    // console.log('🔍 returnDate length:', returnDate?.length);
     
     if (!selectedDestination) {
-      console.log('❌ Destino não selecionado');
+      // console.log('❌ Destino não selecionado');
       toast.error('Por favor, selecione um destino');
       return;
     }
     if (!returnDate) {
-      console.log('❌ Data de retorno não informada');
+      // console.log('❌ Data de retorno não informada');
       toast.error('Por favor, informe a data de retorno');
       return;
     }
     if (!returnTime) {
-      console.log('❌ Horário de retorno não informado');
+      // console.log('❌ Horário de retorno não informado');
       toast.error('Por favor, informe o horário de retorno');
       return;
     }
@@ -215,7 +215,7 @@ const DestinationStep: React.FC<DestinationStepProps> = ({
     // Buscar coordenadas usando API AISWEB quando possível
     let distance = 0;
     try {
-      console.log('🔍 Buscando coordenadas via API AISWEB...');
+      // console.log('🔍 Buscando coordenadas via API AISWEB...');
       setUsingAISWEB(true);
       
       const originCoords = await getAirportCoordinatesWithFallback(origin);
@@ -226,7 +226,7 @@ const DestinationStep: React.FC<DestinationStepProps> = ({
           originCoords.lat, originCoords.lon,
           destCoords.lat, destCoords.lon
         );
-        console.log('✅ Coordenadas obtidas via API AISWEB');
+        // console.log('✅ Coordenadas obtidas via API AISWEB');
       } else {
         // Fallback para base local
         const originAirport = getPopularAirports().find(a => 
@@ -238,11 +238,11 @@ const DestinationStep: React.FC<DestinationStepProps> = ({
             originAirport.latitude, originAirport.longitude,
             selectedDestination.latitude, selectedDestination.longitude
           );
-          console.log('ℹ️ Usando coordenadas da base local');
+          // console.log('ℹ️ Usando coordenadas da base local');
         }
       }
     } catch (error) {
-      console.log('ℹ️ Erro ao buscar coordenadas, usando base local');
+      // console.log('ℹ️ Erro ao buscar coordenadas, usando base local');
       const originAirport = getPopularAirports().find(a => 
         a.icao.toUpperCase() === origin.toUpperCase()
       );
@@ -257,16 +257,16 @@ const DestinationStep: React.FC<DestinationStepProps> = ({
       setUsingAISWEB(false);
     }
     
-    console.log('🔍 Distância calculada:', distance);
-    console.log('🔍 Chamando onDestinationSelected com:', {
+    // console.log('🔍 Distância calculada:', distance);
+    // console.log('🔍 Chamando onDestinationSelected com:', {
       destination: selectedDestination.icao,
       returnDate,
       returnTime,
       distance
     });
-    console.log('🔍 returnDate antes de chamar onDestinationSelected:', returnDate);
-    console.log('🔍 returnDate type antes de chamar:', typeof returnDate);
-    console.log('🔍 VAI CHAMAR onDestinationSelected AGORA!');
+    // console.log('🔍 returnDate antes de chamar onDestinationSelected:', returnDate);
+    // console.log('🔍 returnDate type antes de chamar:', typeof returnDate);
+    // console.log('🔍 VAI CHAMAR onDestinationSelected AGORA!');
 
     onDestinationSelected(selectedDestination.icao, returnDate, returnTime, distance);
   };

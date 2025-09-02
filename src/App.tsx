@@ -13,6 +13,7 @@ import NotFound from "./pages/NotFound";
 import LoginForm from "./components/LoginForm";
 import UserStatusCheck from "./components/UserStatusCheck";
 import TestCalendar from "./components/TestCalendar";
+import TestApiUrl from "./components/TestApiUrl";
 
 
 const queryClient = new QueryClient();
@@ -55,6 +56,7 @@ const App = () => (
                     <TestCalendar />
                   </ProtectedRoute>
                 } />
+                <Route path="/test-api" element={<TestApiUrl />} />
 
                 <Route path="*" element={<NotFound />} />
               </Routes>

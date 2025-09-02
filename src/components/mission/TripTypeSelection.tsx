@@ -9,14 +9,14 @@ interface TripTypeSelectionProps {
 
 const TripTypeSelection: React.FC<TripTypeSelectionProps> = ({ onSelect }) => {
   const handleSoloClick = () => {
-    console.log('🎯 Clicou em Viagem Solo');
+    // console.log('🎯 Clicou em Viagem Solo');
     onSelect('solo');
   };
 
 
 
   const handleSharedMissionsClick = () => {
-    console.log('🎯 Clicou em Missões Compartilhadas');
+    // console.log('🎯 Clicou em Missões Compartilhadas');
     onSelect('shared-missions');
   };
 

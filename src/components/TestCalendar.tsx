@@ -4,12 +4,12 @@ import { toast } from 'sonner';
 
 const TestCalendar: React.FC = () => {
   const handleSlotSelect = (start: Date, end: Date) => {
-    console.log('🎯 Teste - Slot selecionado:', { start, end });
+    // console.log('🎯 Teste - Slot selecionado:', { start, end });
     toast.success(`Horário selecionado: ${start.toLocaleString()} - ${end.toLocaleString()}`);
   };
 
   const handleEventClick = (event: any) => {
-    console.log('🎯 Teste - Evento clicado:', event);
+    // console.log('🎯 Teste - Evento clicado:', event);
     toast.info(`Evento: ${event.title}`);
   };
 

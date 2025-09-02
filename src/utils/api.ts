@@ -1,11 +1,11 @@
-const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
+import { buildApiUrl } from '@/config/api';
 
 
 
 // Usuários
 export async function getUsers() {
   const token = localStorage.getItem('token');
-  const url = `${backendUrl}/users`;
+  const url = buildApiUrl('/api/users');
 
   const res = await fetch(url, {
     headers: {
@@ -19,7 +19,7 @@ export async function getUsers() {
 // Informações do usuário logado (usuário comum)
 export async function getCurrentUser() {
   const token = localStorage.getItem('token');
-  const res = await fetch(`${backendUrl}/users/me`, {
+  const res = await fetch(buildApiUrl('/api/users/me'), {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -28,7 +28,7 @@ export async function getCurrentUser() {
   return res.json();
 }
 export async function createUser(data) {
-  const res = await fetch(`${backendUrl}/users`, {
+  const res = await fetch(buildApiUrl('/api/users'), {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data)
@@ -40,7 +40,7 @@ export async function createUser(data) {
 export async function getAircrafts() {
   try {
     const token = localStorage.getItem('token');
-    const url = `${backendUrl}/aircrafts/available`;
+    const url = buildApiUrl('/api/aircrafts/available');
 
     const res = await fetch(url, {
       headers: {
@@ -64,7 +64,7 @@ export async function getAircrafts() {
 // Todas as aeronaves (apenas admin)
 export async function getAllAircrafts() {
   const token = localStorage.getItem('token');
-  const url = `${backendUrl}/aircrafts`;
+  const url = buildApiUrl('/api/aircrafts');
 
   const res = await fetch(url, {
     headers: {
@@ -78,7 +78,7 @@ export async function getAllAircrafts() {
 // Criar aeronave (apenas admin)
 export async function createAircraft(data) {
   const token = localStorage.getItem('token');
-  const url = `${backendUrl}/aircrafts`;
+  const url = buildApiUrl('/api/aircrafts');
 
   const res = await fetch(url, {
     method: 'POST',
@@ -94,7 +94,7 @@ export async function createAircraft(data) {
 // Reservas
 export async function getBookings() {
   const token = localStorage.getItem('token');
-  const url = `${backendUrl}/bookings/my-bookings`;
+  const url = buildApiUrl('/api/bookings/my-bookings');
 
   const res = await fetch(url, {
     headers: {
@@ -115,7 +115,7 @@ export async function getBookings() {
 // Todas as reservas (apenas admin)
 export async function getAllBookings() {
   const token = localStorage.getItem('token');
-  const res = await fetch(`${backendUrl}/bookings`, {
+  const res = await fetch(buildApiUrl('/api/bookings'), {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -127,7 +127,7 @@ export async function getAllBookings() {
 // Agenda (calendar)
 export async function getCalendar() {
   const token = localStorage.getItem('token');
-  const url = `${backendUrl}/calendar`;
+  const url = buildApiUrl('/api/calendar');
   const res = await fetch(url, {
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -139,7 +139,7 @@ export async function getCalendar() {
 
 export async function blockTimeSlot(data: { aircraftId: number; start: string; end: string; reason?: string }) {
   const token = localStorage.getItem('token');
-  const url = `${backendUrl}/calendar/block`;
+  const url = buildApiUrl('/api/calendar/block');
   const res = await fetch(url, {
     method: 'POST',
     headers: {
@@ -153,7 +153,7 @@ export async function blockTimeSlot(data: { aircraftId: number; start: string; e
 
 export async function unblockTimeSlot(id: number) {
   const token = localStorage.getItem('token');
-  const url = `${backendUrl}/calendar/block/${id}`;
+  const url = buildApiUrl(`/api/calendar/block/${id}`);
   const res = await fetch(url, {
     method: 'DELETE',
     headers: {
@@ -165,7 +165,7 @@ export async function unblockTimeSlot(id: number) {
 }
 export async function createBooking(data) {
   const token = localStorage.getItem('token');
-  const res = await fetch(`${backendUrl}/bookings`, {
+  const res = await fetch(buildApiUrl('/api/bookings'), {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -186,11 +186,11 @@ export async function createBooking(data) {
       const conflictMessage = errorData.error || 'Existe uma missão conflitante no período selecionado';
       const nextAvailable = errorData.nextAvailable ? `\n💡 Próximo horário disponível: ${new Date(errorData.nextAvailable).toLocaleString('pt-BR')}` : '';
       const fullMessage = `⛔ CONFLITO DE HORÁRIO: ${conflictMessage}${nextAvailable}`;
-      console.log('🔍 Lançando erro 409:', fullMessage);
+              // // console.log('🔍 Lançando erro 409:', fullMessage);
       throw new Error(fullMessage);
     } else {
       const fullMessage = `Erro ${res.status}: ${errorData.error || 'Erro ao criar missão'}`;
-      console.log('🔍 Lançando erro genérico:', fullMessage);
+              // // console.log('🔍 Lançando erro genérico:', fullMessage);
       throw new Error(fullMessage);
     }
   }
@@ -201,7 +201,7 @@ export async function createBooking(data) {
 // Missões compartilhadas
 export async function getSharedMissions() {
   const token = localStorage.getItem('token');
-  const res = await fetch(`${backendUrl}/shared-missions`, {
+  const res = await fetch(buildApiUrl('/api/shared-missions'), {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -220,7 +220,7 @@ export async function validateSharedMission(data: {
   destination: string;
 }) {
   const token = localStorage.getItem('token');
-  const res = await fetch(`${backendUrl}/shared-missions/validate`, {
+  const res = await fetch(buildApiUrl('/api/shared-missions/validate'), {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -248,7 +248,7 @@ export async function createSharedMission(data: {
   flight_hours?: number;
 }) {
   const token = localStorage.getItem('token');
-  const res = await fetch(`${backendUrl}/shared-missions`, {
+  const res = await fetch(buildApiUrl('/api/shared-missions'), {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -262,7 +262,7 @@ export async function createSharedMission(data: {
 // Buscar missão compartilhada específica
 export async function getSharedMission(id: number) {
   const token = localStorage.getItem('token');
-  const res = await fetch(`${backendUrl}/shared-missions/${id}`, {
+  const res = await fetch(buildApiUrl(`/api/shared-missions/${id}`), {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -274,7 +274,7 @@ export async function getSharedMission(id: number) {
 // Reservar assento em missão compartilhada
 export async function bookSharedMissionSeat(missionId: number, seats: number) {
   const token = localStorage.getItem('token');
-  const res = await fetch(`${backendUrl}/shared-missions/${missionId}/book`, {
+  const res = await fetch(buildApiUrl(`/api/shared-missions/${missionId}/book`), {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -288,7 +288,7 @@ export async function bookSharedMissionSeat(missionId: number, seats: number) {
 // Minhas missões compartilhadas (criadas por mim)
 export async function getMyCreatedSharedMissions() {
   const token = localStorage.getItem('token');
-  const res = await fetch(`${backendUrl}/shared-missions/my/created`, {
+  const res = await fetch(buildApiUrl('/api/shared-missions/my/created'), {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -300,7 +300,7 @@ export async function getMyCreatedSharedMissions() {
 // Minhas reservas em missões compartilhadas
 export async function getMySharedMissionBookings() {
   const token = localStorage.getItem('token');
-  const res = await fetch(`${backendUrl}/shared-missions/my/bookings`, {
+  const res = await fetch(buildApiUrl('/api/shared-missions/my/bookings'), {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -312,7 +312,7 @@ export async function getMySharedMissionBookings() {
 // Pagamentos
 export async function createPixPayment(bookingId) {
   const token = localStorage.getItem('token');
-  const res = await fetch(`${backendUrl}/payments/booking/${bookingId}`, {
+  const res = await fetch(buildApiUrl(`/api/payments/booking/${bookingId}`), {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -324,7 +324,7 @@ export async function createPixPayment(bookingId) {
 
 export async function getPaymentStatus(paymentId) {
   const token = localStorage.getItem('token');
-  const res = await fetch(`${backendUrl}/payments/status/${paymentId}`, {
+  const res = await fetch(buildApiUrl(`/api/payments/status/${paymentId}`), {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -336,7 +336,7 @@ export async function getPaymentStatus(paymentId) {
 // Aeroportos
 export async function getAirports() {
   const token = localStorage.getItem('token');
-  const res = await fetch(`${backendUrl}/airports`, {
+  const res = await fetch(buildApiUrl('/api/airports'), {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -348,7 +348,7 @@ export async function getAirports() {
 // Paradas
 export async function getStops() {
   const token = localStorage.getItem('token');
-  const res = await fetch(`${backendUrl}/stops`, {
+  const res = await fetch(buildApiUrl('/api/stops'), {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -360,7 +360,7 @@ export async function getStops() {
 // Relatórios
 export async function getFinancials() {
   const token = localStorage.getItem('token');
-  const res = await fetch(`${backendUrl}/admin/financials`, {
+  const res = await fetch(buildApiUrl('/api/admin/financials'), {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -371,7 +371,7 @@ export async function getFinancials() {
 
 export async function getReports() {
   const token = localStorage.getItem('token');
-  const res = await fetch(`${backendUrl}/admin/reports`, {
+  const res = await fetch(buildApiUrl('/api/admin/reports'), {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -383,7 +383,7 @@ export async function getReports() {
 // Transações
 export async function getTransactions() {
   const token = localStorage.getItem('token');
-  const res = await fetch(`${backendUrl}/transactions`, {
+  const res = await fetch(buildApiUrl('/api/transactions'), {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -395,7 +395,7 @@ export async function getTransactions() {
 // Transações do usuário logado (cliente)
 export async function getMyTransactions() {
   const token = localStorage.getItem('token');
-  const res = await fetch(`${backendUrl}/transactions/my-transactions`, {
+  const res = await fetch(buildApiUrl('/api/transactions/my-transactions'), {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -410,7 +410,7 @@ export const createChatRoom = async (data: {
   title: string;
   type?: string;
 }) => {
-  const response = await fetch(`${backendUrl}/chat/rooms`, {
+  const response = await fetch(buildApiUrl('/api/chat/rooms'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -422,7 +422,7 @@ export const createChatRoom = async (data: {
 };
 
 export const getChatRooms = async () => {
-  const response = await fetch(`${backendUrl}/chat/rooms`, {
+  const response = await fetch(buildApiUrl('/api/chat/rooms'), {
     headers: {
       'Authorization': `Bearer ${localStorage.getItem('token')}`
     }
@@ -431,7 +431,7 @@ export const getChatRooms = async () => {
 };
 
 export const getChatMessages = async (roomId: string) => {
-  const response = await fetch(`${backendUrl}/chat/rooms/${roomId}/messages`, {
+  const response = await fetch(buildApiUrl(`/api/chat/rooms/${roomId}/messages`), {
     headers: {
       'Authorization': `Bearer ${localStorage.getItem('token')}`
     }
@@ -444,7 +444,7 @@ export const sendChatMessageToRoom = async (roomId: string, data: {
   messageType?: string;
   metadata?: any;
 }) => {
-  const response = await fetch(`${backendUrl}/chat/rooms/${roomId}/messages`, {
+  const response = await fetch(buildApiUrl(`/api/chat/rooms/${roomId}/messages`), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -456,7 +456,7 @@ export const sendChatMessageToRoom = async (roomId: string, data: {
 };
 
 export const getChatParticipants = async (roomId: string) => {
-  const response = await fetch(`${backendUrl}/chat/rooms/${roomId}/participants`, {
+  const response = await fetch(buildApiUrl(`/api/chat/rooms/${roomId}/participants`), {
     headers: {
       'Authorization': `Bearer ${localStorage.getItem('token')}`
     }
@@ -465,7 +465,7 @@ export const getChatParticipants = async (roomId: string) => {
 };
 
 export const addChatParticipant = async (roomId: string, userId: string) => {
-  const response = await fetch(`${backendUrl}/chat/rooms/${roomId}/participants`, {
+  const response = await fetch(buildApiUrl(`/api/chat/rooms/${roomId}/participants`), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -479,7 +479,7 @@ export const addChatParticipant = async (roomId: string, userId: string) => {
 // Funções adicionais para missões compartilhadas
 export async function bookSharedMission(missionId: number, seats: number) {
   const token = localStorage.getItem('token');
-  const res = await fetch(`${backendUrl}/shared-missions/${missionId}/book`, {
+  const res = await fetch(buildApiUrl(`/api/shared-missions/${missionId}/book`), {
     method: 'POST',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -492,7 +492,7 @@ export async function bookSharedMission(missionId: number, seats: number) {
 
 export async function cancelSharedMission(missionId: number) {
   const token = localStorage.getItem('token');
-  const res = await fetch(`${backendUrl}/shared-missions/${missionId}`, {
+  const res = await fetch(buildApiUrl(`/api/shared-missions/${missionId}`), {
     method: 'DELETE',
     headers: {
       'Authorization': `Bearer ${token}`,
@@ -507,7 +507,7 @@ export const createParticipationRequest = async (data: {
   sharedMissionId: number;
   message?: string;
 }) => {
-  const response = await fetch(`${backendUrl}/shared-missions/participation-requests`, {
+  const response = await fetch(buildApiUrl('/api/shared-missions/participation-requests'), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -525,7 +525,7 @@ export const createParticipationRequest = async (data: {
 };
 
 export const getParticipationRequestsForMission = async (missionId: number) => {
-  const response = await fetch(`${backendUrl}/shared-missions/participation-requests/mission/${missionId}`, {
+  const response = await fetch(buildApiUrl(`/api/shared-missions/participation-requests/mission/${missionId}`), {
     headers: {
       'Authorization': `Bearer ${localStorage.getItem('token')}`
     }
@@ -540,7 +540,7 @@ export const getParticipationRequestsForMission = async (missionId: number) => {
 };
 
 export const getMyParticipationRequests = async () => {
-  const response = await fetch(`${backendUrl}/shared-missions/participation-requests/my`, {
+  const response = await fetch(buildApiUrl('/api/shared-missions/participation-requests/my'), {
     headers: {
       'Authorization': `Bearer ${localStorage.getItem('token')}`
     }
@@ -558,7 +558,7 @@ export const sendParticipationRequestMessage = async (requestId: number, data: {
   message: string;
   messageType?: 'message' | 'acceptance' | 'rejection';
 }) => {
-  const response = await fetch(`${backendUrl}/shared-missions/participation-requests/${requestId}/messages`, {
+  const response = await fetch(buildApiUrl(`/api/shared-missions/participation-requests/${requestId}/messages`), {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -576,7 +576,7 @@ export const sendParticipationRequestMessage = async (requestId: number, data: {
 };
 
 export const acceptParticipationRequest = async (requestId: number) => {
-  const response = await fetch(`${backendUrl}/shared-missions/participation-requests/${requestId}/accept`, {
+  const response = await fetch(buildApiUrl(`/api/shared-missions/participation-requests/${requestId}/accept`), {
     method: 'PUT',
     headers: {
       'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -592,7 +592,7 @@ export const acceptParticipationRequest = async (requestId: number) => {
 };
 
 export const rejectParticipationRequest = async (requestId: number) => {
-  const response = await fetch(`${backendUrl}/shared-missions/participation-requests/${requestId}/reject`, {
+  const response = await fetch(buildApiUrl(`/api/shared-missions/participation-requests/${requestId}/reject`), {
     method: 'PUT',
     headers: {
       'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -609,7 +609,7 @@ export const rejectParticipationRequest = async (requestId: number) => {
 
 // Obter contagem de mensagens não lidas
 export const getMessageCounts = async () => {
-  const response = await fetch(`${backendUrl}/shared-missions/participation-requests/message-counts`, {
+  const response = await fetch(buildApiUrl('/api/shared-missions/participation-requests/message-counts'), {
     headers: {
       'Authorization': `Bearer ${localStorage.getItem('token')}`
     }
@@ -625,7 +625,7 @@ export const getMessageCounts = async () => {
 
 // Marcar mensagens como lidas
 export const markMessagesAsRead = async (requestId: number) => {
-  const response = await fetch(`${backendUrl}/shared-missions/participation-requests/${requestId}/mark-read`, {
+  const response = await fetch(buildApiUrl(`/api/shared-missions/participation-requests/${requestId}/mark-read`), {
     method: 'PUT',
     headers: {
       'Authorization': `Bearer ${localStorage.getItem('token')}`
@@ -656,7 +656,7 @@ export const getTimeSlots = async (
     ...(missionDuration && { missionDuration: missionDuration.toString() })
   });
 
-  const res = await fetch(`${backendUrl}/bookings/time-slots/${aircraftId}?${params}`, {
+  const res = await fetch(buildApiUrl(`/api/bookings/time-slots/${aircraftId}?${params}`), {
     headers: {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
@@ -677,7 +677,7 @@ export const suggestAvailableSlots = async (
 ): Promise<Date[]> => {
   try {
     const response = await fetch(
-      `${backendUrl}/bookings/suggest-slots/${aircraftId}?desiredStart=${desiredStart}&missionDuration=${missionDuration}`,
+      buildApiUrl(`/api/bookings/suggest-slots/${aircraftId}?desiredStart=${desiredStart}&missionDuration=${missionDuration}`),
       {
         method: 'GET',
         headers: {
@@ -703,7 +703,7 @@ export const suggestAvailableSlots = async (
 export const deleteAllBookings = async (): Promise<any> => {
   const token = localStorage.getItem('token');
   
-  const res = await fetch(`${backendUrl}/bookings/delete-all`, {
+  const res = await fetch(buildApiUrl('/api/bookings/delete-all'), {
     method: 'DELETE',
     headers: {
       'Authorization': `Bearer ${token}`,

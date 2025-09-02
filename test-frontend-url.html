@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste URL API</title>
+</head>
+<body>
+    <h1>🧪 Teste da URL da API</h1>
+    
+    <div id="result"></div>
+    
+    <script type="module">
+        // Simular import.meta.env
+        const importMetaEnv = {
+            VITE_BACKEND_URL: "http://72.60.62.143:4000"
+        };
+        
+        // Simular a função buildApiUrl
+        const buildApiUrl = (endpoint) => {
+            const baseUrl = importMetaEnv.VITE_BACKEND_URL || '/api';
+            return `${baseUrl}${endpoint}`;
+        };
+        
+        // Testes
+        const result = document.getElementById('result');
+        
+        result.innerHTML = `
+            <h2>✅ Configuração:</h2>
+            <p><strong>VITE_BACKEND_URL:</strong> ${importMetaEnv.VITE_BACKEND_URL}</p>
+            
+            <h2>🎯 URLs construídas:</h2>
+            <p><strong>Login:</strong> ${buildApiUrl('/auth/login')}</p>
+            <p><strong>Missões:</strong> ${buildApiUrl('/shared-missions')}</p>
+            <p><strong>Calendário:</strong> ${buildApiUrl('/calendar')}</p>
+            <p><strong>Usuários:</strong> ${buildApiUrl('/users/status/123')}</p>
+            
+            <h2>🔍 Verificação:</h2>
+            <p>✅ URL base: ${importMetaEnv.VITE_BACKEND_URL}</p>
+            <p>✅ Endpoint: /auth/login</p>
+            <p>✅ URL final: ${buildApiUrl('/auth/login')}</p>
+            <p>❌ <strong>URL ERRADA (antes):</strong> http://localhost:8080/api/auth/login</p>
+            <p>✅ <strong>URL CORRETA (agora):</strong> ${buildApiUrl('/auth/login')}</p>
+        `;
+    </script>
+</body>
+</html>

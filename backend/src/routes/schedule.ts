@@ -306,8 +306,8 @@ router.get('/bookings/:aircraftId', async (req, res) => {
     const { aircraftId } = req.params;
     const { startDate, endDate } = req.query;
 
-    console.log('🔍 Buscando bookings para aeronave:', aircraftId);
-    console.log('🔍 Período:', { startDate, endDate });
+    // console.log('🔍 Buscando bookings para aeronave:', aircraftId);
+    // console.log('🔍 Período:', { startDate, endDate });
 
     if (!startDate || !endDate) {
       return res.status(400).json({
@@ -371,8 +371,8 @@ router.get('/bookings/:aircraftId', async (req, res) => {
       orderBy: { departure_date: 'asc' }
     });
 
-    console.log('📅 Bookings reais encontrados:', bookings.length);
-    console.log('📅 Slots de agenda admin encontrados:', adminSlots.length);
+    // console.log('📅 Bookings reais encontrados:', bookings.length);
+    // console.log('📅 Slots de agenda admin encontrados:', adminSlots.length);
 
     // Usar blocked_until real do banco ou calcular se não existir
     const bookingsWithBlockedUntil = bookings.map(booking => {
@@ -398,11 +398,11 @@ router.get('/bookings/:aircraftId', async (req, res) => {
         blockedUntil.setHours(blockedUntil.getHours() + 1); // Arredondar para próxima hora
       }
       
-      console.log(`📅 Booking ${booking.id}: ${booking.origin} → ${booking.destination}`);
-      console.log(`📅   Partida: ${departureTime.toISOString()}`);
-      console.log(`📅   Retorno: ${returnTime.toISOString()}`);
-      console.log(`📅   Bloqueado até: ${blockedUntil.toISOString()}`);
-      console.log(`📅   Fonte blocked_until: ${booking.blocked_until ? 'banco' : 'calculado'}`);
+      // console.log(`📅 Booking ${booking.id}: ${booking.origin} → ${booking.destination}`);
+      // console.log(`📅   Partida: ${departureTime.toISOString()}`);
+      // console.log(`📅   Retorno: ${returnTime.toISOString()}`);
+      // console.log(`📅   Bloqueado até: ${blockedUntil.toISOString()}`);
+      // console.log(`📅   Fonte blocked_until: ${booking.blocked_until ? 'banco' : 'calculado'}`);
       
       return {
         ...booking,
@@ -421,7 +421,7 @@ router.get('/bookings/:aircraftId', async (req, res) => {
     // Combinar bookings reais + slots de agenda
     const allBookings = [...bookingsWithBlockedUntil, ...adminSlotsProcessed];
 
-    console.log('✅ Resposta enviada com', allBookings.length, 'registros (bookings + slots admin)');
+    // console.log('✅ Resposta enviada com', allBookings.length, 'registros (bookings + slots admin)');
     
     res.json({
       success: true,

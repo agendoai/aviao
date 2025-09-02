@@ -167,20 +167,20 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
     setCreating(true);
     try {
       // Converter datas para UTC antes de enviar
-      console.log('🔍 Valores das datas antes da conversão:');
-      console.log('🔍 departureDate:', departureDate);
-      console.log('🔍 departureTime:', departureTime);
-      console.log('🔍 returnDate:', returnDate);
-      console.log('🔍 returnTime:', returnTime);
+      // console.log('🔍 Valores das datas antes da conversão:');
+      // console.log('🔍 departureDate:', departureDate);
+      // console.log('🔍 departureTime:', departureTime);
+      // console.log('🔍 returnDate:', returnDate);
+      // console.log('🔍 returnTime:', returnTime);
       
       const departureDateTime = new Date(`${departureDate}T${departureTime}:00`);
       const returnDateTime = new Date(`${returnDate}T${returnTime}:00`);
       
-      console.log('🔍 Datas criadas:');
-      console.log('🔍 departureDateTime:', departureDateTime);
-      console.log('🔍 returnDateTime:', returnDateTime);
-      console.log('🔍 departureDateTime válida:', !isNaN(departureDateTime.getTime()));
-      console.log('🔍 returnDateTime válida:', !isNaN(returnDateTime.getTime()));
+      // console.log('🔍 Datas criadas:');
+      // console.log('🔍 departureDateTime:', departureDateTime);
+      // console.log('🔍 returnDateTime:', returnDateTime);
+      // console.log('🔍 departureDateTime válida:', !isNaN(departureDateTime.getTime()));
+      // console.log('🔍 returnDateTime válida:', !isNaN(returnDateTime.getTime()));
       
       const bookingData = {
         aircraftId: aircraft.id,
@@ -196,10 +196,10 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
         status: 'pendente'
       };
 
-      console.log('📋 Dados da reserva:', bookingData);
+      // console.log('📋 Dados da reserva:', bookingData);
       
       const result = await createBooking(bookingData);
-      console.log('✅ Reserva criada:', result);
+      // console.log('✅ Reserva criada:', result);
       
       const missionData = {
         aircraft: aircraft,
@@ -223,10 +223,10 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
       
       // Mostrar mensagem de erro específica
       if (error instanceof Error) {
-        console.log('🔍 Exibindo mensagem de erro:', error.message);
+        // console.log('🔍 Exibindo mensagem de erro:', error.message);
         toast.error(error.message);
       } else {
-        console.log('🔍 Erro não é instância de Error, exibindo mensagem genérica');
+        // console.log('🔍 Erro não é instância de Error, exibindo mensagem genérica');
         toast.error('Erro ao criar missão');
       }
     } finally {

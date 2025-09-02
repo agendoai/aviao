@@ -171,19 +171,19 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
 
 
   const calculateMission = async () => {
-    console.log('🔍 calculateMission chamado');
-    console.log('🔍 Estado atual:');
-    console.log('🔍 destinations.length:', destinations.length);
-    console.log('🔍 returnDate:', returnDate, 'tipo:', typeof returnDate);
-    console.log('🔍 returnTime:', returnTime, 'tipo:', typeof returnTime);
-    console.log('🔍 departureDate:', departureDate, 'tipo:', typeof departureDate);
-    console.log('🔍 departureTime:', departureTime, 'tipo:', typeof departureTime);
+    // console.log('🔍 calculateMission chamado');
+    // console.log('🔍 Estado atual:');
+    // console.log('🔍 destinations.length:', destinations.length);
+    // console.log('🔍 returnDate:', returnDate, 'tipo:', typeof returnDate);
+    // console.log('🔍 returnTime:', returnTime, 'tipo:', typeof returnTime);
+    // console.log('🔍 departureDate:', departureDate, 'tipo:', typeof departureDate);
+    // console.log('🔍 departureTime:', departureTime, 'tipo:', typeof departureTime);
     
     // Verificar se departureDate é um objeto Date
     if (departureDate instanceof Date) {
-      console.log('🔍 departureDate é Date:', departureDate.toISOString());
+      // console.log('🔍 departureDate é Date:', departureDate.toISOString());
     } else {
-      console.log('🔍 departureDate não é Date:', departureDate);
+      // console.log('🔍 departureDate não é Date:', departureDate);
     }
     
     if (destinations.length === 0) {
@@ -201,12 +201,12 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
       return;
     }
 
-    console.log('🔍 Dados para cálculo da missão:');
-    console.log('🔍 Data de partida:', departureDate);
-    console.log('🔍 Horário de partida:', departureTime);
-    console.log('🔍 Data de retorno:', returnDate);
-    console.log('🔍 Horário de retorno:', returnTime);
-    console.log('🔍 Destinos:', destinations.map(d => d.airport.icao));
+    // console.log('🔍 Dados para cálculo da missão:');
+    // console.log('🔍 Data de partida:', departureDate);
+    // console.log('🔍 Horário de partida:', departureTime);
+    // console.log('🔍 Data de retorno:', returnDate);
+    // console.log('🔍 Horário de retorno:', returnTime);
+    // console.log('🔍 Destinos:', destinations.map(d => d.airport.icao));
     
     // Logs detalhados para debug de timezone
     let departureDateTime: Date;
@@ -228,15 +228,15 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
     const [returnHour, returnMinute] = returnTime.split(':').map(Number);
     returnDateTime = new Date(returnYear, returnMonth - 1, returnDay, returnHour, returnMinute, 0, 0);
     
-    console.log('🔍 DEBUG TIMESTAMP:');
-    console.log('🔍 departureDate:', departureDate);
-    console.log('🔍 departureTime:', departureTime);
-    console.log('🔍 returnDate:', returnDate);
-    console.log('🔍 returnTime:', returnTime);
-    console.log('🔍 departureDateTime criado:', departureDateTime);
-    console.log('🔍 returnDateTime criado:', returnDateTime);
-    console.log('🔍 departureDateTime válido:', !isNaN(departureDateTime.getTime()));
-    console.log('🔍 returnDateTime válido:', !isNaN(returnDateTime.getTime()));
+    // console.log('🔍 DEBUG TIMESTAMP:');
+    // console.log('🔍 departureDate:', departureDate);
+    // console.log('🔍 departureTime:', departureTime);
+    // console.log('🔍 returnDate:', returnDate);
+    // console.log('🔍 returnTime:', returnTime);
+    // console.log('🔍 departureDateTime criado:', departureDateTime);
+    // console.log('🔍 returnDateTime criado:', returnDateTime);
+    // console.log('🔍 departureDateTime válido:', !isNaN(departureDateTime.getTime()));
+    // console.log('🔍 returnDateTime válido:', !isNaN(returnDateTime.getTime()));
     
     // Verificar se as datas são válidas antes de tentar converter
     if (isNaN(departureDateTime.getTime()) || isNaN(returnDateTime.getTime())) {
@@ -245,12 +245,12 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
       return;
     }
     
-    console.log('🔍 departureDateTime (local):', departureDateTime.toLocaleString('pt-BR'));
-    console.log('🔍 returnDateTime (local):', returnDateTime.toLocaleString('pt-BR'));
-    console.log('🔍 departureDateTime (ISO):', departureDateTime.toISOString());
-    console.log('🔍 returnDateTime (ISO):', returnDateTime.toISOString());
-    console.log('🔍 departureDateTime (hora):', departureDateTime.getHours());
-    console.log('🔍 returnDateTime (hora):', returnDateTime.getHours());
+    // console.log('🔍 departureDateTime (local):', departureDateTime.toLocaleString('pt-BR'));
+    // console.log('🔍 returnDateTime (local):', returnDateTime.toLocaleString('pt-BR'));
+    // console.log('🔍 departureDateTime (ISO):', departureDateTime.toISOString());
+    // console.log('🔍 returnDateTime (ISO):', returnDateTime.toISOString());
+    // console.log('🔍 departureDateTime (hora):', departureDateTime.getHours());
+    // console.log('🔍 returnDateTime (hora):', returnDateTime.getHours());
     
     // Verificar se os dados estão válidos
     if (!returnDate || !returnTime) {
@@ -260,9 +260,9 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
     }
 
     // Validar se a data de retorno não é anterior à data de partida
-    console.log('🔍 Validação de datas:');
-    console.log('🔍 departureDateTime:', departureDateTime.toISOString());
-    console.log('🔍 returnDateTime:', returnDateTime.toISOString());
+    // console.log('🔍 Validação de datas:');
+    // console.log('🔍 departureDateTime:', departureDateTime.toISOString());
+    // console.log('🔍 returnDateTime:', returnDateTime.toISOString());
     
     if (returnDateTime < departureDateTime) {
       toast.error('A data/hora de retorno não pode ser anterior à data/hora de partida');
@@ -286,13 +286,13 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
 
     // Calcular rota de ida
     let previousAirport = origin;
-    console.log('🔍 Calculando rota com destinos:', destinations.map(d => d.airport.icao));
+    // console.log('🔍 Calculando rota com destinos:', destinations.map(d => d.airport.icao));
     
     for (const destination of destinations) {
       const flightTime = calculateFlightTime(previousAirport, destination.airport);
       totalFlightTime += flightTime;
       
-      console.log(`🔍 ${previousAirport.icao} → ${destination.airport.icao}: ${flightTime.toFixed(2)}h (${(flightTime * 60).toFixed(0)}min)`);
+      // console.log(`🔍 ${previousAirport.icao} → ${destination.airport.icao}: ${flightTime.toFixed(2)}h (${(flightTime * 60).toFixed(0)}min)`);
 
       // Horário de chegada
       const arrivalTime = new Date(currentTime.getTime() + flightTime * 60 * 60 * 1000);
@@ -319,8 +319,8 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
     const returnFlightTime = calculateFlightTime(previousAirport, origin);
     totalFlightTime += returnFlightTime;
     
-    console.log(`🔍 ${previousAirport.icao} → ${origin.icao}: ${returnFlightTime.toFixed(2)}h (${(returnFlightTime * 60).toFixed(0)}min)`);
-    console.log(`🔍 Tempo total de voo: ${totalFlightTime.toFixed(2)}h (${(totalFlightTime * 60).toFixed(0)}min)`);
+    // console.log(`🔍 ${previousAirport.icao} → ${origin.icao}: ${returnFlightTime.toFixed(2)}h (${(returnFlightTime * 60).toFixed(0)}min)`);
+    // console.log(`🔍 Tempo total de voo: ${totalFlightTime.toFixed(2)}h (${(totalFlightTime * 60).toFixed(0)}min)`);
 
      // Usar exatamente o horário que o usuário definiu
      const arrivalAtBase = new Date(`${returnDate}T${returnTime}:00`);
@@ -340,25 +340,25 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
     const timeDiff = returnDateTime.getTime() - departureDateTime.getTime();
     const hoursDiff = timeDiff / (1000 * 3600);
     
-    console.log('🔍 Cálculo de pernoite:');
-    console.log('🔍 Partida:', departureDateTime.toISOString());
-    console.log('🔍 Retorno:', returnDateTime.toISOString());
-    console.log('🔍 Diferença em horas:', hoursDiff);
+    // console.log('🔍 Cálculo de pernoite:');
+    // console.log('🔍 Partida:', departureDateTime.toISOString());
+    // console.log('🔍 Retorno:', returnDateTime.toISOString());
+    // console.log('🔍 Diferença em horas:', hoursDiff);
     
     // Verificar se as datas são diferentes
     const departureDateOnly = departureDateTime.toDateString();
     const returnDateOnly = returnDateTime.toDateString();
     const datesAreDifferent = departureDateOnly !== returnDateOnly;
     
-    console.log('🔍 Data de partida (string):', departureDateOnly);
-    console.log('🔍 Data de retorno (string):', returnDateOnly);
-    console.log('🔍 Datas são diferentes?', datesAreDifferent);
+    // console.log('🔍 Data de partida (string):', departureDateOnly);
+    // console.log('🔍 Data de retorno (string):', returnDateOnly);
+    // console.log('🔍 Datas são diferentes?', datesAreDifferent);
     
     if (datesAreDifferent) {
       // Se as datas são diferentes, calcular quantas noites
       const daysDiff = Math.floor(hoursDiff / 24);
       overnightStays = daysDiff;
-      console.log('🔍 Pernoite detectada: datas diferentes =', overnightStays, 'noites');
+      // console.log('🔍 Pernoite detectada: datas diferentes =', overnightStays, 'noites');
     } else {
       // Mesmo dia, verificar se passa da meia-noite
       const departureHour = parseInt(departureTime.split(':')[0]);
@@ -367,11 +367,11 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
       if (returnHour < departureHour && returnHour < 6) {
         // Retorno entre 00:00 e 05:59, partida depois = pernoite
         overnightStays = 1;
-        console.log('🔍 Pernoite detectada: retorno após meia-noite (mesmo dia)');
+        // console.log('🔍 Pernoite detectada: retorno após meia-noite (mesmo dia)');
       }
     }
     
-    console.log('🔍 Pernoites calculadas:', overnightStays);
+    // console.log('🔍 Pernoites calculadas:', overnightStays);
     
     // Calcular custos totais incluindo taxas aeroportuárias
     const hourlyRate = selectedAircraft?.hourly_rate || 2800;
@@ -394,15 +394,15 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
       const totalOccupancyTime = totalFlightTime + maintenanceTime;
 
     // Logs para debug das datas finais
-    console.log('🔍 Datas finais para missionData:');
-    console.log('🔍 departureDate original:', departureDate);
-    console.log('🔍 departureDate convertido:', departureDate instanceof Date ? departureDate : new Date(departureDate));
-    console.log('🔍 returnDate original:', returnDate);
+    // console.log('🔍 Datas finais para missionData:');
+    // console.log('🔍 departureDate original:', departureDate);
+    // console.log('🔍 departureDate convertido:', departureDate instanceof Date ? departureDate : new Date(departureDate));
+    // console.log('🔍 returnDate original:', returnDate);
     
     // Criar returnDate de forma segura (hora local)
     const [returnYear, returnMonth, returnDay] = returnDate.split('-').map(Number);
     const finalReturnDate = new Date(returnYear, returnMonth - 1, returnDay, 0, 0, 0, 0);
-    console.log('🔍 returnDate convertido (local):', finalReturnDate);
+    // console.log('🔍 returnDate convertido (local):', finalReturnDate);
     
     const missionData: MissionData = {
       origin: origin.icao,
@@ -442,10 +442,10 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
     
     const flightTime = distance / speed; // retorna em horas
     
-    console.log(`🔍 Cálculo de voo: ${origin.icao} → ${destination.icao}`);
-    console.log(`🔍   Distância: ${distance.toFixed(1)} NM`);
-    console.log(`🔍   Velocidade: ${speed} KT`);
-    console.log(`🔍   Tempo: ${flightTime.toFixed(3)}h (${(flightTime * 60).toFixed(1)}min)`);
+    // console.log(`🔍 Cálculo de voo: ${origin.icao} → ${destination.icao}`);
+    // console.log(`🔍   Distância: ${distance.toFixed(1)} NM`);
+    // console.log(`🔍   Velocidade: ${speed} KT`);
+    // console.log(`🔍   Tempo: ${flightTime.toFixed(3)}h (${(flightTime * 60).toFixed(1)}min)`);
     
     return flightTime;
   };
@@ -681,7 +681,7 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
                          departureDateTime={new Date(`${departureDate.toISOString().split('T')[0]}T${departureTime}`)}
                          isReturnSelection={true}
                          onTimeSelect={(timeSlot) => {
-                           console.log('🔍 Slot selecionado no calendário:', timeSlot);
+                           // console.log('🔍 Slot selecionado no calendário:', timeSlot);
                            
                            // Se timeSlot é um objeto com start/end (do IntelligentTimeSelectionStep)
                            if (typeof timeSlot === 'object' && timeSlot.start) {
@@ -693,18 +693,18 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
                                hour12: false
                              });
                              
-                             console.log('🔍 Data selecionada do slot:', selectedDate);
-                             console.log('🔍 Data formatada:', formattedDate);
-                             console.log('🔍 Horário formatado:', formattedTime);
+                             // console.log('🔍 Data selecionada do slot:', selectedDate);
+                             // console.log('🔍 Data formatada:', formattedDate);
+                             // console.log('🔍 Horário formatado:', formattedTime);
                              
                              setReturnDate(formattedDate);
                              setReturnTime(formattedTime);
                              
                              // Aguardar um pouco para garantir que o estado foi atualizado
                              setTimeout(() => {
-                               console.log('🎯 CONFIRMAÇÃO - Estados definidos:');
-                               console.log('🎯 returnDate =', formattedDate);
-                               console.log('🎯 returnTime =', formattedTime);
+                               // console.log('🎯 CONFIRMAÇÃO - Estados definidos:');
+                               // console.log('🎯 returnDate =', formattedDate);
+                               // console.log('🎯 returnTime =', formattedTime);
                                toast.success(`Data/Hora de retorno selecionada: ${formattedDate} às ${formattedTime}`);
                              }, 100);
                            } else {
@@ -715,17 +715,17 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
                              const selectedDateTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), parseInt(hours), parseInt(minutes));
                              const formattedDate = selectedDateTime.toISOString().split('T')[0];
                              
-                             console.log('🔍 Usando fallback - Data formatada:', formattedDate);
-                             console.log('🔍 Usando fallback - Horário formatado:', time);
+                             // console.log('🔍 Usando fallback - Data formatada:', formattedDate);
+                             // console.log('🔍 Usando fallback - Horário formatado:', time);
                              
                              setReturnDate(formattedDate);
                              setReturnTime(time);
                              
                              // Aguardar um pouco para garantir que o estado foi atualizado
                              setTimeout(() => {
-                               console.log('🎯 CONFIRMAÇÃO FALLBACK - Estados definidos:');
-                               console.log('🎯 returnDate =', formattedDate);
-                               console.log('🎯 returnTime =', time);
+                               // console.log('🎯 CONFIRMAÇÃO FALLBACK - Estados definidos:');
+                               // console.log('🎯 returnDate =', formattedDate);
+                               // console.log('🎯 returnTime =', time);
                                toast.success(`Data/Hora de retorno selecionada: ${formattedDate} às ${time}`);
                              }, 100);
                            }

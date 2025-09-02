@@ -292,7 +292,7 @@ export class ScheduleService {
     // Garantir que targetDate é uma data válida
     const validTargetDate = new Date(targetDate);
     if (isNaN(validTargetDate.getTime())) {
-      console.log('⚠️ Data inválida recebida, usando data atual');
+      // console.log('⚠️ Data inválida recebida, usando data atual');
       validTargetDate.setTime(Date.now());
     }
     
@@ -318,7 +318,7 @@ export class ScheduleService {
 
     // Se não há slots suficientes, gerar automaticamente
     if (existingSlots < 30) {
-      console.log(`🔄 Gerando slots automaticamente para aeronave ${aircraftId}`);
+      // console.log(`🔄 Gerando slots automaticamente para aeronave ${aircraftId}`);
       await this.generateSlotsForPeriod(aircraftId, startDate, endDate);
     }
   }
@@ -384,9 +384,9 @@ export class ScheduleService {
         data: slots,
         skipDuplicates: true
       });
-      console.log(`✅ ${slots.length} slots gerados para aeronave ${aircraftId}`);
-      console.log(`📅 Slots criados de ${startDate.toLocaleDateString('pt-BR')} até ${endDate.toLocaleDateString('pt-BR')}`);
-      console.log(`🕐 Horários: 00:00 às 23:59 (slots de 1 hora cada)`);
+      // console.log(`✅ ${slots.length} slots gerados para aeronave ${aircraftId}`);
+      // console.log(`📅 Slots criados de ${startDate.toLocaleDateString('pt-BR')} até ${endDate.toLocaleDateString('pt-BR')}`);
+      // console.log(`🕐 Horários: 00:00 às 23:59 (slots de 1 hora cada)`);
     }
   }
 
@@ -407,7 +407,7 @@ export class ScheduleService {
     });
 
     if (deleted.count > 0) {
-      console.log(`🧹 ${deleted.count} slots antigos removidos`);
+      // console.log(`🧹 ${deleted.count} slots antigos removidos`);
     }
   }
 

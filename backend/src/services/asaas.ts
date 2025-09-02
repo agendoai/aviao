@@ -261,7 +261,7 @@ export async function updateSubscription(subscriptionId: string, newValue: numbe
     }
 
     const result = await response.json();
-    console.log(`✅ Assinatura ${subscriptionId} atualizada para R$ ${newValue}`);
+    // console.log(`✅ Assinatura ${subscriptionId} atualizada para R$ ${newValue}`);
     
     return {
       status: result.status,
@@ -353,7 +353,7 @@ export async function checkCustomerExists(customerId: string): Promise<boolean> 
 
     if (response.ok) {
       const customer = await response.json();
-      console.log('✅ Cliente encontrado no Asaas:', customer.name);
+      // console.log('✅ Cliente encontrado no Asaas:', customer.name);
       return true;
     } else {
       const errorData = await response.json();
@@ -449,7 +449,7 @@ export async function syncPaymentStatus(paymentId: string): Promise<any> {
     }
 
     const payment = await response.json();
-    console.log(`🔄 Status sincronizado para cobrança ${paymentId}: ${payment.status}`);
+    // console.log(`🔄 Status sincronizado para cobrança ${paymentId}: ${payment.status}`);
     
     return payment;
   } catch (error) {
@@ -466,7 +466,7 @@ export async function syncUserPaymentsStatus(userId: number, subscriptionId: str
   }
 
   try {
-    console.log(`🔄 Sincronizando cobranças do usuário ${userId} (assinatura ${subscriptionId})...`);
+    // console.log(`🔄 Sincronizando cobranças do usuário ${userId} (assinatura ${subscriptionId})...`);
     
     // Buscar cobranças da assinatura no Asaas
     const asaasPayments = await getSubscriptionPayments(subscriptionId);
@@ -494,7 +494,7 @@ export async function syncUserPaymentsStatus(userId: number, subscriptionId: str
             data: { status: mapAsaasStatusToLocal(asaasPayment.status) }
           });
           
-          console.log(`✅ Cobrança ${asaasPayment.id} atualizada: ${localMembership.status} → ${mapAsaasStatusToLocal(asaasPayment.status)}`);
+          // console.log(`✅ Cobrança ${asaasPayment.id} atualizada: ${localMembership.status} → ${mapAsaasStatusToLocal(asaasPayment.status)}`);
           updated++;
         } catch (error) {
           console.error(`❌ Erro ao atualizar cobrança ${asaasPayment.id}:`, error);
@@ -506,9 +506,9 @@ export async function syncUserPaymentsStatus(userId: number, subscriptionId: str
     // Atualizar status do usuário após sincronização (sempre verificar)
     const { updateUserStatus } = await import('./userStatus');
     const userStatusResult = await updateUserStatus(userId);
-    console.log(`✅ Status do usuário ${userId} atualizado após sincronização: ${userStatusResult.status}`);
+    // console.log(`✅ Status do usuário ${userId} atualizado após sincronização: ${userStatusResult.status}`);
 
-    console.log(`🎯 Sincronização concluída: ${updated} atualizações, ${errors} erros`);
+    // console.log(`🎯 Sincronização concluída: ${updated} atualizações, ${errors} erros`);
     return { updated, errors };
     
   } catch (error) {

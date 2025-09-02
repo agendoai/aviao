@@ -113,7 +113,7 @@ router.post('/membership/:userId', async (req, res) => {
         });
 
         existingMembership.subscriptionId = subscription.id;
-        console.log(`✅ Assinatura recorrente criada: ${subscription.id} para usuário ${user.name}`);
+        // console.log(`✅ Assinatura recorrente criada: ${subscription.id} para usuário ${user.name}`);
       } catch (error) {
         console.error('❌ Erro ao criar assinatura recorrente:', error);
         return res.status(500).json({ error: 'Erro ao configurar assinatura recorrente' });
@@ -634,7 +634,7 @@ router.post('/sync/:paymentId', async (req, res) => {
   try {
     const { paymentId } = req.params;
     
-    console.log(`🔄 Sincronizando status da cobrança: ${paymentId}`);
+    // console.log(`🔄 Sincronizando status da cobrança: ${paymentId}`);
     
     // Sincronizar com o Asaas
     const asaasPayment = await syncPaymentStatus(paymentId);
@@ -664,12 +664,12 @@ router.post('/sync/:paymentId', async (req, res) => {
           data: { status: newStatus }
         });
         
-        console.log(`✅ Cobrança ${paymentId} atualizada: ${membership.status} → ${newStatus}`);
+        // console.log(`✅ Cobrança ${paymentId} atualizada: ${membership.status} → ${newStatus}`);
       }
       
       // Sempre atualizar status do usuário após sincronização
       const userStatusResult = await updateUserStatus(membership.userId);
-      console.log(`✅ Status do usuário ${membership.userId} atualizado: ${userStatusResult.status}`);
+      // console.log(`✅ Status do usuário ${membership.userId} atualizado: ${userStatusResult.status}`);
     }
     
     res.json({
@@ -690,7 +690,7 @@ router.post('/sync-user/:userId', async (req, res) => {
   try {
     const { userId } = req.params;
     
-    console.log(`🔄 Sincronizando cobranças do usuário: ${userId}`);
+    // console.log(`🔄 Sincronizando cobranças do usuário: ${userId}`);
     
     // Buscar usuário
     const user = await prisma.user.findUnique({
