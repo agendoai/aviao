@@ -45,26 +45,51 @@ export function calcularTempoVolta(flightHoursTotal: number): number {
  * m.partida já é o início do pré-voo (04:00), m.retorno já é o fim do pós-voo (21:00)
  */
 export function janelaBloqueada(m: Missao): JanelaBloqueada[] {
-  return [
+  // Validar se a missão tem datas válidas
+  if (isNaN(m.partida.getTime()) || isNaN(m.retorno.getTime())) {
+    console.error('❌ Missão com datas inválidas:', {
+      partida: m.partida.toISOString(),
+      retorno: m.retorno.toISOString(),
+      missao: m
+    });
+    return [];
+  }
+  
+  const janelas = [
     {
       inicio: new Date(m.partida.getTime()), // 04:00 (início pré-voo)
       fim: new Date(m.partida.getTime() + H(PRE_VOO_HORAS)), // 07:00 (fim pré-voo)
-      tipo: 'pre-voo',
+      tipo: 'pre-voo' as const,
       missao: m
     },
     {
       inicio: new Date(m.partida.getTime() + H(PRE_VOO_HORAS)), // 07:00 (início missão)
       fim: new Date(m.retorno.getTime() - H(POS_VOO_HORAS)), // 18:00 (fim missão = return_date - 3h)
-      tipo: 'missao',
+      tipo: 'missao' as const,
       missao: m
     },
     {
       inicio: new Date(m.retorno.getTime() - H(POS_VOO_HORAS)), // 18:00 (início pós-voo)
       fim: new Date(m.retorno.getTime()), // 21:00 (fim pós-voo)
-      tipo: 'pos-voo',
+      tipo: 'pos-voo' as const,
       missao: m
     }
   ];
+  
+  // Validar se todas as janelas têm datas válidas
+  const janelasValidas = janelas.filter(janela => {
+    const valida = !isNaN(janela.inicio.getTime()) && !isNaN(janela.fim.getTime());
+    if (!valida) {
+      console.error('❌ Janela com datas inválidas:', {
+        tipo: janela.tipo,
+        inicio: janela.inicio.toISOString(),
+        fim: janela.fim.toISOString()
+      });
+    }
+    return valida;
+  });
+  
+  return janelasValidas;
 }
 
 /**
@@ -83,6 +108,17 @@ export function proximaDecolagemPossivel(m: Missao): Date {
  * Verifica se há interseção entre dois intervalos
  */
 function temInterseção(inicio1: Date, fim1: Date, inicio2: Date, fim2: Date): boolean {
+  // Validar se as datas são válidas
+  if (isNaN(inicio1.getTime()) || isNaN(fim1.getTime()) || isNaN(inicio2.getTime()) || isNaN(fim2.getTime())) {
+    console.error('❌ Datas inválidas detectadas:', {
+      inicio1: inicio1.toISOString(),
+      fim1: fim1.toISOString(),
+      inicio2: inicio2.toISOString(),
+      fim2: fim2.toISOString()
+    });
+    return false;
+  }
+  
   return inicio1 < fim2 && inicio2 < fim1;
 }
 
@@ -115,7 +151,6 @@ export function inicioValido(candidatoInicio: Date, missoes: Missao[]): Validati
       }
     }
   }
-  
   return { 
     valido: true, 
     mensagem: "✅ Início válido", 
@@ -255,10 +290,30 @@ export function sugerirHorarios(
  * Converte dados de booking do Supabase para o formato Missao
  */
 export function converterBookingParaMissao(booking: any): Missao {
+  // Validar se os dados estão presentes
+  if (!booking.departure_date || !booking.departure_time || !booking.return_date || !booking.return_time) {
+    console.error('❌ Dados de booking incompletos:', booking);
+    throw new Error('Dados de booking incompletos');
+  }
+  
+  // Criar datas com validação
   const departureDateTime = new Date(`${booking.departure_date}T${booking.departure_time}`);
   const returnDateTime = new Date(`${booking.return_date}T${booking.return_time}`);
   
-  return {
+  // Validar se as datas foram criadas corretamente
+  if (isNaN(departureDateTime.getTime()) || isNaN(returnDateTime.getTime())) {
+    console.error('❌ Datas inválidas criadas:', {
+      departure_date: booking.departure_date,
+      departure_time: booking.departure_time,
+      return_date: booking.return_date,
+      return_time: booking.return_time,
+      departureDateTime: departureDateTime.toISOString(),
+      returnDateTime: returnDateTime.toISOString()
+    });
+    throw new Error('Datas inválidas criadas');
+  }
+  
+  const missao = {
     id: booking.id,
     partida: departureDateTime,
     retorno: returnDateTime,
@@ -266,6 +321,8 @@ export function converterBookingParaMissao(booking: any): Missao {
     origin: booking.origin,
     destination: booking.destination
   };
+  
+  return missao;
 }
 
 /**
@@ -287,5 +344,7 @@ export function validarHorarioCalendario(
   };
   
   // Validar a missão completa
-  return validarMissaoCompleta(missaoTeste, missoes);
+  const resultado = validarMissaoCompleta(missaoTeste, missoes);
+  
+  return resultado;
 }

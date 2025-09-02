@@ -11,7 +11,8 @@ import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { searchAirports, getPopularAirports, getAirportsByRegion, Airport } from '@/utils/airport-search';
-import { getAircrafts, createSharedMission } from '@/utils/api';
+import { getAircrafts, createSharedMission, validateSharedMission } from '@/utils/api';
+import IntelligentSharedMissionCalendar from './IntelligentSharedMissionCalendar';
 
 interface Aircraft {
   id: number;
@@ -67,6 +68,10 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
     notes: '',
     availableSeats: 1
   });
+
+  // Estados para calendário inteligente
+  const [showCalendar, setShowCalendar] = useState(false);
+  const [selectedTimeSlot, setSelectedTimeSlot] = useState<any>(null);
 
   // Buscar aeronaves da API
   useEffect(() => {
@@ -349,6 +354,18 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
     return true;
   };
 
+  const handleTimeSlotSelect = (slot: any) => {
+    setSelectedTimeSlot(slot);
+    setMissionData(prev => ({
+      ...prev,
+      departureDate: format(slot.start, 'yyyy-MM-dd'),
+      departureTime: format(slot.start, 'HH:mm'),
+      returnDate: format(slot.start, 'yyyy-MM-dd'), // Para missões compartilhadas, geralmente mesmo dia
+      returnTime: format(new Date(slot.start.getTime() + (2 * 60 * 60 * 1000)), 'HH:mm') // +2h para retorno
+    }));
+    setShowCalendar(false);
+  };
+
   const handleSubmit = async () => {
     if (!validateForm()) return;
     
@@ -356,8 +373,26 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
     const totalCost = calculateOwnerCost();
     const pricePerSeat = missionData.availableSeats > 0 ? Math.ceil(totalCost / missionData.availableSeats) : 0;
     
-         try {
-       await createSharedMission({
+    // Validar missão antes de criar
+    try {
+      const validation = await validateSharedMission({
+        aircraftId: selectedAircraft!.id,
+        departure_date: `${missionData.departureDate}T${missionData.departureTime}`,
+        return_date: `${missionData.returnDate}T${missionData.returnTime}`,
+        flight_hours: calculateCosts.flightHours,
+        origin: missionData.origin,
+        destination: missionData.destination
+      });
+
+      if (!validation.valido) {
+        toast.error('Conflito de horário', {
+          description: validation.error || 'Existe um conflito com outra missão no horário selecionado'
+        });
+        return;
+      }
+
+      // Se validação passou, criar a missão
+      await createSharedMission({
          title: `Missão compartilhada de ${missionData.origin} para ${missionData.destination}`,
          description: missionData.notes,
          origin: missionData.origin,
@@ -493,6 +528,21 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
             </CardTitle>
           </CardHeader>
           <CardContent className="space-y-3 p-3">
+            {/* Botão do Calendário Inteligente */}
+            {selectedAircraft && (
+              <div className="mb-3">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setShowCalendar(true)}
+                  className="w-full bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100 text-xs"
+                >
+                  <Calendar className="h-4 w-4 mr-2" />
+                  Usar Calendário Inteligente
+                </Button>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="departureDate" className="text-xs">Data de Partida</Label>
@@ -807,6 +857,20 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
           Criar
         </Button>
       </div>
+
+      {/* Calendário Inteligente Modal */}
+      {showCalendar && selectedAircraft && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+          <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+            <IntelligentSharedMissionCalendar
+              selectedAircraft={selectedAircraft}
+              onTimeSlotSelect={handleTimeSlotSelect}
+              selectedTimeSlot={selectedTimeSlot}
+              onBack={() => setShowCalendar(false)}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 };

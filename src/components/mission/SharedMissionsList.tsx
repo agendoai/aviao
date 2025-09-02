@@ -6,12 +6,13 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Calendar } from '@/components/ui/calendar';
+
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
 import { 
   Plane, 
   MapPin, 
+  Calendar,
   Calendar as CalendarIcon, 
   Clock, 
   Users, 
@@ -25,7 +26,8 @@ import {
   ChevronRight,
   Search,
   User,
-  Crown
+  Crown,
+  Loader2
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
@@ -47,8 +49,9 @@ import {
   getMessageCounts,
   markMessagesAsRead
 } from '@/utils/api';
-import { searchAirports, getPopularAirports, getAirportsByRegion, Airport, calculateDistance as calculateDistanceNM, getAircraftSpeed, getAirportCoordinatesWithFallback } from '@/utils/airport-search';
+import { searchAirports, getPopularAirports, getAirportsByRegion, Airport, calculateDistance, getAircraftSpeed, getAirportCoordinatesWithFallback, getAirportNameByICAO } from '@/utils/airport-search';
 import { getCalendar } from '@/utils/api';
+import IntelligentTimeSelectionStep from '../booking-flow/IntelligentTimeSelectionStep';
 
 interface Aircraft {
   id: number;
@@ -58,6 +61,15 @@ interface Aircraft {
   seats: number;
   hourlyRate: number;
   overnightRate: number;
+  status: string;
+}
+
+interface CalendarAircraft {
+  id: number;
+  name: string;
+  registration: string;
+  model: string;
+  status: string;
 }
 
 interface SharedMission {
@@ -68,6 +80,8 @@ interface SharedMission {
   destination: string;
   departure_date: string;
   return_date: string;
+  actual_departure_date?: string;
+  actual_return_date?: string;
   aircraftId: number;
   totalSeats: number;
   availableSeats: number;
@@ -75,6 +89,10 @@ interface SharedMission {
   totalCost: number;
   overnightFee: number;
   overnightStays: number;
+  flight_hours?: number;
+  paymentId?: string;
+  blocked_until?: string;
+  maintenance_buffer_hours?: number;
   status: string;
   createdBy: number;
   createdAt: string;
@@ -157,12 +175,45 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
   const [newMessage, setNewMessage] = useState('');
   const [shouldOpenChatAfterLoad, setShouldOpenChatAfterLoad] = useState<number | null>(null);
 
+  // State for details modal
+  const [showDetailsModal, setShowDetailsModal] = useState(false);
+  const [selectedMissionForDetails, setSelectedMissionForDetails] = useState<SharedMission | null>(null);
+  
+  // Estados para pagamento PIX
+  const [showPixModal, setShowPixModal] = useState(false);
+  const [qrCode, setQrCode] = useState<string>('');
+  const [copiaCola, setCopiaCola] = useState<string>('');
+  const [paymentId, setPaymentId] = useState<string>('');
+  const [paying, setPaying] = useState(false);
+  
+  // Estado para cache do pagamento pendente
+  const [pendingPayment, setPendingPayment] = useState<{
+    paymentId: string;
+    qrCode: string;
+    copiaCola: string;
+    missionData: any;
+    createdAt: number;
+  } | null>(null);
+  
+  // Estado para tela de confirmação de pagamento
+  const [showPaymentSuccess, setShowPaymentSuccess] = useState(false);
+  const [paymentSuccessData, setPaymentSuccessData] = useState<{
+    missionTitle: string;
+    totalCost: number;
+    paymentId: string;
+  } | null>(null);
+  
+  // Estado para verificação automática
+  const [autoVerification, setAutoVerification] = useState(false);
+
   // State for aircrafts and filters
   const [aircrafts, setAircrafts] = useState<Aircraft[]>([]);
   const [filterLoading, setFilterLoading] = useState(false);
   
   // Create mission states
   const [selectedAircraft, setSelectedAircraft] = useState<Aircraft | null>(null);
+  const [selectedDepartureSlot, setSelectedDepartureSlot] = useState<any>(null);
+  const [selectedReturnSlot, setSelectedReturnSlot] = useState<any>(null);
   const [missionData, setMissionData] = useState({
     title: '',
     description: '',
@@ -194,7 +245,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
     if (currentView === 'view') {
       loadMissionRequestsForMyMissions();
     }
-  }, [currentView, missions]);
+  }, [currentView]); // Removido 'missions' da dependência
 
   // Auto-scroll to bottom when chat messages change
   useEffect(() => {
@@ -280,6 +331,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
   const loadAircrafts = async () => {
     try {
       const data = await getAircrafts();
+      
       const normalized: Aircraft[] = (Array.isArray(data) ? data : []).map((item: any) => ({
         id: item.id,
         name: item.name,
@@ -288,6 +340,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
         seats: item.seats ?? item.max_passengers ?? 0,
         hourlyRate: item.hourlyRate ?? item.hourly_rate ?? 0,
         overnightRate: item.overnightRate ?? item.overnight_fee ?? 0,
+        status: item.status ?? 'available',
       }));
       setAircrafts(normalized);
     } catch (error) {
@@ -591,6 +644,16 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
     setNewMessage('');
   };
 
+  const openDetailsModal = (mission: SharedMission) => {
+    setSelectedMissionForDetails(mission);
+    setShowDetailsModal(true);
+  };
+
+  const closeDetailsModal = () => {
+    setShowDetailsModal(false);
+    setSelectedMissionForDetails(null);
+  };
+
   const openChat = async (request: ParticipationRequest) => {
     // Ensure the request has all required properties before opening chat
     if (!request || !request.user || !request.sharedMission) {
@@ -624,7 +687,9 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
 
   // Função para calcular valor total
   const calculateTotalCost = () => {
-    if (!selectedAircraft || !selectedDestination) return 0;
+    if (!selectedAircraft || !selectedDestination) {
+      return 0;
+    }
     
     // Usar coordenadas reais (local ou AISWEB) via utilitário
     // selectedOrigin é SBAU fixo por enquanto
@@ -632,27 +697,58 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
     const destIcao = selectedDestination.icao;
 
     // Usar distância resolvida por AISWEB/local quando disponível
-    const distanceNM = resolvedDistanceNM ?? calculateDistanceNM(
+    const distanceNM = resolvedDistanceNM ?? calculateDistance(
       (selectedOrigin as any).latitude || -21.1411,
       (selectedOrigin as any).longitude || -50.4247,
       (selectedDestination as any).latitude,
       (selectedDestination as any).longitude
     );
 
-    const cruiseSpeedKT = getAircraftSpeed(selectedAircraft.model);
-    const flightHours = calculateFlightTime(distanceNM, cruiseSpeedKT);
-    const baseCost = Math.max(1, Math.ceil(flightHours * 2)) * selectedAircraft.hourlyRate; // ida+volta arredondado como no solo
+    // Calcular tempo de voo usando a mesma lógica da missão solo
+    const aircraftSpeed = getAircraftSpeed(selectedAircraft.model); // Velocidade em nós (KT)
+    const flightTimeHours = distanceNM / aircraftSpeed; // Tempo em horas (ida)
     
-    // Calcular pernoite se necessário
-    const overnightDays = departureDate && returnDate ? 
-      Math.max(0, Math.floor((new Date(returnDate).getTime() - new Date(departureDate).getTime()) / (1000 * 60 * 60 * 24))) : 0;
+    // Calcular tempo total (ida + volta) - mesma lógica da missão solo
+    const totalFlightTime = flightTimeHours * 2; // Tempo total exato (ida + volta)
+    
+    // Calcular custo base usando o tempo exato (não arredondado)
+    const hourlyRate = selectedAircraft.hourlyRate;
+    const baseCost = totalFlightTime * hourlyRate;
+    
+    // Calcular pernoite usando a mesma lógica da missão solo
+    let overnightDays = 0;
+    
+    if (departureDate && returnDate && departureTime && returnTime) {
+      const departureHour = parseInt(departureTime.split(':')[0]);
+      const returnHour = parseInt(returnTime.split(':')[0]);
+      
+      // Verificar se as datas são diferentes
+      if (departureDate !== returnDate) {
+        const departureDateObj = new Date(departureDate);
+        const returnDateObj = new Date(returnDate);
+        const timeDiff = returnDateObj.getTime() - departureDateObj.getTime();
+        const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
+        overnightDays = daysDiff;
+      } else {
+        // Mesmo dia, verificar se passa da meia-noite
+        if (returnHour >= 0 && returnHour < 6) {
+          // Entre 00:00 e 05:59 = pernoite
+          overnightDays = 1;
+        } else if (returnHour >= 22) {
+          // Após 22:00 = pernoite (voo noturno)
+          overnightDays = 1;
+        }
+      }
+    }
+    
     const overnightCost = overnightDays * selectedAircraft.overnightRate;
     
     return {
       distanceNM: distanceNM.toFixed(1),
-      flightHours: `${Math.floor(flightHours)}h${flightHours % 1 > 0 ? ` ${Math.round((flightHours % 1) * 60)}min` : ''}`,
+      flightHours: `${Math.floor(totalFlightTime)}h${totalFlightTime % 1 > 0 ? ` ${Math.round((totalFlightTime % 1) * 60)}min` : ''}`,
       baseCost: baseCost,
       overnightCost: overnightCost,
+      overnightDays: overnightDays,
       totalCost: baseCost + overnightCost
     };
   };
@@ -676,15 +772,19 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
     switch (currentStep) {
       case 1: return selectedAircraft !== null;
       case 2: return selectedDestination !== null;
-      case 3: return selectedAircraft && selectedDestination && departureDate && departureTime && returnDate && returnTime && availableSeats > 0;
-      case 4: return true; // sempre pode criar na última etapa
+      case 3: return selectedDepartureSlot !== null;
+      case 4: return selectedReturnSlot !== null;
+      case 5: return availableSeats !== '' && parseInt(availableSeats) > 0;
+      case 6: return true; // sempre pode criar na última etapa
       default: return false;
     }
   };
 
   // Função para gerar resumo
   const generateSummary = () => {
-    if (!selectedAircraft || !selectedDestination) return null;
+    if (!selectedAircraft || !selectedDestination) {
+      return null;
+    }
     
     const costCalculation = calculateTotalCost();
     
@@ -753,8 +853,8 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
   const [returnDate, setReturnDate] = useState('');
   const [departureTime, setDepartureTime] = useState('');
   const [returnTime, setReturnTime] = useState('');
-  const [availableSeats, setAvailableSeats] = useState<number>(1);
-  const [totalSteps] = useState(4);
+  const [availableSeats, setAvailableSeats] = useState<string>('');
+  const [totalSteps] = useState(6);
   const [missionSummary, setMissionSummary] = useState<any>(null);
   const [availableSlots, setAvailableSlots] = useState<{ start: string; end: string }[]>([]);
   const [resolvedOriginCoords, setResolvedOriginCoords] = useState<{ lat: number; lon: number } | null>(null);
@@ -773,7 +873,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
         setResolvedDestCoords(dest);
 
         if (origin && dest) {
-          const nm = calculateDistanceNM(origin.lat, origin.lon, dest.lat, dest.lon);
+          const nm = calculateDistance(origin.lat, origin.lon, dest.lat, dest.lon);
           setResolvedDistanceNM(nm);
           console.log('🔎 Distância (NM) resolvida via AISWEB/local:', nm.toFixed(1));
         } else {
@@ -839,16 +939,14 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
   // Buscar aeroportos
   useEffect(() => {
     const searchAirportsAsync = async () => {
-      if (searchTerm.length < 2) {
-        setAirports([]);
-        return;
-      }
-
       try {
         setLoadingAirports(true);
         let airportsData: Airport[] = [];
 
-        if (selectedRegion) {
+        if (searchTerm.length < 2) {
+          // Mostrar aeroportos populares por padrão
+          airportsData = await getPopularAirports();
+        } else if (selectedRegion) {
           airportsData = await getAirportsByRegion(selectedRegion);
         } else {
           airportsData = await searchAirports(searchTerm);
@@ -880,10 +978,132 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
     setSearchTerm('');
   };
 
+  const handleDepartureSlotSelect = (timeSlot: any) => {
+    
+    if (typeof timeSlot === 'object' && timeSlot.start) {
+      setSelectedDepartureSlot(timeSlot);
+      setDepartureDate(format(timeSlot.start, 'yyyy-MM-dd'));
+      setDepartureTime(format(timeSlot.start, 'HH:mm'));
+      
+      // Avançar automaticamente para a próxima etapa
+      setTimeout(() => {
+        setCurrentStep(4);
+      }, 500); // Pequeno delay para mostrar a seleção
+    } else {
+      const time = timeSlot.toString();
+      setDepartureTime(time);
+      
+      // Criar um TimeSlot para compatibilidade
+      const newTimeSlot = {
+        start: new Date(`${departureDate}T${time}:00`),
+        end: new Date(`${departureDate}T${time}:00`),
+        available: true
+      };
+      setSelectedDepartureSlot(newTimeSlot);
+      
+      // Avançar automaticamente para a próxima etapa
+      setTimeout(() => {
+        setCurrentStep(4);
+      }, 500); // Pequeno delay para mostrar a seleção
+    }
+  };
+
+  const handleReturnSlotSelect = (timeSlot: any) => {
+    console.log('🎯 Horário de retorno selecionado:', timeSlot);
+    
+    if (typeof timeSlot === 'object' && timeSlot.start) {
+      setSelectedReturnSlot(timeSlot);
+      setReturnDate(format(timeSlot.start, 'yyyy-MM-dd'));
+      setReturnTime(format(timeSlot.start, 'HH:mm'));
+      
+      // Avançar automaticamente para a próxima etapa
+      setTimeout(() => {
+        setCurrentStep(5);
+      }, 500); // Pequeno delay para mostrar a seleção
+    } else {
+      const time = timeSlot.toString();
+      setReturnTime(time);
+      
+      // Criar um TimeSlot para compatibilidade
+      const newTimeSlot = {
+        start: new Date(`${returnDate}T${time}:00`),
+        end: new Date(`${returnDate}T${time}:00`),
+        available: true
+      };
+      setSelectedReturnSlot(newTimeSlot);
+      
+      // Avançar automaticamente para a próxima etapa
+      setTimeout(() => {
+        setCurrentStep(5);
+      }, 500); // Pequeno delay para mostrar a seleção
+    }
+  };
+
   // Atualizar useEffect para exibir todas as missões ao carregar
   useEffect(() => {
     setFilteredMissions(missions);
   }, [missions]);
+
+  // Verificação automática do pagamento PIX
+  useEffect(() => {
+    let intervalId: NodeJS.Timeout;
+    
+    if (autoVerification && paymentId && showPixModal) {
+      console.log('🔄 Iniciando verificação automática do pagamento...');
+      
+      // Verificar a cada 5 segundos
+      intervalId = setInterval(async () => {
+        try {
+          const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+          
+          const response = await fetch(`${backendUrl}/api/shared-missions/pix-payment/${paymentId}/verify`, {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`,
+              'Content-Type': 'application/json',
+            }
+          });
+          
+          const data = await response.json();
+          
+          if (data.success) {
+            console.log('✅ Pagamento confirmado automaticamente!');
+            
+            // Parar verificação automática
+            setAutoVerification(false);
+            clearInterval(intervalId);
+            
+            // Mostrar tela de sucesso
+            const costCalculation = calculateTotalCost();
+            setPaymentSuccessData({
+              missionTitle: `Missão compartilhada de ${getAirportNameByICAO('SBAU')} para ${getAirportNameByICAO(selectedDestination?.icao || '')}`,
+              totalCost: typeof costCalculation === 'object' ? costCalculation.totalCost : 0,
+              paymentId: paymentId
+            });
+            
+            // Limpar cache e fechar modal
+            setPendingPayment(null);
+            setShowPixModal(false);
+            setShowPaymentSuccess(true);
+            
+            toast({
+              title: "Sucesso",
+              description: "✅ Pagamento confirmado! Missão criada com sucesso!",
+            });
+          }
+        } catch (error) {
+          console.error('Erro na verificação automática:', error);
+        }
+      }, 5000); // 5 segundos
+    }
+    
+    // Cleanup: limpar intervalo quando componente desmontar ou quando parar verificação
+    return () => {
+      if (intervalId) {
+        clearInterval(intervalId);
+      }
+    };
+  }, [autoVerification, paymentId, showPixModal, selectedDestination]);
 
   const resetFilters = () => {
     setFilters({
@@ -895,8 +1115,396 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
     setFilteredMissions(missions);
   };
 
+  // Debug: verificar estado do modal
+  console.log('🔍 Estado atual - showPixModal:', showPixModal, 'qrCode:', qrCode ? 'tem' : 'não tem', 'copiaCola:', copiaCola ? 'tem' : 'não tem');
+
+
+
+  // Função para gerar pagamento PIX
+  const handleGeneratePix = async () => {
+    console.log('🚀 handleGeneratePix iniciado');
+    
+    if (!selectedAircraft || !selectedDestination || !departureDate || !returnDate || !departureTime || !returnTime) {
+      toast({
+        title: "Erro",
+        description: "Preencha todos os campos obrigatórios!",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    setPaying(true);
+    try {
+      // Criar datas usando a mesma lógica da missão solo
+      const departureDateTime = new Date(`${departureDate}T${departureTime}:00`);
+      const returnDateTime = new Date(`${returnDate}T${returnTime}:00`);
+
+      const costCalculation = calculateTotalCost();
+      if (costCalculation === 0) {
+        toast({
+          title: "Erro",
+          description: "Erro no cálculo de custos!",
+          variant: "destructive"
+        });
+        return;
+      }
+
+      // Calcular flight_hours baseado na distância e velocidade
+      const aircraftSpeed = getAircraftSpeed(selectedAircraft.model);
+      
+      // Buscar coordenadas dos aeroportos
+      const originCoords = await getAirportCoordinatesWithFallback('SBAU');
+      const destCoords = await getAirportCoordinatesWithFallback(selectedDestination.icao);
+      
+      if (!originCoords || !destCoords) {
+        throw new Error('Não foi possível obter as coordenadas dos aeroportos');
+      }
+      
+      // Calcular distância usando a função calculateDistance
+      const distanceNM = calculateDistance(
+        originCoords.lat, originCoords.lon,
+        destCoords.lat, destCoords.lon
+      );
+      
+      const flightTimeHours = distanceNM / aircraftSpeed;
+      const flightHours = flightTimeHours * 2; // Ida e volta
+
+      // Dados da missão para enviar ao backend
+      const missionData = {
+        title: `Missão compartilhada de ${getAirportNameByICAO('SBAU')} para ${getAirportNameByICAO(selectedDestination.icao)}`,
+        description: 'Missão compartilhada criada via wizard',
+        origin: 'SBAU',
+        destination: selectedDestination.icao,
+        departure_date: departureDateTime.toISOString(),
+        return_date: returnDateTime.toISOString(),
+        aircraftId: selectedAircraft.id,
+        totalSeats: selectedAircraft.seats,
+        availableSeats: parseInt(availableSeats) || 1,
+        pricePerSeat: Math.ceil(costCalculation.totalCost / (parseInt(availableSeats) || 1)),
+        totalCost: costCalculation.totalCost,
+        overnightFee: selectedAircraft.overnightRate,
+        flight_hours: flightHours,
+      };
+
+      // Verificar se já existe um pagamento pendente válido (menos de 30 minutos)
+      const now = Date.now();
+      const thirtyMinutes = 30 * 60 * 1000; // 30 minutos em ms
+      
+      if (pendingPayment && (now - pendingPayment.createdAt) < thirtyMinutes) {
+        console.log('🔄 Reutilizando pagamento pendente existente');
+        
+        // Verificar se os dados da missão são os mesmos
+        const isSameMission = JSON.stringify(pendingPayment.missionData) === JSON.stringify(missionData);
+        
+        if (isSameMission) {
+          console.log('✅ Dados da missão são os mesmos, reutilizando QR Code');
+          setQrCode(pendingPayment.qrCode);
+          setCopiaCola(pendingPayment.copiaCola);
+          setPaymentId(pendingPayment.paymentId);
+          setShowPixModal(true);
+          
+          toast({
+            title: "Sucesso",
+            description: "QR Code PIX carregado do cache!",
+          });
+          
+          setPaying(false);
+          return;
+        } else {
+          console.log('⚠️ Dados da missão mudaram, criando novo pagamento');
+        }
+      }
+
+      console.log('🆕 Criando novo pagamento PIX');
+      
+      // Chamar API para gerar PIX
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+      const response = await fetch(`${backendUrl}/api/shared-missions/pix-payment`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(missionData)
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao gerar pagamento PIX');
+      }
+
+      console.log('🔍 Dados do PIX recebidos:', data);
+      
+      // Salvar no cache
+      const newPendingPayment = {
+        paymentId: data.paymentId,
+        qrCode: data.pixQrCodeImage,
+        copiaCola: data.pixCopiaCola,
+        missionData: missionData,
+        createdAt: now
+      };
+      
+      setPendingPayment(newPendingPayment);
+      setQrCode(data.pixQrCodeImage);
+      setCopiaCola(data.pixCopiaCola);
+      setPaymentId(data.paymentId);
+      setShowPixModal(true);
+      
+      // Ativar verificação automática
+      setAutoVerification(true);
+
+      toast({
+        title: "Sucesso",
+        description: "QR Code PIX gerado com sucesso!",
+      });
+
+    } catch (error: any) {
+      toast({
+        title: "Erro",
+        description: error.message || "Erro ao gerar pagamento PIX",
+        variant: "destructive"
+      });
+    } finally {
+      setPaying(false);
+    }
+  };
+
+  // Função para verificar pagamento
+  const handleVerifyPayment = async () => {
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+      
+      const response = await fetch(`${backendUrl}/api/shared-missions/pix-payment/${paymentId}/verify`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`,
+          'Content-Type': 'application/json',
+        }
+      });
+      
+      const data = await response.json();
+      
+      if (data.success) {
+        // Mostrar tela de sucesso do pagamento
+        const costCalculation = calculateTotalCost();
+        setPaymentSuccessData({
+          missionTitle: `Missão compartilhada de ${getAirportNameByICAO('SBAU')} para ${getAirportNameByICAO(selectedDestination?.icao || '')}`,
+          totalCost: typeof costCalculation === 'object' ? costCalculation.totalCost : 0,
+          paymentId: paymentId
+        });
+        
+        // Limpar cache do pagamento pendente
+        setPendingPayment(null);
+        setShowPixModal(false);
+        setShowPaymentSuccess(true);
+        
+        toast({
+          title: "Sucesso",
+          description: "✅ Pagamento confirmado! Missão criada com sucesso!",
+        });
+      } else {
+        toast({
+          title: "Erro",
+          description: data.error || 'Pagamento ainda não foi confirmado',
+          variant: "destructive"
+        });
+      }
+    } catch (error) {
+      console.error('Erro ao verificar pagamento:', error);
+      toast({
+        title: "Erro",
+        description: "Erro ao verificar pagamento",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Função para copiar código PIX
+  const handleCopyPixCode = async () => {
+    try {
+      await navigator.clipboard.writeText(copiaCola);
+      toast({
+        title: "Sucesso",
+        description: "Código PIX copiado!",
+      });
+    } catch (error) {
+      toast({
+        title: "Erro",
+        description: "Erro ao copiar código PIX",
+        variant: "destructive"
+      });
+    }
+  };
+
+  // Tela de sucesso do pagamento
+  if (showPaymentSuccess && paymentSuccessData) {
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="bg-white rounded-lg w-full max-w-md p-6">
+          <div className="text-center mb-6">
+            <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mb-4">
+              <Check className="h-8 w-8 text-green-600" />
+            </div>
+            <h3 className="text-xl font-bold text-gray-800 mb-2">Pagamento Confirmado!</h3>
+            <p className="text-sm text-gray-600">Sua missão foi criada com sucesso</p>
+          </div>
+
+          {/* Detalhes da missão */}
+          <div className="bg-gray-50 rounded-lg p-4 mb-6">
+            <h4 className="font-semibold text-gray-800 mb-3">Detalhes da Missão</h4>
+            <div className="space-y-2 text-sm">
+              <div className="flex justify-between">
+                <span className="text-gray-600">Missão:</span>
+                <span className="font-medium text-gray-800">{paymentSuccessData.missionTitle}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">Valor Pago:</span>
+                <span className="font-medium text-green-600">
+                  R$ {paymentSuccessData.totalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-gray-600">ID do Pagamento:</span>
+                <span className="font-medium text-gray-800 text-xs">{paymentSuccessData.paymentId}</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Mensagem de sucesso */}
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 mb-6">
+            <div className="flex items-center space-x-2">
+              <Check className="h-4 w-4 text-green-600" />
+              <span className="text-sm text-green-800 font-medium">
+                Missão criada e disponível para participantes!
+              </span>
+            </div>
+            <p className="text-xs text-green-700 mt-2">
+              Você pode gerenciar sua missão na seção "Minhas Missões"
+            </p>
+          </div>
+
+          {/* Botões */}
+          <div className="flex space-x-3">
+            <Button
+              onClick={() => {
+                setShowPaymentSuccess(false);
+                setPaymentSuccessData(null);
+                setCurrentView('main');
+                setCurrentStep(1);
+                loadMissions();
+              }}
+              className="flex-1 bg-blue-600 hover:bg-blue-700"
+            >
+              Ver Minhas Missões
+            </Button>
+            <Button
+              onClick={() => {
+                setShowPaymentSuccess(false);
+                setPaymentSuccessData(null);
+                setCurrentView('main');
+                setCurrentStep(1);
+              }}
+              variant="outline"
+              className="flex-1"
+            >
+              Criar Nova Missão
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Modal do QR Code PIX (renderizado globalmente para todas as views)
+  if (showPixModal) {
+    console.log('🔍 Renderizando modal PIX real!');
+    return (
+      <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-3">
+        <div className="bg-white rounded-lg w-full max-w-sm md:max-w-md p-4 md:p-6">
+          <div className="text-center mb-4 md:mb-6">
+            <h3 className="text-lg md:text-xl font-bold text-gray-800 mb-2">Pagamento PIX</h3>
+            <p className="text-xs md:text-sm text-gray-600">Escaneie o QR Code ou copie o código PIX</p>
+          </div>
+
+          {/* QR Code */}
+          {qrCode && (
+            <div className="text-center mb-4 md:mb-6">
+              <div className="bg-gray-50 p-2 md:p-3 rounded-lg mb-3 md:mb-4">
+                <img 
+                  src={qrCode} 
+                  alt="QR Code PIX" 
+                  className="mx-auto w-32 h-32 md:w-40 md:h-40"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Código PIX */}
+          {copiaCola && (
+            <div className="mb-4 md:mb-6">
+              <Label className="text-xs md:text-sm font-medium text-gray-700 mb-2 block">
+                Código PIX (Copia e Cola)
+              </Label>
+              <div className="relative">
+                <Textarea
+                  value={copiaCola}
+                  readOnly
+                  className="w-full h-16 md:h-20 text-xs font-mono bg-gray-50 border-gray-300"
+                />
+                <Button
+                  onClick={handleCopyPixCode}
+                  size="sm"
+                  className="absolute top-1 right-1 md:top-2 md:right-2 h-5 md:h-6 text-xs"
+                >
+                  Copiar
+                </Button>
+              </div>
+            </div>
+          )}
+
+          {/* Status da verificação automática */}
+          {autoVerification && (
+            <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mb-4">
+              <div className="flex items-center space-x-2">
+                <Loader2 className="h-4 w-4 animate-spin text-blue-600" />
+                <span className="text-sm text-blue-800 font-medium">
+                  Verificando pagamento automaticamente...
+                </span>
+              </div>
+              <p className="text-xs text-blue-600 mt-1">
+                A verificação acontece a cada 5 segundos. Você pode fechar esta janela.
+              </p>
+            </div>
+          )}
+
+          {/* Botões */}
+          <div className="flex space-x-3">
+            <Button
+              onClick={() => {
+                setShowPixModal(false);
+                setAutoVerification(false); // Parar verificação automática
+              }}
+              variant="outline"
+              className="flex-1"
+            >
+              Fechar
+            </Button>
+            <Button
+              onClick={handleVerifyPayment}
+              className="flex-1 bg-green-600 hover:bg-green-700"
+              disabled={autoVerification} // Desabilitar durante verificação automática
+            >
+              {autoVerification ? 'Verificando...' : 'Verificar Manualmente'}
+            </Button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   const handleCreateMission = async () => {
-    if (!selectedAircraft || !selectedDestination || !missionData.departureDate || !missionData.returnDate) {
+    if (!selectedAircraft || !selectedDestination || !departureDate || !returnDate || !departureTime || !returnTime) {
       toast({
         title: "Erro",
         description: "Preencha todos os campos obrigatórios!",
@@ -908,13 +1516,9 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
     try {
       setLoading(true);
 
-      const departureDateTime = new Date(missionData.departureDate);
-      departureDateTime.setHours(parseInt(missionData.departureTime.split(':')[0]));
-      departureDateTime.setMinutes(parseInt(missionData.departureTime.split(':')[1]));
-
-      const returnDateTime = new Date(missionData.returnDate);
-      returnDateTime.setHours(parseInt(missionData.returnTime.split(':')[0]));
-      returnDateTime.setMinutes(parseInt(missionData.returnTime.split(':')[1]));
+      // Criar datas usando a mesma lógica da missão solo
+      const departureDateTime = new Date(`${departureDate}T${departureTime}:00`);
+      const returnDateTime = new Date(`${returnDate}T${returnTime}:00`);
 
       const costCalculation = calculateTotalCost();
       if (costCalculation === 0) {
@@ -926,19 +1530,50 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
         return;
       }
       
+      // Calcular flight_hours baseado na distância e velocidade
+      const aircraftSpeed = getAircraftSpeed(selectedAircraft.model);
+      
+      // Buscar coordenadas dos aeroportos
+      const originCoords = await getAirportCoordinatesWithFallback('SBAU');
+      const destCoords = await getAirportCoordinatesWithFallback(selectedDestination.icao);
+      
+      if (!originCoords || !destCoords) {
+        throw new Error('Não foi possível obter as coordenadas dos aeroportos');
+      }
+      
+      // Calcular distância usando a função calculateDistance
+      const distanceNM = calculateDistance(
+        originCoords.lat, originCoords.lon,
+        destCoords.lat, destCoords.lon
+      );
+      
+      const flightTimeHours = distanceNM / aircraftSpeed;
+      const flightHours = flightTimeHours * 2; // Ida e volta
+      
+      console.log(`🔍 FRONTEND FLIGHT HOURS DEBUG:`);
+      console.log(`🔍   Origin coords: ${originCoords.lat}, ${originCoords.lon}`);
+      console.log(`🔍   Dest coords: ${destCoords.lat}, ${destCoords.lon}`);
+      console.log(`🔍   Distance NM: ${distanceNM}`);
+      console.log(`🔍   Aircraft Speed: ${aircraftSpeed}`);
+      console.log(`🔍   Flight Time Hours: ${flightTimeHours}`);
+      console.log(`🔍   Flight Hours: ${flightHours}`);
+      
+
+      
       await createSharedMission({
-        title: `Missão compartilhada de ${missionData.origin} para ${selectedDestination.icao}`,
-        description: missionData.description,
-        origin: missionData.origin,
+        title: `Missão compartilhada de ${getAirportNameByICAO('SBAU')} para ${getAirportNameByICAO(selectedDestination.icao)}`,
+        description: 'Missão compartilhada criada via wizard',
+        origin: 'SBAU',
         destination: selectedDestination.icao,
         departure_date: departureDateTime.toISOString(),
         return_date: returnDateTime.toISOString(),
         aircraftId: selectedAircraft.id,
         totalSeats: selectedAircraft.seats,
-        availableSeats: missionData.availableSeats,
-        pricePerSeat: Math.ceil(costCalculation.totalCost / missionData.availableSeats),
+        availableSeats: parseInt(availableSeats) || 1,
+        pricePerSeat: Math.ceil(costCalculation.totalCost / (parseInt(availableSeats) || 1)),
         totalCost: costCalculation.totalCost,
         overnightFee: selectedAircraft.overnightRate,
+        flight_hours: flightHours,
       });
 
       toast({
@@ -1068,7 +1703,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
                 setCurrentStep(1);
                 setSelectedAircraft(null);
                 setSelectedDestination(null);
-                setAvailableSeats(1);
+                setAvailableSeats('');
                 setDepartureDate('');
                 setReturnDate('');
                 setDepartureTime('');
@@ -1104,11 +1739,23 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
               <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${currentStep >= 3 ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>
                 {currentStep > 3 ? <Check className="h-2 w-2" /> : '3'}
               </div>
-              <span className="font-medium text-xs">Detalhes</span>
+              <span className="font-medium text-xs">Horário Ida</span>
             </div>
             <div className={`flex items-center space-x-1 ${currentStep >= 4 ? 'text-blue-600' : 'text-gray-400'}`}>
               <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${currentStep >= 4 ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>
                 {currentStep > 4 ? <Check className="h-2 w-2" /> : '4'}
+              </div>
+              <span className="font-medium text-xs">Horário Retorno</span>
+            </div>
+            <div className={`flex items-center space-x-1 ${currentStep >= 5 ? 'text-blue-600' : 'text-gray-400'}`}>
+              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${currentStep >= 5 ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>
+                {currentStep > 5 ? <Check className="h-2 w-2" /> : '5'}
+              </div>
+              <span className="font-medium text-xs">Assentos</span>
+            </div>
+            <div className={`flex items-center space-x-1 ${currentStep >= 6 ? 'text-blue-600' : 'text-gray-400'}`}>
+              <div className={`w-5 h-5 rounded-full flex items-center justify-center text-xs ${currentStep >= 6 ? 'bg-blue-600 text-white' : 'bg-gray-200'}`}>
+                {currentStep > 6 ? <Check className="h-2 w-2" /> : '6'}
               </div>
               <span className="font-medium text-xs">Resumo</span>
             </div>
@@ -1167,9 +1814,9 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
           {currentStep === 2 && (
             <div className="space-y-3">
               <div className="text-center mb-3">
-                <MapPin className="h-6 w-6 text-red-600 mx-auto mb-2" />
+                <MapPin className="h-6 w-6 text-blue-600 mx-auto mb-2" />
                 <h3 className="text-sm font-semibold text-gray-900">Defina o Destino</h3>
-                <p className="text-xs text-gray-600">Selecione o aeroporto de chegada</p>
+                <p className="text-xs text-gray-600">Origem: Araçatuba → Selecione o aeroporto de destino</p>
               </div>
               
               {/* Busca de aeroporto de destino */}
@@ -1185,14 +1832,27 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
                 </div>
                 
                 {/* Lista de aeroportos */}
-                <div className="space-y-1 max-h-40 overflow-y-auto">
+                <div className="space-y-1 max-h-60 overflow-y-auto">
+                  {loadingAirports ? (
+                    <div className="text-center py-4 text-gray-500 text-xs">
+                      <Loader2 className="h-4 w-4 mx-auto mb-1 animate-spin" />
+                      <p>Carregando aeroportos...</p>
+                    </div>
+                  ) : airports.length > 0 ? (
+                    <>
+                      {searchTerm.length < 2 && (
+                        <div className="text-xs text-gray-500 mb-2 px-2">
+                          <MapPin className="h-3 w-3 inline mr-1" />
+                          Aeroportos populares
+                        </div>
+                      )}
                   {airports.map((airport) => (
                     <div
                       key={airport.icao}
                       className={`p-2 rounded border cursor-pointer transition-all text-xs ${
                         selectedDestination?.icao === airport.icao
-                          ? 'border-red-500 bg-red-50'
-                          : 'border-gray-200 hover:border-red-300 hover:bg-gray-50'
+                              ? 'border-blue-500 bg-blue-50'
+                              : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
                       }`}
                       onClick={() => handleDestinationSelect(airport)}
                     >
@@ -1206,109 +1866,187 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
                           </div>
                         </div>
                         {selectedDestination?.icao === airport.icao && (
-                          <div className="w-3 h-3 bg-red-500 rounded-full flex items-center justify-center">
+                              <div className="w-3 h-3 bg-blue-500 rounded-full flex items-center justify-center">
                             <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
                           </div>
                         )}
                       </div>
                     </div>
                   ))}
+                    </>
+                  ) : (
+                    <div className="text-center py-4 text-gray-500 text-xs">
+                      <Search className="h-4 w-4 mx-auto mb-1" />
+                      <p>{searchTerm.length > 0 ? 'Nenhum aeroporto encontrado' : 'Carregando aeroportos populares...'}</p>
+                    </div>
+                  )}
                 </div>
               </div>
               
-              {/* Campo de assentos disponíveis */}
-              {selectedDestination && (
-                <div className="mt-4 space-y-2">
-                  <Label htmlFor="availableSeats" className="text-xs font-bold">Quantos assentos você quer liberar para outros?</Label>
-                  <Input
-                    id="availableSeats"
-                    type="number"
-                    min="1"
-                    max={selectedAircraft ? (selectedAircraft.seats || 1) - 1 : 1}
-                    value={availableSeats}
-                    onChange={(e) => setAvailableSeats(parseInt(e.target.value) || 1)}
-                    className="mt-1 h-9 text-xs"
-                    required
-                  />
-                  <div className="text-xs text-gray-500">
-                    {selectedAircraft ? `Máximo: ${(selectedAircraft.seats || 1) - 1} assentos` : 'Selecione uma aeronave primeiro'}
-                  </div>
+
+
+
                 </div>
               )}
 
-              {/* Campos de data e horário */}
-              <div className="grid grid-cols-2 gap-2 mt-4">
-                <div>
-                  <Label className="text-xs font-medium text-gray-700">Data de Ida</Label>
-                  <Input type="date" value={departureDate} onChange={e => setDepartureDate(e.target.value)} className="h-9 text-xs" />
-                </div>
-                <div>
-                  <Label className="text-xs font-medium text-gray-700">Horário de Ida</Label>
-                  <Input type="time" value={departureTime} onChange={e => setDepartureTime(e.target.value)} className="h-9 text-xs" />
-                </div>
-                <div>
-                  <Label className="text-xs font-medium text-gray-700">Data de Volta</Label>
-                  <Input type="date" value={returnDate} onChange={e => setReturnDate(e.target.value)} className="h-9 text-xs" />
-                </div>
-                <div>
-                  <Label className="text-xs font-medium text-gray-700">Horário de Volta</Label>
-                  <Input type="time" value={returnTime} onChange={e => setReturnTime(e.target.value)} className="h-9 text-xs" />
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* Step 3: Assentos e Datas */}
+          {/* Step 3: Seleção de Horário de Ida */}
           {currentStep === 3 && (
             <div className="space-y-3">
               <div className="text-center mb-3">
+                <Calendar className="h-6 w-6 text-blue-600 mx-auto mb-2" />
+                <h3 className="text-sm font-semibold text-gray-900">Horário de Ida</h3>
+                <p className="text-xs text-gray-600">Selecione a data e horário de partida</p>
+                </div>
+              
+              {selectedAircraft && (
+                <IntelligentTimeSelectionStep
+                  title="Selecione o horário de partida"
+                  selectedDate={format(new Date(), 'dd')}
+                  currentMonth={new Date()}
+                  selectedAircraft={{
+                    id: selectedAircraft.id,
+                    name: selectedAircraft.name,
+                    registration: selectedAircraft.registration,
+                    model: selectedAircraft.model,
+                    status: selectedAircraft.status
+                  }}
+                  onTimeSelect={handleDepartureSlotSelect}
+                  onBack={() => setCurrentStep(2)}
+                  onAircraftSelect={(aircraft: CalendarAircraft) => {
+                    const fullAircraft = aircrafts.find(a => a.id === aircraft.id);
+                    if (fullAircraft) {
+                      setSelectedAircraft(fullAircraft);
+                    }
+                  }}
+                />
+              )}
+                </div>
+          )}
+
+          {/* Step 4: Seleção de Horário de Retorno */}
+          {currentStep === 4 && (
+            <div className="space-y-3">
+              <div className="text-center mb-3">
+                <Calendar className="h-6 w-6 text-green-600 mx-auto mb-2" />
+                <h3 className="text-sm font-semibold text-gray-900">Horário de Retorno</h3>
+                <p className="text-xs text-gray-600">Selecione a data e horário de retorno</p>
+                </div>
+              
+              {selectedAircraft && selectedDepartureSlot && (
+                <IntelligentTimeSelectionStep
+                  title="Selecione o horário de retorno"
+                  selectedDate={format(new Date(), 'dd')}
+                  currentMonth={new Date()}
+                  selectedAircraft={{
+                    id: selectedAircraft.id,
+                    name: selectedAircraft.name,
+                    registration: selectedAircraft.registration,
+                    model: selectedAircraft.model,
+                    status: selectedAircraft.status
+                  }}
+                  onTimeSelect={handleReturnSlotSelect}
+                  onBack={() => setCurrentStep(3)}
+                  departureDateTime={selectedDepartureSlot.start}
+                  isReturnSelection={true}
+                  onAircraftSelect={(aircraft: CalendarAircraft) => {
+                    const fullAircraft = aircrafts.find(a => a.id === aircraft.id);
+                    if (fullAircraft) {
+                      setSelectedAircraft(fullAircraft);
+                    }
+                  }}
+                />
+              )}
+            </div>
+          )}
+
+          {/* Step 5: Configuração de Assentos */}
+          {currentStep === 5 && (
+            <div className="space-y-3">
+              <div className="text-center mb-3">
                 <Users className="h-6 w-6 text-purple-600 mx-auto mb-2" />
-                <h3 className="text-sm font-semibold text-gray-900">Detalhes da Missão</h3>
-                <p className="text-xs text-gray-600">Defina assentos e horários</p>
+                <h3 className="text-sm font-semibold text-gray-900">Configuração de Assentos</h3>
+                <p className="text-xs text-gray-600">Configure quantos assentos liberar para outros</p>
               </div>
               
               {/* Campo de assentos disponíveis */}
               <div className="space-y-2">
                 <Label htmlFor="availableSeats" className="text-xs font-bold">Quantos assentos você quer liberar para outros?</Label>
+                
+
                 <Input
                   id="availableSeats"
-                  type="number"
-                  min="1"
-                  max={selectedAircraft ? (selectedAircraft.seats || 1) - 1 : 1}
+                  type="text"
+                  placeholder="Digite o número de assentos"
                   value={availableSeats}
-                  onChange={(e) => setAvailableSeats(parseInt(e.target.value) || 1)}
+                  onChange={(e) => {
+                    const value = e.target.value;
+                    // Permitir apenas números
+                    if (value === '' || /^\d+$/.test(value)) {
+                      setAvailableSeats(value);
+                    }
+                  }}
+                  onBlur={(e) => {
+                    // Validar quando sair do campo
+                    const value = parseInt(e.target.value) || 0;
+                    const maxSeats = selectedAircraft ? selectedAircraft.seats - 1 : 1;
+                    
+                    if (value < 1) {
+                      setAvailableSeats('1');
+                    } else if (value > maxSeats) {
+                      setAvailableSeats(maxSeats.toString());
+                    }
+                  }}
                   className="mt-1 h-9 text-xs"
                   required
                 />
                 <div className="text-xs text-gray-500">
-                  {selectedAircraft ? `Máximo: ${(selectedAircraft.seats || 1) - 1} assentos` : 'Selecione uma aeronave primeiro'}
+                  {selectedAircraft ? (
+                    <div className="text-blue-600 font-medium">
+                      Capacidade total: {selectedAircraft.seats} passageiros
+                    </div>
+                  ) : 'Selecione uma aeronave primeiro'}
                 </div>
               </div>
 
-              {/* Campos de data e horário */}
-              <div className="grid grid-cols-2 gap-2 mt-4">
+              {/* Resumo do horário selecionado */}
+              {selectedDepartureSlot && selectedReturnSlot && (
+                <div className="bg-blue-50 p-3 rounded-lg">
+                  <h4 className="font-medium text-blue-900 text-xs mb-2">Horário Selecionado</h4>
+                  <div className="grid grid-cols-2 gap-2 text-xs">
                 <div>
-                  <Label className="text-xs font-medium text-gray-700">Data de Ida</Label>
-                  <Input type="date" value={departureDate} onChange={e => setDepartureDate(e.target.value)} className="h-9 text-xs" />
+                      <span className="text-gray-600">Data de Ida:</span>
+                      <div className="font-medium">{departureDate}</div>
                 </div>
                 <div>
-                  <Label className="text-xs font-medium text-gray-700">Horário de Ida</Label>
-                  <Input type="time" value={departureTime} onChange={e => setDepartureTime(e.target.value)} className="h-9 text-xs" />
+                      <span className="text-gray-600">Horário de Ida:</span>
+                      <div className="font-medium">{departureTime}</div>
                 </div>
                 <div>
-                  <Label className="text-xs font-medium text-gray-700">Data de Volta</Label>
-                  <Input type="date" value={returnDate} onChange={e => setReturnDate(e.target.value)} className="h-9 text-xs" />
+                      <span className="text-gray-600">Data de Volta:</span>
+                      <div className="font-medium">{returnDate}</div>
                 </div>
                 <div>
-                  <Label className="text-xs font-medium text-gray-700">Horário de Volta</Label>
-                  <Input type="time" value={returnTime} onChange={e => setReturnTime(e.target.value)} className="h-9 text-xs" />
+                      <span className="text-gray-600">Horário de Volta:</span>
+                      <div className="font-medium">{returnTime}</div>
                 </div>
               </div>
+                  
+                  {/* Botão para ir para o resumo */}
+                  <div className="mt-3 pt-3 border-t border-blue-200">
+                    <Button
+                      onClick={() => setCurrentStep(6)}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-xs h-8"
+                    >
+                      Ver Resumo Completo
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
-          {/* Step 4: Resumo e Confirmação */}
-          {currentStep === 4 && (
+          {/* Step 6: Resumo e Confirmação */}
+          {currentStep === 6 && (
             <div className="space-y-3">
               <div className="text-center mb-2">
                 <Check className="h-5 w-5 text-green-600 mx-auto mb-1" />
@@ -1331,8 +2069,12 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
                           <span className="font-medium">{summary.aircraft.name}</span>
                         </div>
                         <div className="flex justify-between">
+                          <span>Origem:</span>
+                          <span className="font-medium">{getAirportNameByICAO('SBAU')}</span>
+                        </div>
+                        <div className="flex justify-between">
                           <span>Destino:</span>
-                          <span className="font-medium">{summary.destination.icao}</span>
+                          <span className="font-medium">{getAirportNameByICAO(summary.destination.icao)}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Assentos:</span>
@@ -1358,18 +2100,24 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
                           <span className="font-medium">{summary.distanceNM} NM</span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Tempo:</span>
-                          <span className="font-medium">{summary.flightHours}h</span>
+                          <span>Tempo de voo total:</span>
+                          <span className="font-medium">{summary.flightHours}</span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Base:</span>
+                          <span>Base (ida + volta):</span>
                           <span className="font-medium">R$ {summary.baseCost.toFixed(2)}</span>
                         </div>
                         {summary.overnightCost > 0 && (
+                          <>
                           <div className="flex justify-between">
-                            <span>Pernoite:</span>
+                              <span>Pernoites:</span>
+                              <span className="font-medium">{summary.overnightDays || 0} noite(s)</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span>Taxa de pernoite:</span>
                             <span className="font-medium">R$ {summary.overnightCost.toFixed(2)}</span>
                           </div>
+                          </>
                         )}
                         <div className="flex justify-between font-bold text-green-700 border-t pt-0.5">
                           <span>Total:</span>
@@ -1407,61 +2155,24 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
                 </Button>
               ) : (
                 <Button
-                  onClick={async () => {
-                    if (!canProceed()) {
-                      toast({
-                        title: "Erro",
-                        description: "Preencha todos os campos obrigatórios!",
-                        variant: "destructive"
-                      });
-                      return;
-                    }
-                    
-                    try {
-                      const costCalculation = calculateTotalCost();
-                      if (costCalculation === 0) {
-                        toast({
-                          title: "Erro",
-                          description: "Não foi possível calcular o custo da missão",
-                          variant: "destructive"
-                        });
-                        return;
-                      }
-                      
-                      await createSharedMission({
-                        title: `Missão compartilhada de SBAU para ${selectedDestination!.icao}`,
-                        description: 'Missão compartilhada criada via wizard',
-                        origin: 'SBAU',
-                        destination: selectedDestination!.icao,
-                        departure_date: `${departureDate}T${departureTime}`,
-                        return_date: `${returnDate}T${returnTime}`,
-                        aircraftId: selectedAircraft!.id,
-                        totalSeats: availableSeats,
-                        pricePerSeat: Math.ceil(costCalculation.totalCost / availableSeats),
-                        totalCost: costCalculation.totalCost,
-                        overnightFee: selectedAircraft!.overnightRate || 0
-                      });
-                      
-                      toast({
-                        title: "Sucesso",
-                        description: "Missão compartilhada criada com sucesso!",
-                      });
-                      setCurrentView('main');
-                      setCurrentStep(1);
-                      loadMissions();
-                    } catch (error: any) {
-                      toast({
-                        title: "Erro",
-                        description: error.message || "Erro ao criar missão compartilhada",
-                        variant: "destructive"
-                      });
-                    }
-                  }}
+                  onClick={handleGeneratePix}
+                  disabled={paying}
                   className="flex items-center space-x-1 bg-green-600 hover:bg-green-700 text-xs h-8"
                 >
+                  {paying ? (
+                    <>
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                      <span>Gerando PIX...</span>
+                    </>
+                  ) : (
+                    <>
                   <Check className="h-3 w-3" />
-                  <span>Criar Missão</span>
+                                        <span>Pagar via PIX</span>
+                </>
+              )}
                 </Button>
+            
+
               )}
             </div>
           </div>
@@ -1673,13 +2384,13 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
                   </div>
                 </CardHeader>
                 <CardContent className="p-3">
-                  <div className="grid grid-cols-2 gap-3 mb-3">
+                  <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-3">
                     <div className="flex items-center space-x-2">
                       <div className="p-1.5 bg-blue-100 rounded">
                         <MapPin className="h-3 w-3 text-blue-600" />
                       </div>
                       <div>
-                        <p className="font-semibold text-gray-900 text-xs">{mission.origin} → {mission.destination}</p>
+                        <p className="font-semibold text-gray-900 text-xs">{getAirportNameByICAO(mission.origin)} → {getAirportNameByICAO(mission.destination)}</p>
                         <p className="text-xs text-gray-500">Rota</p>
                       </div>
                     </div>
@@ -1692,7 +2403,9 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
                         <p className="font-semibold text-gray-900 text-xs">
                           {format(new Date(mission.departure_date), 'dd/MM/yyyy', { locale: ptBR })}
                         </p>
-                        <p className="text-xs text-gray-500">Partida</p>
+                        <p className="text-xs text-gray-500">
+                          {format(new Date(mission.departure_date), 'HH:mm', { locale: ptBR })} - Partida
+                        </p>
                       </div>
                     </div>
                     
@@ -1709,12 +2422,40 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
                     </div>
                     
                     <div className="flex items-center space-x-2">
+                      <div className="p-1.5 bg-red-100 rounded">
+                        <CalendarIcon className="h-3 w-3 text-red-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900 text-xs">
+                          {format(new Date(mission.return_date), 'dd/MM/yyyy', { locale: ptBR })}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {format(new Date(mission.return_date), 'HH:mm', { locale: ptBR })} - Retorno
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
                       <div className="p-1.5 bg-orange-100 rounded">
                         <User className="h-3 w-3 text-orange-600" />
                       </div>
                       <div>
                         <p className="font-semibold text-gray-900 text-xs">{mission.creator.name}</p>
                         <p className="text-xs text-gray-500">Organizador</p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center space-x-2">
+                      <div className="p-1.5 bg-gray-100 rounded">
+                        <Clock className="h-3 w-3 text-gray-600" />
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900 text-xs">
+                          {format(new Date(mission.createdAt), 'dd/MM/yyyy', { locale: ptBR })}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                          {format(new Date(mission.createdAt), 'HH:mm', { locale: ptBR })} - Criada
+                        </p>
                       </div>
                     </div>
                   </div>
@@ -1727,7 +2468,17 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
                       </div>
                     </div>
                     
-                    <div className="flex justify-end mt-3">
+                    <div className="flex justify-between items-center mt-3">
+                      <Button
+                        onClick={() => openDetailsModal(mission)}
+                        variant="outline"
+                        className="text-blue-600 border-blue-600 hover:bg-blue-50 text-xs h-8 px-3"
+                      >
+                        <Plane className="h-3 w-3 mr-1" />
+                        Ver Detalhes
+                      </Button>
+                      
+                      <div className="flex items-center space-x-2">
                       {mission.creator.id !== user?.id && mission.status === 'active' && mission.availableSeats > 0 ? (
                         hasPendingRequest(mission.id) ? (
                           <Button
@@ -1836,12 +2587,13 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
                           Indisponível
                         </Badge>
                       )}
+                      </div>
                     </div>
                   </div>
                 </CardContent>
               </Card>
             ))
-          )}
+        )}
         </div>
 
         {/* Chat Modal */}
@@ -1938,11 +2690,203 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
             </div>
           </div>
         )}
+
+        {/* Details Modal */}
+        {showDetailsModal && selectedMissionForDetails && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg w-full max-w-lg max-h-[80vh] flex flex-col">
+              {/* Modal Header */}
+              <div className="flex items-center justify-between p-4 border-b">
+                <div className="flex items-center space-x-2">
+                  <Plane className="h-5 w-5 text-blue-600" />
+                  <h3 className="text-lg font-semibold">Detalhes da Missão</h3>
+      </div>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={closeDetailsModal}
+                  className="h-6 w-6 p-0"
+                >
+                  ✕
+                </Button>
+              </div>
+
+              {/* Modal Content */}
+              <div className="flex-1 overflow-y-auto p-4 space-y-4">
+                <div className="space-y-3">
+                  {/* Title and Status */}
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-lg font-semibold text-gray-900">{selectedMissionForDetails.title}</h4>
+                    <Badge className={`text-xs ${getStatusColor(selectedMissionForDetails.status)}`}>
+                      {getStatusText(selectedMissionForDetails.status)}
+                    </Badge>
+                  </div>
+
+                  {/* Description */}
+                  {selectedMissionForDetails.description && (
+                    <div className="bg-gray-50 p-3 rounded-lg">
+                      <p className="text-sm text-gray-700">{selectedMissionForDetails.description}</p>
+                    </div>
+                  )}
+
+                  {/* Route */}
+                  <div className="flex items-center space-x-3 p-3 bg-blue-50 rounded-lg">
+                    <MapPin className="h-5 w-5 text-blue-600" />
+                    <div>
+                      <p className="font-semibold text-gray-900">
+                        {getAirportNameByICAO(selectedMissionForDetails.origin)} → {getAirportNameByICAO(selectedMissionForDetails.destination)}
+                      </p>
+                      <p className="text-sm text-gray-600">Rota da missão</p>
+                    </div>
+                  </div>
+
+                  {/* Dates and Times */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 bg-green-50 rounded-lg">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <CalendarIcon className="h-4 w-4 text-green-600" />
+                        <span className="font-semibold text-green-800">Partida</span>
+                      </div>
+                      <p className="text-lg font-bold text-gray-900">
+                        {format(new Date(selectedMissionForDetails.departure_date), 'dd/MM/yyyy', { locale: ptBR })}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {format(new Date(selectedMissionForDetails.departure_date), 'HH:mm', { locale: ptBR })}
+                      </p>
+                    </div>
+
+                    <div className="p-3 bg-red-50 rounded-lg">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <CalendarIcon className="h-4 w-4 text-red-600" />
+                        <span className="font-semibold text-red-800">Retorno</span>
+                      </div>
+                      <p className="text-lg font-bold text-gray-900">
+                        {format(new Date(selectedMissionForDetails.return_date), 'dd/MM/yyyy', { locale: ptBR })}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        {format(new Date(selectedMissionForDetails.return_date), 'HH:mm', { locale: ptBR })}
+                      </p>
+                    </div>
+                  </div>
+
+                  {/* Aircraft Info */}
+                  <div className="p-3 bg-purple-50 rounded-lg">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Plane className="h-4 w-4 text-purple-600" />
+                      <span className="font-semibold text-purple-800">Aeronave</span>
+                    </div>
+                    <p className="font-semibold text-gray-900">
+                      {selectedMissionForDetails.aircraft.name} ({selectedMissionForDetails.aircraft.registration})
+                    </p>
+                    <p className="text-sm text-gray-600">
+                      {selectedMissionForDetails.aircraft.model}
+                    </p>
+                  </div>
+
+                  {/* Flight Info */}
+                  <div className="p-3 bg-indigo-50 rounded-lg">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <Clock className="h-4 w-4 text-indigo-600" />
+                      <span className="font-semibold text-indigo-800">Informações de Voo</span>
+                    </div>
+                    <div className="grid grid-cols-2 gap-2 text-sm">
+                      <div>
+                        <span className="font-medium text-gray-700">Tempo de Voo:</span>
+                        <p className="text-gray-900">{selectedMissionForDetails.flight_hours || 2.0} horas</p>
+                      </div>
+                      {selectedMissionForDetails.paymentId && (
+                        <div>
+                          <span className="font-medium text-gray-700">Payment ID:</span>
+                          <p className="text-gray-900 text-xs">{selectedMissionForDetails.paymentId}</p>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Seats and Pricing */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="p-3 bg-orange-50 rounded-lg">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <Users className="h-4 w-4 text-orange-600" />
+                        <span className="font-semibold text-orange-800">Assentos</span>
+                      </div>
+                      <p className="text-lg font-bold text-gray-900">
+                        {selectedMissionForDetails.availableSeats}/{selectedMissionForDetails.totalSeats}
+                      </p>
+                      <p className="text-sm text-gray-600">disponíveis</p>
+                    </div>
+
+                    <div className="p-3 bg-yellow-50 rounded-lg">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <span className="font-semibold text-yellow-800">💰 Preço</span>
+                      </div>
+                      <p className="text-lg font-bold text-gray-900">
+                        R$ {selectedMissionForDetails.pricePerSeat?.toLocaleString('pt-BR') || '0'}
+                      </p>
+                      <p className="text-sm text-gray-600">por assento</p>
+                    </div>
+                  </div>
+
+                  {/* Organizer */}
+                  <div className="p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center space-x-2 mb-2">
+                      <User className="h-4 w-4 text-gray-600" />
+                      <span className="font-semibold text-gray-800">Organizador</span>
+                    </div>
+                    <p className="font-semibold text-gray-900">{selectedMissionForDetails.creator.name}</p>
+                  </div>
+
+                  {/* Additional Info */}
+                  {selectedMissionForDetails.overnightStays > 0 && (
+                    <div className="p-3 bg-indigo-50 rounded-lg">
+                      <div className="flex items-center space-x-2 mb-2">
+                        <span className="font-semibold text-indigo-800">🌙 Pernoites</span>
+                      </div>
+                      <p className="font-semibold text-gray-900">
+                        {selectedMissionForDetails.overnightStays} noite(s)
+                      </p>
+                      {selectedMissionForDetails.overnightFee > 0 && (
+                        <p className="text-sm text-gray-600">
+                          Taxa de pernoite: R$ {selectedMissionForDetails.overnightFee?.toLocaleString('pt-BR') || '0'}
+                        </p>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Modal Footer */}
+              <div className="p-4 border-t bg-gray-50">
+                <div className="flex justify-end space-x-2">
+                  <Button
+                    variant="outline"
+                    onClick={closeDetailsModal}
+                    className="text-gray-600"
+                  >
+                    Fechar
+                  </Button>
+                  {selectedMissionForDetails.creator.id !== user?.id && 
+                   selectedMissionForDetails.status === 'active' && 
+                   selectedMissionForDetails.availableSeats > 0 && (
+                    <Button
+                      onClick={() => {
+                        closeDetailsModal();
+                        handleParticipationRequest(selectedMissionForDetails);
+                      }}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      <MessageCircle className="h-3 w-3 mr-1" />
+                      Participar
+                    </Button>
+                  )}
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+
+
       </div>
     );
   }
-
-
-
-  return null;
 }; 

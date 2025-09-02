@@ -1,8 +1,56 @@
 import { Router } from 'express';
 import { prisma } from '../db';
 import { authMiddleware } from '../auth';
+import { validateMission } from '../services/intelligentValidation';
+import { createPixChargeForBooking, getPixQrCode, getPaymentStatus, createAsaasCustomer } from '../services/asaas';
 
 const router = Router();
+
+// Validar missão compartilhada
+router.post('/validate', authMiddleware, async (req, res) => {
+  try {
+    const {
+      aircraftId,
+      departure_date,
+      return_date,
+      flight_hours,
+      origin,
+      destination
+    } = req.body;
+
+    if (!aircraftId || !origin || !destination || !departure_date || !return_date || !flight_hours) {
+      return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
+    }
+
+    const departureDateTime = new Date(departure_date);
+    const returnDateTime = new Date(return_date);
+
+    const validation = await validateMission(
+      aircraftId,
+      departureDateTime,
+      returnDateTime,
+      flight_hours
+    );
+
+    if (!validation.valido) {
+      return res.status(409).json({
+        error: validation.mensagem,
+        nextAvailable: validation.proximaDisponibilidade,
+        conflictingBooking: validation.conflitoCom
+      });
+    }
+
+    res.json({
+      valido: true,
+      mensagem: "✅ Missão compartilhada válida",
+      proximaDisponibilidade: validation.proximaDisponibilidade
+    });
+
+  } catch (error) {
+    console.error('Erro ao validar missão compartilhada:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
 
 // Criar nova missão compartilhada
 router.post('/', authMiddleware, async (req, res) => {
@@ -21,7 +69,8 @@ router.post('/', authMiddleware, async (req, res) => {
       pricePerSeat,
       totalCost,
       overnightFee,
-      overnightStays
+      overnightStays,
+      flight_hours
     } = req.body;
 
     // Validações
@@ -58,19 +107,69 @@ router.post('/', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Número de assentos excede a capacidade da aeronave' });
     }
 
-    // Calcular número de pernoites
+    // Validar missão com o sistema inteligente
     const departureDate = new Date(departure_date);
     const returnDate = new Date(return_date);
-    const calculatedOvernightStays = Math.max(0, Math.floor((returnDate.getTime() - departureDate.getTime()) / (1000 * 60 * 60 * 24)));
-
-    // Calcular blocked_until (retorno + tempo de voo volta + 3 horas de manutenção)
-    const returnFlightTime = 2 / 2; // flight_hours / 2 (valor padrão 2h)
-    const pousoVolta = new Date(returnDate.getTime() + (returnFlightTime * 60 * 60 * 1000));
-    const blockedUntil = new Date(pousoVolta.getTime() + (3 * 60 * 60 * 1000)); // Pouso volta + 3h
     
-    console.log(`📅 Criando missão compartilhada com bloqueio:`);
-    console.log(`📅   Retorno: ${returnDate.toISOString()}`);
-    console.log(`📅   Bloqueado até: ${blockedUntil.toISOString()}`);
+    // Usar flight_hours do frontend (mesma lógica da missão solo)
+    const flightHours = flight_hours !== undefined && flight_hours !== null ? flight_hours : 2.0; // Fallback apenas se realmente não enviado
+    const returnFlightTime = flightHours / 2; // Tempo de voo de volta
+    
+
+    
+
+    
+    // Calcular distância para logs (opcional)
+    const { calculateDistanceNM, getAircraftSpeed } = require('../utils/flightCalculations');
+    const distanceNM = calculateDistanceNM(origin, destination);
+    const aircraftSpeed = getAircraftSpeed(aircraft.model);
+    
+
+    
+    const validation = await validateMission(
+      aircraftId,
+      departureDate,
+      returnDate,
+      flightHours
+    );
+
+    if (!validation.valido) {
+      return res.status(409).json({
+        error: validation.mensagem,
+        nextAvailable: validation.proximaDisponibilidade,
+        conflictingBooking: validation.conflitoCom
+      });
+    }
+
+    // Calcular horários usando a mesma lógica das missões solo
+    
+
+    
+    // Os horários recebidos são strings sem timezone, mas representam horários locais
+    // Para actual_departure_date e actual_return_date, salvamos exatamente o que o usuário selecionou
+    const actualDepartureDate = new Date(departure_date + ':00.000Z');
+    const actualReturnDate = new Date(return_date + ':00.000Z');
+    
+    // Para departure_date e return_date, usamos os horários calculados (com -3h e +voo+3h)
+    const departureDateUTC = new Date(departure_date + ':00.000Z');
+    const returnDateUTC = new Date(return_date + ':00.000Z');
+    
+
+    
+    // departure_date: horário real - 3h (início do pré-voo) - salvar em UTC
+    const calculatedDepartureDate = new Date(departureDateUTC.getTime() - (3 * 60 * 60 * 1000));
+    
+    // return_date: horário real + tempo de voo volta + 3h (fim do pós-voo) - salvar em UTC
+    const calculatedReturnDate = new Date(returnDateUTC.getTime() + (returnFlightTime * 60 * 60 * 1000) + (3 * 60 * 60 * 1000));
+    
+    // Calcular janela bloqueada - próximo voo só pode iniciar após retorno + tempo_voo_volta + 3h
+    const blockedUntil = new Date(returnDateUTC.getTime() + (returnFlightTime + 3) * 60 * 60 * 1000);
+
+    // Calcular número de pernoites baseado nas datas reais
+    const calculatedOvernightStays = Math.max(0, Math.floor((returnDate.getTime() - departureDate.getTime()) / (1000 * 60 * 60 * 24)));
+    
+
+
 
     // Criar a missão compartilhada
     const sharedMission = await prisma.sharedMission.create({
@@ -79,8 +178,10 @@ router.post('/', authMiddleware, async (req, res) => {
         description,
         origin,
         destination,
-        departure_date: new Date(departureDate.getTime() + (3 * 60 * 60 * 1000)), // Ajustar timezone
-        return_date: new Date(returnDate.getTime() + (3 * 60 * 60 * 1000)), // Ajustar timezone
+        departure_date: calculatedDepartureDate, // Horário calculado (real - 3h)
+        return_date: calculatedReturnDate, // Horário calculado (real + voo volta + 3h)
+        actual_departure_date: actualDepartureDate, // Horário real de partida (exatamente o que usuário selecionou)
+        actual_return_date: actualReturnDate, // Horário real de retorno (exatamente o que usuário selecionou)
         aircraftId,
         totalSeats,
         availableSeats: totalSeats,
@@ -88,6 +189,9 @@ router.post('/', authMiddleware, async (req, res) => {
         totalCost: totalCost ?? 0,
         overnightFee: overnightFee || 0,
         overnightStays: calculatedOvernightStays,
+        flight_hours: flightHours, // Tempo total de voo
+        blocked_until: blockedUntil, // Horário até quando a aeronave fica bloqueada
+        maintenance_buffer_hours: 3, // Horas de manutenção após o voo
         createdBy: userId
       },
       include: {
@@ -110,19 +214,19 @@ router.post('/', authMiddleware, async (req, res) => {
       }
     });
 
-    // Criar booking para bloquear o calendário
+    // Criar booking para bloquear o calendário usando a mesma lógica
     const calendarBooking = await prisma.booking.create({
       data: {
         userId: userId,
         aircraftId: aircraftId,
         origin: origin,
         destination: destination,
-        departure_date: new Date(departureDate.getTime() - (3 * 60 * 60 * 1000)), // 04:00 (início pré-voo - 3h antes)
-        return_date: blockedUntil, // 21:00 (fim lógico)
-        actual_departure_date: departureDate, // 07:00 (hora real que o usuário escolheu)
-        actual_return_date: returnDate, // 18:00 (hora real que o usuário escolheu)
+        departure_date: calculatedDepartureDate, // Horário calculado (real - 3h)
+        return_date: calculatedReturnDate, // Horário calculado (real + voo volta + 3h)
+        actual_departure_date: actualDepartureDate, // Horário real de partida (exatamente o que usuário selecionou)
+        actual_return_date: actualReturnDate, // Horário real de retorno (exatamente o que usuário selecionou)
         passengers: totalSeats,
-        flight_hours: 2, // Valor padrão
+        flight_hours: flightHours, // Tempo total de voo
         overnight_stays: calculatedOvernightStays,
         value: totalCost ?? 0,
         status: 'confirmada', // Status confirmada para missão compartilhada
@@ -131,7 +235,7 @@ router.post('/', authMiddleware, async (req, res) => {
       }
     });
 
-    console.log(`✅ Booking criado para calendário: ${calendarBooking.id}`);
+
 
     res.status(201).json(sharedMission);
   } catch (error) {
@@ -150,7 +254,20 @@ router.get('/', authMiddleware, async (req, res) => {
           gt: 0
         }
       },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        origin: true,
+        destination: true,
+        departure_date: true,
+        return_date: true,
+        totalSeats: true,
+        availableSeats: true,
+        pricePerSeat: true,
+        totalCost: true,
+        status: true,
+        createdAt: true,
         aircraft: {
           select: {
             id: true,
@@ -197,7 +314,20 @@ router.get('/:id', authMiddleware, async (req, res) => {
     const { id } = req.params;
     const sharedMission = await prisma.sharedMission.findUnique({
       where: { id: parseInt(id) },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        origin: true,
+        destination: true,
+        departure_date: true,
+        return_date: true,
+        totalSeats: true,
+        availableSeats: true,
+        pricePerSeat: true,
+        totalCost: true,
+        status: true,
+        createdAt: true,
         aircraft: {
           select: {
             id: true,
@@ -369,7 +499,20 @@ router.get('/my/created', authMiddleware, async (req, res) => {
     
     const sharedMissions = await prisma.sharedMission.findMany({
       where: { createdBy: userId },
-      include: {
+      select: {
+        id: true,
+        title: true,
+        description: true,
+        origin: true,
+        destination: true,
+        departure_date: true,
+        return_date: true,
+        totalSeats: true,
+        availableSeats: true,
+        pricePerSeat: true,
+        totalCost: true,
+        status: true,
+        createdAt: true,
         aircraft: {
           select: {
             id: true,
@@ -968,6 +1111,188 @@ router.put('/participation-requests/:requestId/mark-read', authMiddleware, async
   } catch (error) {
     console.error('Erro ao marcar mensagens como lidas:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Gerar pagamento PIX para missão compartilhada
+router.post('/pix-payment', authMiddleware, async (req, res) => {
+  try {
+    const rawUserId = (req as any).user?.userId;
+    const userId = parseInt(String(rawUserId));
+    const {
+      title,
+      description,
+      origin,
+      destination,
+      departure_date,
+      return_date,
+      aircraftId,
+      totalSeats,
+      pricePerSeat,
+      totalCost,
+      overnightFee,
+      flight_hours
+    } = req.body;
+
+    // Validações
+    if (
+      !title ||
+      !origin ||
+      !destination ||
+      !departure_date ||
+      !return_date ||
+      !aircraftId ||
+      !totalSeats ||
+      pricePerSeat === undefined ||
+      totalCost === undefined
+    ) {
+      return res.status(400).json({ 
+        error: 'Campos obrigatórios: title, origin, destination, departure_date, return_date, aircraftId, totalSeats, totalCost' 
+      });
+    }
+
+    // Verificar se a aeronave existe
+    const aircraft = await prisma.aircraft.findUnique({
+      where: { id: aircraftId }
+    });
+
+    if (!aircraft) {
+      return res.status(404).json({ error: 'Aeronave não encontrada' });
+    }
+
+    // Criar a missão com status 'pendente'
+    const sharedMission = await prisma.sharedMission.create({
+      data: {
+        title,
+        description,
+        origin,
+        destination,
+        departure_date: new Date(departure_date),
+        return_date: new Date(return_date),
+        aircraftId,
+        totalSeats,
+        availableSeats: totalSeats,
+        pricePerSeat,
+        totalCost,
+        overnightFee: overnightFee || 0,
+        flight_hours: flight_hours || 2.0,
+        status: 'pendente',
+        createdBy: userId
+      }
+    });
+
+    // Buscar usuário para obter o asaasCustomerId
+    const user = await prisma.user.findUnique({
+      where: { id: userId }
+    });
+
+    if (!user) {
+      throw new Error('Usuário não encontrado');
+    }
+
+    // Se não tem asaasCustomerId, criar cliente no Asaas
+    let asaasCustomerId = user.asaasCustomerId;
+    if (!asaasCustomerId) {
+      try {
+        asaasCustomerId = await createAsaasCustomer({
+          name: user.name,
+          email: user.email,
+          cpfCnpj: user.cpfCnpj,
+          phone: user.phone,
+        });
+        
+        // Atualizar usuário com o customerId
+        await prisma.user.update({
+          where: { id: user.id },
+          data: { asaasCustomerId }
+        });
+      } catch (error) {
+        console.error('Erro ao criar cliente no Asaas:', error);
+        throw new Error('Erro ao configurar pagamento. Verifique seus dados cadastrais.');
+      }
+    }
+
+    // Criar cobrança PIX no Asaas
+    const pixDescription = `Missão compartilhada: ${title}`;
+    const payment = await createPixChargeForBooking(asaasCustomerId, totalCost, pixDescription);
+    
+    // Gerar QR Code PIX
+    const qrCodeData = await getPixQrCode(payment.id);
+    
+    // Atualizar a missão com o paymentId do Asaas
+    await prisma.sharedMission.update({
+      where: { id: sharedMission.id },
+      data: { paymentId: payment.id }
+    });
+
+    const pixData = {
+      paymentId: payment.id,
+      pixQrCodeImage: qrCodeData.encodedImage,
+      pixCopiaCola: qrCodeData.payload
+    };
+
+    res.json({
+      paymentId: pixData.paymentId,
+      pixQrCodeImage: pixData.pixQrCodeImage,
+      pixCopiaCola: pixData.pixCopiaCola,
+      status: 'pendente'
+    });
+
+  } catch (error) {
+    console.error('Erro ao gerar pagamento PIX para missão compartilhada:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Verificar pagamento PIX para missão compartilhada
+router.post('/pix-payment/:paymentId/verify', authMiddleware, async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    const userId = parseInt((req as any).user.userId);
+
+    // Buscar a missão pelo paymentId
+    const mission = await prisma.sharedMission.findFirst({
+      where: { paymentId }
+    });
+
+    if (!mission) {
+      return res.status(404).json({ 
+        success: false, 
+        error: 'Missão não encontrada' 
+      });
+    }
+
+    // Verificar status do pagamento no Asaas
+    const paymentStatus = await getPaymentStatus(paymentId);
+    
+    if (paymentStatus.status === 'CONFIRMED' || paymentStatus.status === 'RECEIVED') {
+      // Atualizar status da missão para 'confirmada'
+      await prisma.sharedMission.update({
+        where: { 
+          id: mission.id 
+        },
+        data: { 
+          status: 'confirmada' 
+        }
+      });
+
+      res.json({ 
+        success: true, 
+        message: 'Pagamento confirmado! Missão criada com sucesso!' 
+      });
+    } else {
+      res.json({ 
+        success: false, 
+        error: `Pagamento ainda não foi confirmado. Status atual: ${paymentStatus.status}` 
+      });
+    }
+
+  } catch (error) {
+    console.error('Erro ao verificar pagamento PIX:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'Erro interno do servidor' 
+    });
   }
 });
 

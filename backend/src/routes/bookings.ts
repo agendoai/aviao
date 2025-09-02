@@ -1,7 +1,6 @@
 import express from 'express';
 import { PrismaClient } from '@prisma/client';
 import { validateMission, generateTimeSlots, suggestAvailableSlots, calculateNextAvailableTimeForAircraft } from '../services/intelligentValidation';
-import { validarMissaoCompleta, bookingToMissao } from '../services/missionValidator';
 import { authMiddleware } from '../auth';
 
 // Extend Request type to include user
@@ -65,6 +64,17 @@ router.get('/time-slots/:aircraftId', authMiddleware, async (req, res) => {
       missionDurationNum
     );
 
+    // Log para debug: verificar slots bloqueados
+    const blockedSlots = slots.filter(slot => slot.status === 'blocked');
+    console.log(`📊 Slots enviados: ${slots.length}, Bloqueados: ${blockedSlots.length}`);
+    if (blockedSlots.length > 0) {
+      console.log(`🚫 Slots bloqueados:`, blockedSlots.slice(0, 3).map(s => ({
+        time: s.start.toLocaleTimeString('pt-BR'),
+        reason: s.reason,
+        blockType: s.blockType
+      })));
+    }
+
     res.json(slots);
   } catch (error) {
     console.error('Erro ao buscar slots de tempo:', error);
@@ -98,65 +108,6 @@ router.get('/suggest-slots/:aircraftId', authMiddleware, async (req, res) => {
   }
 });
 
-// Rota para validar missão antes de criar
-router.post('/validate', authMiddleware, async (req, res) => {
-  try {
-    if (!req.user) {
-      return res.status(401).json({ error: 'Usuário não autenticado' });
-    }
-
-    const { aircraftId, departureTime, returnTime, flightHours } = req.body;
-
-    if (!aircraftId || !departureTime || !returnTime || !flightHours) {
-      return res.status(400).json({ 
-        error: 'Campos obrigatórios: aircraftId, departureTime, returnTime, flightHours' 
-      });
-    }
-
-    // Buscar missões existentes
-    const existingBookings = await prisma.booking.findMany({
-      where: {
-        aircraftId: parseInt(aircraftId),
-        status: {
-          in: ['pendente', 'confirmada', 'paga', 'blocked']
-        }
-      }
-    });
-
-    // Converter para interface Missao
-    const missoesExistentes = existingBookings.map(bookingToMissao);
-    
-    // Criar missão proposta
-    const missaoProposta = {
-      partida: new Date(departureTime),
-      retorno: new Date(returnTime),
-      flightHoursTotal: parseFloat(flightHours)
-    };
-    
-    // Validar missão completa
-    const resultado = validarMissaoCompleta(missaoProposta, missoesExistentes);
-    
-    if (!resultado.valido) {
-      return res.status(409).json({
-        error: 'Conflito detectado',
-        message: resultado.mensagem,
-        proximaDisponibilidade: resultado.proximaDisponibilidade,
-        conflitoCom: resultado.conflitoCom
-      });
-    }
-    
-    res.json({
-      success: true,
-      message: resultado.mensagem,
-      proximaDisponibilidade: resultado.proximaDisponibilidade
-    });
-    
-  } catch (error) {
-    console.error('Erro ao validar missão:', error);
-    res.status(500).json({ error: 'Erro interno do servidor' });
-  }
-});
-
 // Rota para criar booking com validação inteligente
 router.post('/', authMiddleware, async (req, res) => {
   try {
@@ -170,6 +121,7 @@ router.post('/', authMiddleware, async (req, res) => {
       aircraftId,
       origin,
       destination,
+      secondaryDestination,
       departure_date,
       return_date,
       passengers,
@@ -195,36 +147,47 @@ router.post('/', authMiddleware, async (req, res) => {
       flight_hours
     );
 
-    if (!validation.isValid) {
+
+
+    if (!validation.valido) {
+
       return res.status(409).json({
-        error: validation.reason,
-        nextAvailable: validation.nextAvailable,
-        conflictingBooking: validation.conflictingBooking
+        error: validation.mensagem,
+        nextAvailable: validation.proximaDisponibilidade,
+        conflictingBooking: validation.conflitoCom
       });
     }
 
+    // Calcular horários para salvar no banco
+    const returnFlightTime = flight_hours / 2; // Tempo de voo de volta
+    
+    // departure_date: horário real - 3h (início do pré-voo)
+    const calculatedDepartureDate = new Date(departureDateTime.getTime() - (3 * 60 * 60 * 1000));
+    
+    // return_date: horário real + tempo de voo volta + 3h (fim do pós-voo)
+    const calculatedReturnDate = new Date(returnDateTime.getTime() + (returnFlightTime * 60 * 60 * 1000) + (3 * 60 * 60 * 1000));
+    
     // Calcular janela bloqueada - próximo voo só pode iniciar após retorno + tempo_voo_volta + 3h
-    const returnFlightTime = parseFloat(flight_hours) / 2; // Tempo de voo de volta
-    const pousoVolta = new Date(returnDateTime.getTime() + (returnFlightTime * 60 * 60 * 1000)); // Retorno + tempo voo volta
-    const fimLogico = new Date(pousoVolta.getTime() + (3 * 60 * 60 * 1000)); // Pouso volta + 3h manutenção
+    const blockedUntil = new Date(returnDateTime.getTime() + (returnFlightTime + 3) * 60 * 60 * 1000);
 
-    // Criar booking - SALVAR EM HORÁRIO BRASILEIRO
+    // Criar booking
     const booking = await prisma.booking.create({
       data: {
         userId,
         aircraftId,
         origin,
         destination,
-        departure_date: new Date(departureDateTime.getTime() - (3 * 60 * 60 * 1000)), // 04:00 (início pré-voo - 3h antes)
-        return_date: fimLogico, // 21:00 (fim lógico)
-        actual_departure_date: departureDateTime, // 07:00 (hora real que o usuário escolheu)
-        actual_return_date: returnDateTime, // 18:00 (hora real que o usuário escolheu)
+        secondaryDestination: secondaryDestination || null,
+        departure_date: calculatedDepartureDate, // Horário calculado (real - 3h)
+        return_date: calculatedReturnDate, // Horário calculado (real + voo volta + 3h)
+        actual_departure_date: departureDateTime, // Horário real de partida
+        actual_return_date: returnDateTime, // Horário real de retorno
         passengers,
         flight_hours,
         overnight_stays: overnight_stays || 0,
         value,
         status: 'pendente',
-        blocked_until: fimLogico, // Mesmo valor do return_date
+        blocked_until: blockedUntil,
         maintenance_buffer_hours: 3
       },
       include: {
@@ -722,6 +685,55 @@ router.get('/stats/overview', authMiddleware, async (req, res) => {
   }
 });
 
+// Rota para validar missão (para testes)
+router.post('/validate', async (req, res) => {
+  try {
+    const {
+      aircraftId,
+      departure_date,
+      return_date,
+      flight_hours,
+      origin,
+      destination
+    } = req.body;
+
+    // Validar dados obrigatórios
+    if (!aircraftId || !origin || !destination || !departure_date || !return_date || !flight_hours) {
+      return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
+    }
+
+    // Converter datas para objetos Date
+    const departureDateTime = new Date(departure_date);
+    const returnDateTime = new Date(return_date);
+
+    // Validar missão com inteligência avançada
+    const validation = await validateMission(
+      aircraftId,
+      departureDateTime,
+      returnDateTime,
+      flight_hours
+    );
+
+    if (!validation.valido) {
+      return res.status(409).json({
+        error: validation.mensagem,
+        nextAvailable: validation.proximaDisponibilidade,
+        conflictingBooking: validation.conflitoCom
+      });
+    }
+
+    res.json({
+      valido: true,
+      mensagem: "✅ Missão válida",
+      proximaDisponibilidade: validation.proximaDisponibilidade
+    });
+
+  } catch (error) {
+    console.error('Erro ao validar missão:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
 // Rota para deletar TODAS as missões (apenas para testes)
 router.delete('/delete-all', authMiddleware, async (req, res) => {
   try {
@@ -740,6 +752,230 @@ router.delete('/delete-all', authMiddleware, async (req, res) => {
     });
   } catch (error) {
     console.error('Erro ao deletar todas as missões:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Rotas de PIX para missões solo
+router.post('/pix-payment', authMiddleware, async (req, res) => {
+  try {
+    const userId = (req as any).user?.userId;
+    const {
+      aircraftId,
+      origin,
+      destination,
+      secondaryDestination,
+      departure_date,
+      return_date,
+      passengers,
+      flight_hours,
+      overnight_stays,
+      value
+    } = req.body;
+
+
+
+    // Converter datas para objetos Date
+    const departureDateTime = new Date(departure_date);
+    const returnDateTime = new Date(return_date);
+
+
+
+    // Validar missão com inteligência avançada
+    const validation = await validateMission(
+      aircraftId,
+      departureDateTime,
+      returnDateTime,
+      flight_hours
+    );
+
+
+
+    if (!validation.valido) {
+
+      return res.status(409).json({
+        error: validation.mensagem,
+        nextAvailable: validation.proximaDisponibilidade,
+        conflictingBooking: validation.conflitoCom
+      });
+    }
+
+    // Calcular horários para salvar no banco
+    const returnFlightTime = flight_hours / 2; // Tempo de voo de volta
+    
+    // departure_date: horário real - 3h (início do pré-voo)
+    const calculatedDepartureDate = new Date(departureDateTime.getTime() - (3 * 60 * 60 * 1000));
+    
+    // return_date: horário real + tempo de voo volta + 3h (fim do pós-voo)
+    const calculatedReturnDate = new Date(returnDateTime.getTime() + (returnFlightTime * 60 * 60 * 1000) + (3 * 60 * 60 * 1000));
+    
+    // Calcular janela bloqueada - próximo voo só pode iniciar após retorno + tempo_voo_volta + 3h
+    const blockedUntil = new Date(returnDateTime.getTime() + (returnFlightTime + 3) * 60 * 60 * 1000);
+
+    // Criar booking com status 'pendente'
+    const booking = await prisma.booking.create({
+      data: {
+        userId,
+        aircraftId,
+        origin,
+        destination,
+        secondaryDestination: secondaryDestination || null,
+        departure_date: calculatedDepartureDate, // Horário calculado (real - 3h)
+        return_date: calculatedReturnDate, // Horário calculado (real + voo volta + 3h)
+        actual_departure_date: departureDateTime, // Horário real de partida
+        actual_return_date: returnDateTime, // Horário real de retorno
+        passengers,
+        flight_hours,
+        overnight_stays,
+        value,
+        status: 'pendente'
+      }
+    });
+
+    // Importar funções do Asaas
+    const { createPixChargeForBooking, getPixQrCode, createAsaasCustomer } = await import('../services/asaas');
+
+    // Verificar se o usuário já tem customerId no Asaas
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { name: true, email: true, phone: true, cpfCnpj: true, asaasCustomerId: true }
+    });
+    
+    if (!user) {
+      throw new Error('Usuário não encontrado');
+    }
+    
+    let asaasCustomerId = user.asaasCustomerId;
+    
+    if (!asaasCustomerId) {
+      // Criar customer no Asaas
+      const customer = await createAsaasCustomer({
+        name: user.name || 'Usuário',
+        email: user.email || '',
+        phone: user.phone || '',
+        mobilePhone: user.phone || '',
+        cpfCnpj: user.cpfCnpj || ''
+      });
+      
+      asaasCustomerId = customer.id;
+      
+      // Atualizar usuário com asaasCustomerId
+      await prisma.user.update({
+        where: { id: userId },
+        data: { asaasCustomerId }
+      });
+    }
+
+    // Verificar se já existe um pagamento pendente para esta missão (menos de 30 minutos)
+    // IMPORTANTE: Buscar APENAS na tabela Booking para evitar conflitos com missões compartilhadas
+    const existingPayment = await prisma.booking.findFirst({
+      where: {
+        userId,
+        aircraftId,
+        origin,
+        destination,
+        status: 'pendente',
+        paymentId: { not: null },
+        createdAt: {
+          gte: new Date(Date.now() - 30 * 60 * 1000) // Últimos 30 minutos
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    
+
+    let pixCharge;
+    let qrCodeData;
+
+    if (existingPayment && existingPayment.paymentId) {
+      
+      
+      // Reutilizar pagamento existente
+      pixCharge = { id: existingPayment.paymentId };
+      
+      // Gerar QR Code PIX para o pagamento existente
+      qrCodeData = await getPixQrCode(existingPayment.paymentId);
+    } else {
+
+      
+      // Criar nova cobrança PIX no Asaas
+      const pixDescription = `Missão Solo - ${origin} → ${destination}${secondaryDestination ? ` → ${secondaryDestination}` : ''}`;
+      pixCharge = await createPixChargeForBooking(asaasCustomerId, value, pixDescription);
+      
+      
+      
+      // Gerar QR Code PIX
+      qrCodeData = await getPixQrCode(pixCharge.id);
+      
+      // Atualizar booking com paymentId
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: { paymentId: pixCharge.id }
+      });
+      
+      
+    }
+
+    
+
+    res.json({
+      success: true,
+      bookingId: booking.id,
+      paymentId: pixCharge.id,
+      qrCode: qrCodeData.encodedImage,
+      copiaCola: qrCodeData.payload,
+      value: value
+    });
+
+  } catch (error) {
+    console.error('❌ Erro ao criar PIX para missão solo:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Verificar pagamento PIX de missão solo
+router.post('/pix-payment/:paymentId/verify', authMiddleware, async (req, res) => {
+  try {
+    const { paymentId } = req.params;
+    
+    // Buscar booking pelo paymentId
+    const booking = await prisma.booking.findFirst({
+      where: { paymentId: paymentId }
+    });
+
+    if (!booking) {
+      return res.status(404).json({ error: 'Missão não encontrada' });
+    }
+
+    // Importar função do Asaas
+    const { getPaymentStatus } = await import('../services/asaas');
+
+    // Verificar status do pagamento no Asaas
+    const paymentStatus = await getPaymentStatus(paymentId);
+
+    if (paymentStatus.status === 'CONFIRMED' || paymentStatus.status === 'RECEIVED') {
+      // Atualizar status da missão para 'confirmada'
+      await prisma.booking.update({
+        where: { id: booking.id },
+        data: { status: 'confirmada' }
+      });
+
+      res.json({
+        success: true,
+        status: 'confirmada',
+        message: 'Pagamento confirmado com sucesso'
+      });
+    } else {
+      res.json({
+        success: false,
+        status: paymentStatus.status,
+        message: 'Pagamento ainda não foi confirmado'
+      });
+    }
+
+  } catch (error) {
+    console.error('❌ Erro ao verificar pagamento PIX:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
   }
 });

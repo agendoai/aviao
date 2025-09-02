@@ -274,10 +274,10 @@ const MissionSystem: React.FC = () => {
       });
 
       // verificar conflito com reservas e bloqueios de manutenção
-              const conflictingBooking = bookingsForAircraft.find(b => {
-          const departureDate = new Date(b.departure_date.replace('Z', '-03:00'));
-          const returnDate = new Date(b.return_date.replace('Z', '-03:00'));
-          const blockedUntil = b.blocked_until ? new Date(b.blocked_until.replace('Z', '-03:00')) : null;
+      const conflictingBooking = bookingsForAircraft.find(b => {
+        const departureDate = new Date(b.departure_date);
+        const returnDate = new Date(b.return_date);
+        const blockedUntil = b.blocked_until ? new Date(b.blocked_until) : null;
         
         // Conflito direto de horário
         const directConflict = departureDate < slotEnd && returnDate > slotStart;
@@ -889,6 +889,53 @@ const MissionSystem: React.FC = () => {
                 <div>
                   <span className="text-gray-600">Horário de Volta:</span>
                   <div className="font-medium">{returnTime}</div>
+                </div>
+              </div>
+              
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <span className="text-gray-600">Horário de Pouso no Destino:</span>
+                  <div className="font-medium">
+                    {(() => {
+                      try {
+                        // Calcular horário de pouso no destino
+                        // actual_departure_date + (tempo total de voo ÷ 2)
+                        const departureDateTime = new Date(selectedDate);
+                        departureDateTime.setHours(parseInt(departureTime.split(':')[0]), parseInt(departureTime.split(':')[1]), 0, 0);
+                        const flightTimeHours = parseFloat(flightHours || '0');
+                        const arrivalTime = new Date(departureDateTime.getTime() + (flightTimeHours / 2) * 60 * 60 * 1000);
+                        return format(arrivalTime, 'HH:mm', { locale: ptBR });
+                      } catch (error) {
+                        console.error('Erro ao calcular horário de pouso no destino:', error);
+                        return 'N/A';
+                      }
+                    })()}
+                  </div>
+                </div>
+                <div>
+                  <span className="text-gray-600">Horário de Pouso Retorno:</span>
+                  <div className="font-medium">
+                    {(() => {
+                      try {
+                        // Calcular horário de pouso retorno
+                        // departure_date já inclui o tempo de voo de volta + 3h
+                        if (missionData?.departure_date) {
+                          const departureDate = new Date(missionData.departure_date);
+                          return format(departureDate, 'HH:mm', { locale: ptBR });
+                        }
+                        // Fallback: calcular baseado no horário de volta + tempo de voo de volta + 3h (pós-voo)
+                        const returnDateToUse = returnDate ? new Date(returnDate + 'T00:00:00') : selectedDate;
+                        const returnDateTime = new Date(returnDateToUse);
+                        returnDateTime.setHours(parseInt(returnTime.split(':')[0]), parseInt(returnTime.split(':')[1]), 0, 0);
+                        const flightTimeHours = parseFloat(flightHours || '0');
+                        const returnArrivalTime = new Date(returnDateTime.getTime() + (flightTimeHours / 2) * 60 * 60 * 1000 + (3 * 60 * 60 * 1000)); // + 3h pós-voo
+                        return format(returnArrivalTime, 'HH:mm', { locale: ptBR });
+                      } catch (error) {
+                        console.error('Erro ao calcular horário de pouso retorno:', error);
+                        return 'N/A';
+                      }
+                    })()}
+                  </div>
                 </div>
               </div>
               

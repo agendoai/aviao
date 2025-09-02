@@ -9,7 +9,7 @@ router.post('/asaas', async (req, res) => {
   try {
     const { event, payment, subscription } = req.body;
     
-    console.log('📥 Webhook Asaas recebido:', { event, paymentId: payment?.id, subscriptionId: subscription?.id });
+
     
     // Roteamento para webhooks específicos
     switch (event) {
@@ -32,12 +32,12 @@ router.post('/asaas', async (req, res) => {
         return await handleSubscriptionCancelledWebhook(req, res);
         
       default:
-        console.log(`⚠️ Evento não suportado: ${event}`);
+
         return res.sendStatus(200);
     }
     
   } catch (error) {
-    console.error('❌ Erro no webhook Asaas:', error);
+
     res.sendStatus(500);
   }
 });
@@ -62,15 +62,12 @@ async function handlePaymentWebhook(req: any, res: any) {
   try {
     const { payment } = req.body;
     
-    console.log(`💰 Pagamento confirmado - Payment ID: ${payment.id}`);
-    
-    // Atualizar reserva se for pagamento de voo
-    await prisma.booking.updateMany({
-      where: { paymentId: payment.id },
-      data: { status: 'paga' }
-    });
 
-    // Atualizar mensalidade se for pagamento de mensalidade
+    
+    // IMPORTANTE: Este webhook principal NÃO deve processar missões solo/compartilhadas
+    // Elas são processadas pelos webhooks específicos: /solo-mission e /shared-mission
+    
+    // Atualizar APENAS mensalidades (não missões)
     const membershipPayment = await prisma.membershipPayment.findFirst({
       where: { paymentId: payment.id }
     });
@@ -84,9 +81,6 @@ async function handlePaymentWebhook(req: any, res: any) {
 
       // Atualizar status do usuário
       await updateUserStatus(membershipPayment.userId);
-
-      console.log(`✅ Mensalidade ID ${membershipPayment.id} marcada como confirmada`);
-      console.log(`🔄 Asaas criará automaticamente a próxima cobrança`);
     }
 
     res.sendStatus(200);
@@ -102,6 +96,8 @@ async function handleOverdueWebhook(req: any, res: any) {
     const { payment } = req.body;
     
     console.log(`⏰ Pagamento vencido - Payment ID: ${payment.id}`);
+    
+
     
     // Atualizar mensalidade se for pagamento de mensalidade
     const membershipPayment = await prisma.membershipPayment.findFirst({
@@ -156,10 +152,6 @@ async function handleNewChargeWebhook(req: any, res: any) {
     }
     
     if (!subscriptionId) {
-      console.log('❌ Subscription ID não encontrado no payload');
-      console.log('ℹ️ Esta é uma cobrança manual (não de assinatura)');
-      console.log('ℹ️ Webhook PAYMENT_CREATED só processa cobranças de assinatura');
-      console.log('ℹ️ Ignorando cobrança manual - retornando 200');
       return res.sendStatus(200);
     }
     
@@ -174,14 +166,14 @@ async function handleNewChargeWebhook(req: any, res: any) {
     });
 
     if (user) {
-      console.log(`✅ Usuário encontrado: ${user.name} (ID: ${user.id})`);
+     
       
       // Buscar configuração do valor da mensalidade
       const membershipConfig = await prisma.systemConfig.findUnique({
         where: { key: 'membership_value' }
       });
       const membershipValue = membershipConfig ? parseFloat(membershipConfig.value) : 200.00;
-      console.log(`💰 Valor da mensalidade configurado: R$ ${membershipValue}`);
+      
       
       // Calcular data de vencimento (baseado na data da cobrança do Asaas)
       const dueDate = new Date(payment.dueDate);
@@ -274,7 +266,163 @@ async function handleSubscriptionCancelledWebhook(req: any, res: any) {
   }
 }
 
-// Função removida - Asaas cria automaticamente a próxima cobrança
+// ========================================
+// WEBHOOKS SEPARADOS PARA MISSÕES
+// ========================================
+
+// Webhook específico para missões solo (reservas)
+router.post('/solo-mission', async (req, res) => {
+  try {
+    const { event, payment } = req.body;
+    
+
+    
+    if (event === 'PAYMENT_RECEIVED' || event === 'PAYMENT_CONFIRMED') {
+
+      
+      // Buscar reserva pelo paymentId (incluindo já confirmadas para evitar duplicatas)
+      
+      
+      const booking = await prisma.booking.findFirst({
+        where: {
+          paymentId: payment.id
+        }
+      });
+
+      
+
+      if (!booking) {
+        console.error('❌ Reserva não encontrada para paymentId:', payment.id);
+        
+        return res.status(404).json({ error: 'Booking not found' });
+      }
+
+              // Verificar se já foi processada
+        if (booking.status === 'paga' || booking.status === 'confirmada') {
+          return res.status(200).json({ success: true, message: 'Already processed' });
+        }
+
+      // Atualizar status da reserva para paga
+      await prisma.booking.update({
+        where: {
+          id: booking.id
+        },
+        data: {
+          status: 'paga'
+        }
+      });
+
+      
+
+    } else if (event === 'PAYMENT_OVERDUE' || event === 'PAYMENT_DELETED') {
+
+      
+      // Buscar e cancelar reserva se necessário
+      const booking = await prisma.booking.findFirst({
+        where: {
+          paymentId: payment.id,
+          status: 'pendente'
+        }
+      });
+
+      if (booking) {
+        await prisma.booking.update({
+          where: {
+            id: booking.id
+          },
+          data: {
+            status: 'cancelada'
+          }
+        });
+
+
+      }
+    }
+
+    res.status(200).json({ success: true });
+
+  } catch (error) {
+
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
+
+// Webhook específico para missões compartilhadas
+router.post('/shared-mission', async (req, res) => {
+  try {
+    const { event, payment } = req.body;
+    
+
+    
+    if (event === 'PAYMENT_RECEIVED' || event === 'PAYMENT_CONFIRMED') {
+
+      
+      // Buscar missão compartilhada pelo paymentId (incluindo já confirmadas para evitar duplicatas)
+      
+      
+      const sharedMission = await prisma.sharedMission.findFirst({
+        where: {
+          paymentId: payment.id
+        }
+      });
+
+      
+
+      if (!sharedMission) {
+        console.error('❌ Missão compartilhada não encontrada para paymentId:', payment.id);
+        
+        return res.status(404).json({ error: 'Shared mission not found' });
+      }
+
+              // Verificar se já foi processada
+        if (sharedMission.status === 'confirmada') {
+          return res.status(200).json({ success: true, message: 'Already processed' });
+        }
+
+      // Atualizar status da missão para confirmada
+      await prisma.sharedMission.update({
+        where: {
+          id: sharedMission.id
+        },
+        data: {
+          status: 'confirmada'
+        }
+      });
+
+      console.log('✅ Missão compartilhada confirmada:', sharedMission.id);
+
+    } else if (event === 'PAYMENT_OVERDUE' || event === 'PAYMENT_DELETED') {
+      console.log('❌ Pagamento de missão compartilhada cancelado/expirado:', payment.id);
+      
+      // Buscar e cancelar missão se necessário
+      const sharedMission = await prisma.sharedMission.findFirst({
+        where: {
+          paymentId: payment.id,
+          status: 'pendente'
+        }
+      });
+
+      if (sharedMission) {
+        await prisma.sharedMission.update({
+          where: {
+            id: sharedMission.id
+          },
+          data: {
+            status: 'cancelada'
+          }
+        });
+
+        console.log('❌ Missão compartilhada cancelada:', sharedMission.id);
+      }
+    }
+
+    res.status(200).json({ success: true });
+
+  } catch (error) {
+    console.error('❌ Erro no webhook de missão compartilhada:', error);
+    res.status(500).json({ error: 'Internal server error' });
+  }
+});
 
 export default router;
 

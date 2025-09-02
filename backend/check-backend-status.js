@@ -40,3 +40,4 @@ function checkBackendStatus() {
 }
 
 checkBackendStatus();
+

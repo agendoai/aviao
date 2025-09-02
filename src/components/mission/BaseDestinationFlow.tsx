@@ -286,9 +286,13 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
 
     // Calcular rota de ida
     let previousAirport = origin;
+    console.log('🔍 Calculando rota com destinos:', destinations.map(d => d.airport.icao));
+    
     for (const destination of destinations) {
       const flightTime = calculateFlightTime(previousAirport, destination.airport);
       totalFlightTime += flightTime;
+      
+      console.log(`🔍 ${previousAirport.icao} → ${destination.airport.icao}: ${flightTime.toFixed(2)}h (${(flightTime * 60).toFixed(0)}min)`);
 
       // Horário de chegada
       const arrivalTime = new Date(currentTime.getTime() + flightTime * 60 * 60 * 1000);
@@ -314,6 +318,9 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
          // Calcular retorno à base - usar exatamente o horário que o usuário definiu
     const returnFlightTime = calculateFlightTime(previousAirport, origin);
     totalFlightTime += returnFlightTime;
+    
+    console.log(`🔍 ${previousAirport.icao} → ${origin.icao}: ${returnFlightTime.toFixed(2)}h (${(returnFlightTime * 60).toFixed(0)}min)`);
+    console.log(`🔍 Tempo total de voo: ${totalFlightTime.toFixed(2)}h (${(totalFlightTime * 60).toFixed(0)}min)`);
 
      // Usar exatamente o horário que o usuário definiu
      const arrivalAtBase = new Date(`${returnDate}T${returnTime}:00`);
@@ -433,9 +440,14 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
     );
     const speed = getAircraftSpeed(selectedAircraft?.model || 'cessna');
     
-
+    const flightTime = distance / speed; // retorna em horas
     
-    return distance / speed; // retorna em horas
+    console.log(`🔍 Cálculo de voo: ${origin.icao} → ${destination.icao}`);
+    console.log(`🔍   Distância: ${distance.toFixed(1)} NM`);
+    console.log(`🔍   Velocidade: ${speed} KT`);
+    console.log(`🔍   Tempo: ${flightTime.toFixed(3)}h (${(flightTime * 60).toFixed(1)}min)`);
+    
+    return flightTime;
   };
 
   const handleConfirmMission = () => {
@@ -586,14 +598,6 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
                           </Button>
                           <Button
                             size="sm"
-                             variant={selectedAirports[airport.icao] === 'stopover' ? 'default' : 'outline'}
-                             className={selectedAirports[airport.icao] === 'stopover' ? 'bg-orange-500 hover:bg-orange-600 text-white' : ''}
-                            onClick={() => handleAddDestination(airport, 'stopover')}
-                          >
-                            Escala
-                          </Button>
-                          <Button
-                            size="sm"
                              variant={selectedAirports[airport.icao] === 'secondary' ? 'default' : 'outline'}
                              className={selectedAirports[airport.icao] === 'secondary' ? 'bg-gray-500 hover:bg-gray-600 text-white' : ''}
                             onClick={() => handleAddDestination(airport, 'secondary')}
@@ -621,11 +625,9 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
                           {dest.airport.city}, {dest.airport.state} - {dest.airport.icao}
                         </div>
                         <Badge variant={
-                          dest.type === 'main' ? 'default' :
-                          dest.type === 'stopover' ? 'secondary' : 'outline'
+                          dest.type === 'main' ? 'default' : 'outline'
                         }>
-                          {dest.type === 'main' ? 'Destino Principal' :
-                           dest.type === 'stopover' ? 'Escala' : 'Secundário'}
+                          {dest.type === 'main' ? 'Destino Principal' : 'Secundário'}
                         </Badge>
                       </div>
                       <div className="flex items-center space-x-2">
@@ -666,8 +668,8 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
                  {/* Calendário Inteligente */}
                  {currentAircraft && (
                    <Card className="mt-3 border-2 border-green-200 bg-green-50">
-                     <CardContent className="p-3">
-                       <div className="text-sm text-green-700 mb-3 font-medium flex items-center">
+                     <CardContent className="p-2">
+                       <div className="text-sm text-green-700 mb-2 font-medium flex items-center">
                          🎯 Calendário Inteligente (30min) - {currentAircraft.registration}
                          <span className="ml-2 text-xs bg-green-200 px-2 py-1 rounded">Disponibilidade em Tempo Real</span>
                        </div>
@@ -677,6 +679,7 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
                          currentMonth={returnDate ? new Date(returnDate) : departureDate}
                          selectedAircraft={currentAircraft}
                          departureDateTime={new Date(`${departureDate.toISOString().split('T')[0]}T${departureTime}`)}
+                         isReturnSelection={true}
                          onTimeSelect={(timeSlot) => {
                            console.log('🔍 Slot selecionado no calendário:', timeSlot);
                            
@@ -752,7 +755,7 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
                 className="flex-1"
               >
                 {destinations.length === 0 ? 'Selecione um destino' : 
-                 !returnTime || !returnDate ? `Selecione data/hora de retorno (${returnDate || 'sem data'} - ${returnTime || 'sem hora'})` : 
+                 !returnTime || !returnDate ? 'Continuar' : 
                  'Calcular Missão'}
                 <ArrowRight className="h-4 w-4 ml-2" />
               </Button>
@@ -794,6 +797,18 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
                     <div className="flex justify-between">
                       <span>Pernoites:</span>
                       <span>{missionCalculation.overnightStays} {missionCalculation.overnightStays > 1 ? 'noites' : 'noite'}</span>
+                    </div>
+                    
+                    {/* Detalhamento da rota */}
+                    <div className="mt-2 pt-2 border-t border-gray-300">
+                      <div className="text-xs font-medium text-gray-600 mb-1">Rota detalhada:</div>
+                      <div className="text-xs text-gray-500 space-y-1">
+                        <div>SBAU → {destinations[0]?.airport.icao}: {Math.round(calculateFlightTime(origin!, destinations[0]?.airport!) * 60)}min</div>
+                        {destinations.length > 1 && (
+                          <div>{destinations[0]?.airport.icao} → {destinations[1]?.airport.icao}: {Math.round(calculateFlightTime(destinations[0]?.airport!, destinations[1]?.airport!) * 60)}min</div>
+                        )}
+                        <div>{destinations[destinations.length - 1]?.airport.icao} → SBAU: {Math.round(calculateFlightTime(destinations[destinations.length - 1]?.airport!, origin!) * 60)}min</div>
+                      </div>
                     </div>
                   </div>
                 </div>

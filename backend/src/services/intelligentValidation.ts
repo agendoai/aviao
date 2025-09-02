@@ -39,20 +39,17 @@ const bookingToMissao = (booking: any): Missao => {
     ? booking.return_date 
     : booking.return_date.toISOString();
 
-  const actualDepartureDateStr = typeof booking.actual_departure_date === 'string' 
-    ? booking.actual_departure_date 
-    : booking.actual_departure_date.toISOString();
-  
-  const actualReturnDateStr = typeof booking.actual_return_date === 'string' 
-    ? booking.actual_return_date 
-    : booking.actual_return_date.toISOString();
+  // Para gerar slots, sempre usar departure_date e return_date (já calculados)
+  // actual_departure_date e actual_return_date são para horários reais
+  const actualDepartureDateStr = departureDateStr; // Usar departure_date (já tem horário calculado)
+  const actualReturnDateStr = returnDateStr; // Usar return_date (já tem horário calculado)
 
   return {
     id: booking.id,
     partida: new Date(departureDateStr.replace('Z', '-03:00')), // 04:00 (início pré-voo - já calculado)
     retorno: new Date(returnDateStr.replace('Z', '-03:00')), // 21:00 (fim pós-voo - já calculado)
-    actualDeparture: new Date(actualDepartureDateStr.replace('Z', '-03:00')), // 07:00 (decolagem real)
-    actualReturn: new Date(actualReturnDateStr.replace('Z', '-03:00')), // 17:00 (retorno real)
+    actualDeparture: new Date(departureDateStr.replace('Z', '-03:00')), // Usar departure_date (já tem horário calculado)
+    actualReturn: new Date(returnDateStr.replace('Z', '-03:00')), // Usar return_date (já tem horário calculado)
     flightHoursTotal: booking.flight_hours,
     origin: booking.origin,
     destination: booking.destination
@@ -112,9 +109,13 @@ const hasOverlap = (interval1: { start: Date; end: Date }, interval2: { start: D
   // 1. Início do slot está dentro da janela (inclusive)
   // 2. Fim do slot está dentro da janela (inclusive)
   // 3. Slot contém a janela completamente
-  return (slotStart >= windowStart && slotStart < windowEnd) ||
+  const resultado = (slotStart >= windowStart && slotStart < windowEnd) ||
          (slotEnd > windowStart && slotEnd <= windowEnd) ||
          (slotStart <= windowStart && slotEnd >= windowEnd);
+  
+  // Log removido para limpar console
+  
+  return resultado;
 };
 
 /**
@@ -160,10 +161,11 @@ export const validateTimeSlot = async (
   
   // Converter resultado para formato esperado
   return {
-    isValid: resultado.valido,
-    reason: resultado.mensagem,
-    nextAvailable: resultado.proximaDisponibilidade,
-    conflictingBooking: resultado.conflitoCom
+    valido: resultado.valido,
+    mensagem: resultado.mensagem,
+    sugerido: resultado.sugerido,
+    proximaDisponibilidade: resultado.proximaDisponibilidade,
+    conflitoCom: resultado.conflitoCom
   };
 };
 
@@ -199,6 +201,8 @@ export const generateTimeSlots = async (
   
   // Calcular todas as janelas bloqueadas
   const todasJanelas = calcularJanelasBloqueadas(missoesExistentes);
+  
+
 
   // Gerar slots de 30 em 30 minutos das 00h às 23h30 para cada dia da semana
   for (let day = 0; day < 7; day++) {
@@ -228,10 +232,11 @@ export const generateTimeSlots = async (
           // Converter janela para TimeSlot
           const timeSlot = janelaToTimeSlot(conflictingWindow);
           status = timeSlot.status;
-          reason = timeSlot.reason;
+          reason = timeSlot.reason || '';
           blockType = timeSlot.blockType;
           nextAvailable = proximaDecolagemPossivel(conflictingWindow.missao);
         }
+        // REMOVIDO: Validação das 3 horas agora é feita apenas no frontend no clique
 
         // Verificar se é slot selecionado pelo usuário
         if (selectedStart && selectedEnd && hasOverlap({ start: slotStart, end: slotEnd }, { start: selectedStart, end: selectedEnd })) {
@@ -247,7 +252,7 @@ export const generateTimeSlots = async (
           end: slotEnd,
           status,
           booking: conflictingWindow?.missao,
-          reason,
+          reason: reason || '',
           nextAvailable,
           blockType
         });
@@ -299,10 +304,11 @@ export const validateMission = async (
   
   // Converter resultado para formato esperado
   return {
-    isValid: resultado.valido,
-    reason: resultado.mensagem,
-    nextAvailable: resultado.proximaDisponibilidade,
-    conflictingBooking: resultado.conflitoCom
+    valido: resultado.valido,
+    mensagem: resultado.mensagem,
+    sugerido: resultado.sugerido,
+    proximaDisponibilidade: resultado.proximaDisponibilidade,
+    conflitoCom: resultado.conflitoCom
   };
 };
 

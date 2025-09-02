@@ -53,3 +53,4 @@ async function deleteAllBookings() {
 
 // Executar a deleção
 deleteAllBookings();
+

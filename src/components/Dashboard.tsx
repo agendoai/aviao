@@ -8,6 +8,7 @@ import { CalendarDays, Plane, CreditCard, Users, TrendingUp, Clock, CheckCircle,
 import { toast } from 'sonner';
 import { getBookings, getUsers, getTransactions, getMyTransactions, getMyParticipationRequests, sendParticipationRequestMessage, markMessagesAsRead } from '@/utils/api';
 import { formatUTCToBrazilian, formatUTCToBrazilianDateTime, getDaysDifference, convertUTCToBrazilianTime, convertUTCToBrazilianTimeDeparture, convertUTCToBrazilianTimeReturn } from '@/utils/dateUtils';
+import { getAirportNameByICAO } from '@/utils/airport-search';
 import { useNavigate } from 'react-router-dom';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -24,6 +25,8 @@ interface Booking {
   destination?: string;
   departure_date?: string;
   return_date?: string;
+  actual_departure_date?: string;
+  actual_return_date?: string;
   total_cost?: number;
   createdAt?: string;
 }
@@ -957,7 +960,7 @@ const Dashboard: React.FC = () => {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center space-x-2 mb-2">
                             <h3 className="font-bold text-gray-900 text-sm md:text-lg truncate">
-                              {booking.origin} → {booking.destination}
+                              {getAirportNameByICAO(booking.origin)} → {getAirportNameByICAO(booking.destination)}
                             </h3>
                             <Badge 
                               variant="default"
@@ -1062,7 +1065,7 @@ const Dashboard: React.FC = () => {
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center space-x-2 mb-2">
                             <h3 className="font-bold text-gray-900 text-sm md:text-lg truncate">
-                              {request.sharedMission.origin} → {request.sharedMission.destination}
+                              {getAirportNameByICAO(request.sharedMission.origin)} → {getAirportNameByICAO(request.sharedMission.destination)}
                             </h3>
                             <Badge 
                               variant="default"
@@ -1414,11 +1417,11 @@ const Dashboard: React.FC = () => {
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-2 md:gap-3 mb-2 md:mb-3">
                       <div className="bg-white p-1 md:p-2 rounded-xl border border-gray-200 w-full">
                         <p className="text-xs text-gray-600 font-medium mb-1">Origem</p>
-                        <p className="font-semibold text-gray-800 text-xs md:text-sm truncate">{booking.origin || '--'}</p>
+                        <p className="font-semibold text-gray-800 text-xs md:text-sm truncate">{getAirportNameByICAO(booking.origin || '--')}</p>
                       </div>
                       <div className="bg-white p-1 md:p-2 rounded-xl border border-gray-200 w-full">
                         <p className="text-xs text-gray-600 font-medium mb-1">Destino</p>
-                        <p className="font-semibold text-gray-800 text-xs md:text-sm truncate">{booking.destination || '--'}</p>
+                        <p className="font-semibold text-gray-800 text-xs md:text-sm truncate">{getAirportNameByICAO(booking.destination || '--')}</p>
                       </div>
                     </div>
                     
@@ -1779,12 +1782,12 @@ const Dashboard: React.FC = () => {
               <div className="p-3 bg-white rounded-lg border">
                 <div className="flex items-center justify-center space-x-2">
                   <div className="text-center">
-                    <div className="text-sm font-bold text-blue-600">{selectedBookingDetails.origin || '--'}</div>
+                    <div className="text-sm font-bold text-blue-600">{getAirportNameByICAO(selectedBookingDetails.origin || '--')}</div>
                     <div className="text-xs text-gray-500">Origem</div>
                   </div>
                   <Plane className="h-3 w-3 text-blue-500 transform rotate-45" />
                   <div className="text-center">
-                    <div className="text-sm font-bold text-blue-600">{selectedBookingDetails.destination || '--'}</div>
+                    <div className="text-sm font-bold text-blue-600">{getAirportNameByICAO(selectedBookingDetails.destination || '--')}</div>
                     <div className="text-xs text-gray-500">Destino</div>
                   </div>
                 </div>
@@ -1798,17 +1801,17 @@ const Dashboard: React.FC = () => {
                     <>
                       <div className="text-sm font-bold text-green-600">
                         {selectedBookingDetails.actual_departure_date 
-                          ? new Date(selectedBookingDetails.actual_departure_date).toLocaleDateString('pt-BR')
-                          : new Date(selectedBookingDetails.departure_date).toLocaleDateString('pt-BR')
+                          ? convertUTCToBrazilianTime(selectedBookingDetails.actual_departure_date).toLocaleDateString('pt-BR')
+                          : convertUTCToBrazilianTime(selectedBookingDetails.departure_date).toLocaleDateString('pt-BR')
                         }
                       </div>
                       <div className="text-xs text-green-700">
                         {selectedBookingDetails.actual_departure_date 
-                          ? new Date(selectedBookingDetails.actual_departure_date).toLocaleTimeString('pt-BR', {
+                          ? convertUTCToBrazilianTime(selectedBookingDetails.actual_departure_date).toLocaleTimeString('pt-BR', {
                               hour: '2-digit',
                               minute: '2-digit'
                             })
-                          : new Date(selectedBookingDetails.departure_date).toLocaleTimeString('pt-BR', {
+                          : convertUTCToBrazilianTime(selectedBookingDetails.departure_date).toLocaleTimeString('pt-BR', {
                               hour: '2-digit',
                               minute: '2-digit'
                             })
@@ -1826,17 +1829,17 @@ const Dashboard: React.FC = () => {
                     <>
                       <div className="text-sm font-bold text-purple-600">
                         {selectedBookingDetails.actual_return_date 
-                          ? new Date(selectedBookingDetails.actual_return_date).toLocaleDateString('pt-BR')
-                          : new Date(selectedBookingDetails.return_date).toLocaleDateString('pt-BR')
+                          ? convertUTCToBrazilianTime(selectedBookingDetails.actual_return_date).toLocaleDateString('pt-BR')
+                          : convertUTCToBrazilianTime(selectedBookingDetails.return_date).toLocaleDateString('pt-BR')
                         }
                       </div>
                       <div className="text-xs text-purple-700">
                         {selectedBookingDetails.actual_return_date 
-                          ? new Date(selectedBookingDetails.actual_return_date).toLocaleTimeString('pt-BR', {
+                          ? convertUTCToBrazilianTime(selectedBookingDetails.actual_return_date).toLocaleTimeString('pt-BR', {
                               hour: '2-digit',
                               minute: '2-digit'
                             })
-                          : new Date(selectedBookingDetails.return_date).toLocaleTimeString('pt-BR', {
+                          : convertUTCToBrazilianTime(selectedBookingDetails.return_date).toLocaleTimeString('pt-BR', {
                               hour: '2-digit',
                               minute: '2-digit'
                             })

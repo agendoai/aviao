@@ -1,6 +1,16 @@
 // Função para buscar aeroportos usando base local (com fallback AISWEB em outras funções)
 const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
 
+/**
+ * Busca o nome do aeroporto por código ICAO
+ * @param icao - Código ICAO do aeroporto
+ * @returns Nome do aeroporto ou o código ICAO se não encontrado
+ */
+export const getAirportNameByICAO = (icao: string): string => {
+  const airport = BRAZILIAN_AIRPORTS.find(a => a.icao === icao);
+  return airport ? `${icao} - ${airport.name}` : icao;
+};
+
 export interface Airport {
   icao: string;
   iata?: string;

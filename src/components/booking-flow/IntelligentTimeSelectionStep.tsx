@@ -19,6 +19,8 @@ import { format, addDays, startOfWeek, endOfWeek, addHours } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { getTimeSlots, getAircrafts } from '@/utils/api';
 import { toast } from 'sonner';
+// Removido: não precisamos mais validar no frontend
+// O backend já faz toda a validação corretamente
 
 interface Aircraft {
   id: number;
@@ -47,6 +49,7 @@ interface IntelligentTimeSelectionStepProps {
   onBack: () => void;
   onAircraftSelect?: (aircraft: Aircraft) => void;
   departureDateTime?: Date; // Data/hora de partida para validar retorno
+  isReturnSelection?: boolean; // Identifica se é seleção de retorno
 }
 
 const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> = ({
@@ -57,7 +60,8 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
   onTimeSelect,
   onBack,
   onAircraftSelect,
-  departureDateTime
+  departureDateTime,
+  isReturnSelection = false
 }) => {
   const [aircrafts, setAircrafts] = useState<Aircraft[]>([]);
   const [currentWeek, setCurrentWeek] = useState(() => {
@@ -69,6 +73,9 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
+  const [validationMessage, setValidationMessage] = useState<string | null>(null);
+  const [suggestedTimes, setSuggestedTimes] = useState<Date[]>([]);
+  const [bookings, setBookings] = useState<any[]>([]);
 
   // Carregar dados
   useEffect(() => {
@@ -96,6 +103,70 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
     fetchData();
   }, []);
 
+  // Carregar bookings para validação
+  useEffect(() => {
+    const fetchBookings = async () => {
+      if (!selectedAircraft) return;
+      
+      try {
+        // Buscar bookings reais da API
+        try {
+          const token = localStorage.getItem('token');
+          
+          const response = await fetch(`/api/bookings/aircraft/${selectedAircraft.id}`, {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json',
+            }
+          });
+          
+          if (response.ok) {
+            const bookingsData = await response.json();
+            
+            // Validar e limpar os dados dos bookings
+            const bookingsValidos = bookingsData.filter((booking: any) => {
+              // Verificar se tem pelo menos as datas básicas
+              const temDadosBasicos = booking.departure_date && booking.return_date;
+              
+              if (!temDadosBasicos) {
+                return false;
+              }
+              
+              // Se não tem horários, usar horários padrão
+              if (!booking.departure_time) {
+                booking.departure_time = '00:00';
+              }
+              if (!booking.return_time) {
+                booking.return_time = '23:59';
+              }
+              
+              // Testar se as datas são válidas
+              const departureTest = new Date(`${booking.departure_date}T${booking.departure_time}`);
+              const returnTest = new Date(`${booking.return_date}T${booking.return_time}`);
+              
+              if (isNaN(departureTest.getTime()) || isNaN(returnTest.getTime())) {
+                return false;
+              }
+              
+              return true;
+            });
+            
+            setBookings(bookingsValidos);
+          } else {
+            setBookings([]);
+          }
+        } catch (error) {
+          console.error('Erro na requisição da API:', error);
+          setBookings([]);
+        }
+      } catch (error) {
+        console.error('Erro ao carregar bookings:', error);
+      }
+    };
+
+    fetchBookings();
+  }, [selectedAircraft?.id]); // Mudança: depende apenas do ID da aeronave
+
   // Buscar slots de tempo do backend
   useEffect(() => {
     const fetchTimeSlots = async () => {
@@ -104,6 +175,8 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
       try {
         setLoadingSlots(true);
         const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
+        
+
         
         // Estimar duração da missão (padrão 2 horas se não especificado)
         const estimatedMissionDuration = 2; // horas
@@ -116,28 +189,17 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
           estimatedMissionDuration
         );
         
-        console.log('🔍 Slots recebidos do backend:', slots);
-        
-        // Log detalhado dos slots
-        if (slots.length > 0) {
-          console.log('🔍 Primeiros 5 slots:');
-          slots.slice(0, 5).forEach((slot, index) => {
-            console.log(`   Slot ${index + 1}:`, {
-              start: slot.start,
-              end: slot.end,
-              status: slot.status,
-              blockType: slot.blockType,
-              reason: slot.reason
-            });
-          });
-        }
+
         
         // Converter strings para objetos Date e validar
         // OS SLOTS JÁ ESTÃO EM HORÁRIO LOCAL (sem timezone)
         const convertedSlots = slots.map(slot => {
           // Criar datas diretamente (sem aplicar timezone)
           const start = new Date(slot.start);
-          const end = new Date(slot.end);
+          
+          // Calcular o end time correto: 29 minutos após o start
+          const end = new Date(start.getTime() + 29 * 60 * 1000);
+          
           const nextAvailable = slot.nextAvailable ? new Date(slot.nextAvailable) : undefined;
           
           // Validar se as datas são válidas
@@ -154,24 +216,11 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
           };
         }).filter(Boolean); // Remover slots inválidos
         
-        console.log('🔍 Slots convertidos:', convertedSlots);
+
         
-        // Verificar slots de pré-voo
-        const preVooSlots = convertedSlots.filter(s => s.blockType === 'pre-voo');
-        const missaoSlots = convertedSlots.filter(s => s.blockType === 'missao');
-        const posVooSlots = convertedSlots.filter(s => s.blockType === 'pos-voo');
+
         
-        console.log('🔍 Resumo dos slots:');
-        console.log(`   Pré-voo: ${preVooSlots.length}`);
-        console.log(`   Missão: ${missaoSlots.length}`);
-        console.log(`   Pós-voo: ${posVooSlots.length}`);
-        
-        if (preVooSlots.length > 0) {
-          console.log('🟡 Slots de pré-voo encontrados:');
-          preVooSlots.slice(0, 3).forEach(slot => {
-            console.log(`   ${slot.start.toLocaleTimeString('pt-BR')}: ${slot.reason}`);
-          });
-        }
+
         
         setTimeSlots(convertedSlots);
       } catch (error) {
@@ -183,7 +232,7 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
     };
 
     fetchTimeSlots();
-  }, [selectedAircraft, currentWeek]);
+  }, [selectedAircraft?.id, currentWeek]);
 
   // Navegar entre semanas
   const navigateWeek = (direction: 'prev' | 'next') => {
@@ -192,11 +241,35 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
 
   // Lidar com clique em slot
   const handleSlotClick = (slot: TimeSlot) => {
+    // Validação de slot
+    
     // Verificar se o slot tem datas válidas
     if (!(slot.start instanceof Date) || isNaN(slot.start.getTime())) {
       console.error('Slot com data inválida:', slot);
       toast.error('Erro: data inválida no slot');
       return;
+    }
+
+    // BLOQUEAR SLOTS COM STATUS "blocked" - PÓS-VOO, PRÉ-VOO, ETC
+    if (slot.status === 'blocked') {
+      let message = 'Horário indisponível';
+      
+      if (slot.blockType === 'pos-voo') {
+        message = '⛔ Pós-voo em andamento - 3h de encerramento';
+      } else if (slot.blockType === 'pre-voo') {
+        message = '⛔ Pré-voo em andamento - 3h de preparação';
+      } else if (slot.blockType === 'missao') {
+        message = '⛔ Missão em andamento';
+      }
+      
+      toast.error(message);
+      return; // BLOQUEAR COMPLETAMENTE
+    }
+
+    // BLOQUEAR SLOTS COM STATUS "booked"
+    if (slot.status === 'booked') {
+      toast.error('⛔ Horário já reservado');
+      return; // BLOQUEAR COMPLETAMENTE
     }
 
     // Validar se o horário de retorno é posterior ao horário de partida
@@ -207,81 +280,165 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
         hour12: false
       });
       const departureDateStr = departureDateTime.toLocaleDateString('pt-BR');
-      toast.error(`❌ Horário inválido! O retorno deve ser após a partida (${departureDateStr} às ${departureTimeStr})`);
+      toast.error(`❌ Horário inválido! O retorno deve ser após a partida`);
       return;
     }
 
-    if (slot.status === 'available') {
-      setSelectedSlot(slot);
-      const timeString = format(slot.start, 'HH:mm');
-      const dateString = format(slot.start, 'yyyy-MM-dd');
+    // VALIDAÇÃO DE ATROPELAMENTO: Verificar se há missões no caminho entre partida e retorno
+    if (isReturnSelection && departureDateTime && slot.status === 'available') {
       
-      console.log('🔍 Slot selecionado:');
-      console.log('🔍 Data:', dateString);
-      console.log('🔍 Hora:', timeString);
-      console.log('🔍 Slot completo:', slot);
       
-      onTimeSelect(slot); // Passar o slot completo em vez de apenas a string
-      toast.success(`Horário selecionado: ${format(slot.start, 'dd/MM/yyyy às HH:mm', { locale: ptBR })}`);
-    } else {
-      // Mostrar mensagem de erro
-      let message = 'Horário indisponível';
-      if (slot.nextAvailable && slot.nextAvailable instanceof Date && !isNaN(slot.nextAvailable.getTime())) {
-        message += `. Próxima disponibilidade: ${format(slot.nextAvailable, 'dd/MM às HH:mm', { locale: ptBR })}`;
+      // Verificar se há slots bloqueados ou reservados entre a partida e o retorno selecionado
+      const missionStart = departureDateTime;
+      const missionEnd = slot.start;
+      
+      
+      
+      // Procurar por slots que indicam missões existentes no período
+      const conflictingSlots = timeSlots.filter(existingSlot => {
+        // Verificar se o slot está no período da missão proposta
+        const slotInPeriod = (
+          existingSlot.start >= missionStart && existingSlot.start <= missionEnd
+        );
+        
+        // Verificar se o slot indica uma missão existente
+        const isExistingMission = (
+          existingSlot.status === 'booked' || 
+          (existingSlot.status === 'blocked' && existingSlot.blockType === 'missao')
+        );
+        
+        if (slotInPeriod && isExistingMission) {
+
+        }
+        
+        return slotInPeriod && isExistingMission;
+      });
+      
+
+      
+      if (conflictingSlots.length > 0) {
+
+        toast.error("Missão no caminho! Já existe missão entre esse período de tempo.");
+
+        return; // BLOQUEAR seleção
+      } else {
+
       }
-      toast.error(message);
     }
+
+    // VALIDAÇÃO ESPECÍFICA PARA RETORNO - Verificar 3 horas ANTES do pré-voo
+    if (isReturnSelection && slot.status === 'available') {
+      
+      
+      // Encontrar o próximo pré-voo (slot bloqueado com blockType 'pre-voo')
+      const proximoPreVoo = timeSlots.find(existingSlot => {
+        return existingSlot.status === 'blocked' && 
+               existingSlot.blockType === 'pre-voo' && 
+               existingSlot.start > slot.start;
+      });
+      
+      
+      
+      if (proximoPreVoo) {
+        // Calcular se há 3 horas livres antes do pré-voo
+        const preVooInicio = proximoPreVoo.start;
+        const tresHorasAntes = new Date(preVooInicio.getTime() - (3 * 60 * 60 * 1000));
+        
+        
+        
+        // Verificar se o retorno selecionado está DENTRO do período de 3h antes do pré-voo (deve bloquear)
+        if (slot.start >= tresHorasAntes && slot.start < preVooInicio) {
+          
+          const mensagem = `⛔ TEMPO INSUFICIENTE! Precisa de 3 horas livres antes do pré-voo. Retorno deve ser após o período de preparação.`;
+          toast.error(mensagem);
+          
+          // Sugerir horário após o pré-voo
+          const proximoHorario = new Date(proximoPreVoo.end.getTime() + (3 * 60 * 60 * 1000));
+          const sugestao = proximoHorario.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+          setValidationMessage(`💡 Próximo horário disponível após o pré-voo`);
+          setSuggestedTimes([proximoHorario]);
+          
+          return; // BLOQUEAR seleção
+        }
+      }
+    }
+    
+    // VALIDAÇÃO DAS 3 HORAS ANTES - Verificar se há 3h livres antes do slot (para partida)
+    if (!isReturnSelection && slot.status === 'available') {
+      const preInicio = new Date(slot.start.getTime() - (3 * 60 * 60 * 1000)); // 3 horas antes
+      const preFim = slot.start;
+      
+      // Verificar se o período de 3h antes sobrepõe com algum slot bloqueado
+      const slotConflitante = timeSlots.find(existingSlot => {
+        if (existingSlot.status === 'blocked' || existingSlot.status === 'booked') {
+          // Verificar sobreposição entre o período de 3h antes e o slot bloqueado
+          const sobrepoe = preInicio < existingSlot.end && existingSlot.start < preFim;
+          return sobrepoe;
+        }
+        return false;
+      });
+      
+      if (slotConflitante) {
+        const mensagem = `⛔ Tempo de preparação insuficiente! Precisa de 3 horas livres antes do horário selecionado`;
+        toast.error(mensagem);
+        
+        // Sugerir próximo horário disponível (3 horas após o fim do conflito)
+        const proximoHorario = new Date(slotConflitante.end.getTime() + (3 * 60 * 60 * 1000));
+        const sugestao = proximoHorario.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        setValidationMessage(`💡 Próximo horário disponível`);
+        setSuggestedTimes([proximoHorario]);
+        
+        return; // BLOQUEAR seleção
+      }
+    }
+
+    // Se chegou até aqui, o slot é válido
+    
+    setSelectedSlot(slot);
+    setValidationMessage(null);
+    setSuggestedTimes([]);
+    
+    onTimeSelect(slot);
+    toast.success(`✅ Horário selecionado: ${format(slot.start, 'dd/MM/yyyy às HH:mm', { locale: ptBR })}`);
   };
 
   // Obter cor do slot baseado no status
   const getSlotColor = (slot: TimeSlot) => {
-    // Debug: log do slot sendo processado
-    const time = slot.start.toLocaleTimeString('pt-BR');
-    console.log(`🎨 Processando slot ${time}: status=${slot.status}, blockType=${slot.blockType}`);
-    
     // Verificar se o slot está selecionado
     if (selectedSlot && selectedSlot.start.getTime() === slot.start.getTime()) {
-      console.log(`   → Selecionado: azul`);
       return 'bg-blue-500 border-blue-600 text-white cursor-pointer ring-2 ring-blue-300';
     }
     
     // Verificar se o horário é anterior à partida
     if (departureDateTime && slot.start <= departureDateTime) {
-      console.log(`   → Anterior à partida: vermelho`);
       return 'bg-red-200 border-red-400 cursor-not-allowed';
     }
 
+    // NÃO BLOQUEAR VISUALMENTE - O pré-voo vai ocupar as 3h antes
+    // Apenas validar no clique se há 3h livres
+
     switch (slot.status) {
       case 'available':
-        console.log(`   → Disponível: verde`);
         return 'bg-green-100 border-green-300 hover:bg-green-200 cursor-pointer';
       case 'booked':
-        console.log(`   → Reservado: cinza`);
         return 'bg-gray-200 border-gray-400 cursor-not-allowed';
       case 'blocked':
         // Diferenciar entre tipos de bloqueio
         switch (slot.blockType) {
           case 'pre-voo':
-            console.log(`   → Pré-voo: amarelo`);
             return 'bg-yellow-100 border-yellow-300 cursor-not-allowed';
           case 'pos-voo':
-            console.log(`   → Pós-voo: laranja`);
             return 'bg-orange-100 border-orange-300 cursor-not-allowed';
           default:
-            console.log(`   → Bloqueado (outro): vermelho`);
             return 'bg-red-100 border-red-300 cursor-not-allowed';
         }
       case 'invalid':
-        console.log(`   → Inválido: vermelho`);
         return 'bg-red-200 border-red-400 cursor-not-allowed';
       case 'selected':
-        console.log(`   → Selecionado: azul`);
         return 'bg-blue-500 border-blue-600 text-white cursor-pointer';
       case 'conflict':
-        console.log(`   → Conflito: vermelho`);
         return 'bg-red-500 border-red-600 text-white cursor-not-allowed';
       default:
-        console.log(`   → Padrão: cinza`);
         return 'bg-gray-50 border-gray-200';
     }
   };
@@ -291,12 +448,16 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
     return selectedSlot && selectedSlot.start.getTime() === slot.start.getTime();
   };
 
+
+
   // Obter ícone do slot
   const getSlotIcon = (status: TimeSlot['status'], slot?: TimeSlot) => {
     // Verificar se o slot está selecionado
     if (slot && isSlotSelected(slot)) {
       return <CheckCircle className="h-4 w-4 text-white" />;
     }
+    
+
     
     switch (status) {
       case 'available':
@@ -336,6 +497,13 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
     return format(date, 'dd/MM', { locale: ptBR });
   };
 
+  // Limpar validação
+  const clearValidation = () => {
+    setSelectedSlot(null);
+    setValidationMessage(null);
+    setSuggestedTimes([]);
+  };
+
      if (loading || loadingSlots) {
      return (
        <div className="flex items-center justify-center py-6 md:py-8">
@@ -358,10 +526,22 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
                Data selecionada: {selectedDate}/{currentMonth.getFullYear()}
              </p>
            </div>
-           <Button variant="outline" size="sm" onClick={onBack} className="flex items-center space-x-1 md:space-x-2 ml-2 flex-shrink-0">
-             <ArrowLeft className="h-4 w-4" />
-             <span className="hidden sm:inline">Voltar</span>
-           </Button>
+           <div className="flex space-x-2">
+             {(selectedSlot || validationMessage) && (
+               <Button 
+                 variant="outline" 
+                 size="sm" 
+                 onClick={clearValidation}
+                 className="text-xs"
+               >
+                 Limpar
+               </Button>
+             )}
+             <Button variant="outline" size="sm" onClick={onBack} className="flex items-center space-x-1 md:space-x-2 flex-shrink-0">
+               <ArrowLeft className="h-4 w-4" />
+               <span className="hidden sm:inline">Voltar</span>
+             </Button>
+           </div>
          </div>
 
                  {/* Horário Selecionado */}
@@ -380,6 +560,8 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
                      </CardContent>
                    </Card>
                  )}
+
+
 
                  {/* Seletor de Aeronave */}
          {onAircraftSelect && (
@@ -426,25 +608,47 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
                          <CardContent className="p-3 md:p-6">
                              {/* Legenda */}
                              <div className="mb-4 p-3 bg-gray-50 rounded-lg">
-                               <h4 className="text-sm font-medium text-gray-700 mb-2">Legenda:</h4>
-                               <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
-                                 <div className="flex items-center space-x-2">
-                                   <div className="w-4 h-4 bg-green-100 border border-green-300 rounded"></div>
-                                   <span>Disponível</span>
+                               <h4 className="text-sm font-medium text-gray-700 mb-2">Legenda e Validação Inteligente:</h4>
+                               <div className="space-y-3">
+                                 <div className="grid grid-cols-2 md:grid-cols-4 gap-2 text-xs">
+                                   <div className="flex items-center space-x-2">
+                                     <div className="w-4 h-4 bg-green-100 border border-green-300 rounded"></div>
+                                     <span>Disponível</span>
+                                   </div>
+                                   <div className="flex items-center space-x-2">
+                                     <div className="w-4 h-4 bg-gray-200 border border-gray-400 rounded"></div>
+                                     <span>Missão em andamento</span>
+                                   </div>
+                                   <div className="flex items-center space-x-2">
+                                     <div className="w-4 h-4 bg-yellow-100 border border-yellow-300 rounded"></div>
+                                     <span>Pré-voo (-3h)</span>
+                                   </div>
+                                   <div className="flex items-center space-x-2">
+                                     <div className="w-4 h-4 bg-orange-100 border border-orange-300 rounded"></div>
+                                     <span>Pós-voo (+3h)</span>
+                                   </div>
                                  </div>
-                                 <div className="flex items-center space-x-2">
-                                   <div className="w-4 h-4 bg-gray-200 border border-gray-400 rounded"></div>
-                                   <span>Missão em andamento</span>
+                                 
+                                 <div className="border-t pt-2">
+                                   <div className="space-y-1 text-xs text-gray-600">
+                                     <div className="flex items-center space-x-1">
+                                       <CheckCircle className="h-3 w-3 text-green-600" />
+                                       <span><strong>✅ Disponível:</strong> Pode agendar (3h livres antes)</span>
+                                     </div>
+                                     <div className="flex items-center space-x-1">
+                                       <XCircle className="h-3 w-3 text-red-600" />
+                                       <span><strong>⛔ Indisponível:</strong> Não clicável (precisa de 3h)</span>
+                                     </div>
+                                     <div className="flex items-center space-x-1">
+                                       <Clock className="h-3 w-3 text-blue-600" />
+                                       <span><strong>💡 Sugestões:</strong> Sistema recomenda próximos horários</span>
+                                     </div>
+                                     <div className="flex items-center space-x-1">
+                                       <AlertTriangle className="h-3 w-3 text-orange-600" />
+                                       <span><strong>🚫 Missões no Caminho:</strong> Validação impede atropelamento</span>
+                                     </div>
+                                   </div>
                                  </div>
-                                 <div className="flex items-center space-x-2">
-                                   <div className="w-4 h-4 bg-yellow-100 border border-yellow-300 rounded"></div>
-                                   <span>Pré-voo (-3h)</span>
-                                 </div>
-                                 <div className="flex items-center space-x-2">
-                                   <div className="w-4 h-4 bg-orange-100 border border-orange-300 rounded"></div>
-                                   <span>Pós-voo (+3h)</span>
-                                 </div>
-
                                </div>
                              </div>
                              
@@ -484,6 +688,7 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
                </div>
 
                              {/* Grade de Horários */}
+
                <div className="overflow-x-auto">
                  {/* Desktop: Grade completa */}
                  <div className="hidden md:block min-w-[800px]">
@@ -501,14 +706,14 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
                      })}
                    </div>
 
-                   {/* Slots de tempo */}
+                                      {/* Slots de tempo */}
                    {Array.from({ length: 48 }, (_, slotIndex) => {
                      const hour = Math.floor(slotIndex / 2); // 00h às 23h
                      const minute = (slotIndex % 2) * 30; // 00 ou 30 minutos
                      const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
                      
                      return (
-                       <div key={slotIndex} className="grid grid-cols-8 gap-1 mb-1">
+                       <div key={slotIndex} className="grid grid-cols-8 gap-1 mb-2">
                          {/* Horário */}
                          <div className="text-right text-sm text-gray-600 p-2 pr-3 flex items-center justify-end">
                            {timeString}
@@ -526,29 +731,48 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
                              }
                              
                              // Verificar se é o mesmo dia, hora e minuto
-                             return s.start.getDate() === currentDay.getDate() &&
+                             const isSameSlot = s.start.getDate() === currentDay.getDate() &&
                                     s.start.getMonth() === currentDay.getMonth() &&
                                     s.start.getFullYear() === currentDay.getFullYear() &&
                                     s.start.getHours() === hour && 
                                     s.start.getMinutes() === minute;
+                            
+                             return isSameSlot;
                            });
 
                            if (!slot) return <div key={dayIndex} className="h-8"></div>;
 
-                           return (
-                             <Tooltip key={dayIndex}>
-                               <TooltipTrigger asChild>
-                                 <div
-                                   className={`h-8 border rounded cursor-pointer transition-colors ${getSlotColor(slot)}`}
-                                   onClick={() => handleSlotClick(slot)}
-                                 >
-                                   <div className="flex items-center justify-center h-full">
-                                     {getSlotIcon(slot.status, slot)}
+                                                                                     return (
+                               <Tooltip key={dayIndex}>
+                                 <TooltipTrigger asChild>
+                                                                      <div
+                                     className={`h-12 md:h-16 border rounded transition-colors ${getSlotColor(slot)} ${
+                                       slot.status === 'available' ? 'cursor-pointer' : 'cursor-not-allowed'
+                                     }`}
+                                     onClick={() => {
+                                       // SEMPRE chamar handleSlotClick - a validação será feita lá
+                                       handleSlotClick(slot);
+                                     }}
+                                   >
+                                     <div className="flex flex-col items-center justify-center h-full p-1">
+                                       {/* Intervalo de tempo */}
+                                       <div className="text-xs font-medium text-gray-700 mb-1">
+                                         {format(slot.start, 'HH:mm')} - {format(slot.end, 'HH:mm')}
+                                       </div>
+                                       {/* Ícone do status */}
+                                       <div className="flex-shrink-0">
+                                         {getSlotIcon(slot.status, slot)}
+                                       </div>
+                                     </div>
                                    </div>
-                                 </div>
                                </TooltipTrigger>
                                <TooltipContent side="top" className="max-w-xs">
                                  <div className="space-y-1">
+                                   {/* Intervalo de tempo - TESTE SIMPLES */}
+                                   <div className="text-xs text-gray-500 border-b pb-1 mb-1">
+                                     <strong>TESTE:</strong> {format(slot.start, 'HH:mm')} - {format(slot.end, 'HH:mm')}
+                                   </div>
+                                   
                                    <div className="text-sm">
                                      {departureDateTime && slot.start <= departureDateTime ? (
                                        <span className="text-red-600">❌ Antes da partida</span>
@@ -560,6 +784,9 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
                                        <span className="text-red-600">{slot.reason}</span>
                                      )}
                                    </div>
+                                   
+
+                                   
                                    {departureDateTime && slot.start <= departureDateTime && (
                                      <div className="text-xs text-blue-600">
                                        ⏰ Partida: {format(departureDateTime, 'dd/MM HH:mm', { locale: ptBR })}
@@ -581,6 +808,8 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
                                        ✅ Próxima disponibilidade: {format(slot.nextAvailable, 'dd/MM às HH:mm', { locale: ptBR })}
                                      </div>
                                    )}
+                                   
+
                                  </div>
                                </TooltipContent>
                              </Tooltip>
@@ -611,7 +840,7 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
                            </div>
                          </div>
                          
-                         <div className="grid grid-cols-6 gap-2">
+                         <div className="grid grid-cols-6 gap-3">
                            {Array.from({ length: 48 }, (_, slotIndex) => {
                              const hour = Math.floor(slotIndex / 2);
                              const minute = (slotIndex % 2) * 30;
@@ -625,16 +854,36 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
                                <Tooltip key={slotIndex}>
                                  <TooltipTrigger asChild>
                                    <div
-                                     className={`h-8 border rounded flex items-center justify-center transition-colors ${getSlotColor(slot)}`}
-                                     onClick={() => handleSlotClick(slot)}
+                                     className={`h-16 md:h-20 border rounded flex items-center justify-center transition-colors ${getSlotColor(slot)} ${
+                                       slot.status === 'available' ? 'cursor-pointer' : 'cursor-not-allowed'
+                                     }`}
+                                     onClick={() => {
+                               
+                                       // SEMPRE chamar handleSlotClick - a validação será feita lá
+                                       handleSlotClick(slot);
+                                     }}
                                    >
-                                     <div className="text-xs font-medium">
-                                       {formatTime(slot.start)}
+                                     <div className="flex flex-col items-center justify-center h-full p-1">
+                                       {/* Intervalo de tempo */}
+                                       <div className="text-xs font-medium text-gray-700 mb-1">
+                                         {format(slot.start, 'HH:mm')} - {format(slot.end, 'HH:mm')}
+                                       </div>
+                                       {/* Ícone do status */}
+                                       <div className="flex-shrink-0">
+                                         {React.cloneElement(getSlotIcon(slot.status, slot), {
+                                           className: 'h-3 w-3 md:h-4 md:w-4'
+                                         })}
+                                       </div>
                                      </div>
                                    </div>
                                  </TooltipTrigger>
                                  <TooltipContent side="top" className="max-w-xs">
                                    <div className="space-y-1">
+                                     {/* Intervalo de tempo - TESTE SIMPLES */}
+                                     <div className="text-xs text-gray-500 border-b pb-1 mb-1">
+                                       <strong>TESTE:</strong> {format(slot.start, 'HH:mm')} - {format(slot.end, 'HH:mm')}
+                                     </div>
+                                     
                                      <div className="text-sm">
                                        {departureDateTime && slot.start <= departureDateTime ? (
                                          <span className="text-red-600">❌ Antes da partida</span>
@@ -644,6 +893,9 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
                                          <span className="text-red-600">{slot.reason}</span>
                                        )}
                                      </div>
+                                     
+
+                                     
                                      {departureDateTime && slot.start <= departureDateTime && (
                                        <div className="text-xs text-blue-600">
                                          ⏰ Partida: {format(departureDateTime, 'dd/MM HH:mm', { locale: ptBR })}
@@ -654,6 +906,8 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
                                          ✅ Próxima: {format(slot.nextAvailable, 'dd/MM HH:mm', { locale: ptBR })}
                                        </div>
                                      )}
+                                     
+
                                    </div>
                                  </TooltipContent>
                                </Tooltip>

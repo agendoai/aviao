@@ -40,3 +40,4 @@ async function cleanCalendar() {
 
 // Executar o script
 cleanCalendar();
+

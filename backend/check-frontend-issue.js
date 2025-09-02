@@ -196,3 +196,4 @@ async function checkFrontendIssue() {
 }
 
 checkFrontendIssue().catch(console.error);
+

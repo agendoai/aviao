@@ -173,6 +173,28 @@ export async function createBooking(data) {
     },
     body: JSON.stringify(data)
   });
+  
+  if (!res.ok) {
+    const errorData = await res.json();
+    console.error('❌ Erro na criação da missão:', {
+      status: res.status,
+      statusText: res.statusText,
+      error: errorData
+    });
+    
+    if (res.status === 409) {
+      const conflictMessage = errorData.error || 'Existe uma missão conflitante no período selecionado';
+      const nextAvailable = errorData.nextAvailable ? `\n💡 Próximo horário disponível: ${new Date(errorData.nextAvailable).toLocaleString('pt-BR')}` : '';
+      const fullMessage = `⛔ CONFLITO DE HORÁRIO: ${conflictMessage}${nextAvailable}`;
+      console.log('🔍 Lançando erro 409:', fullMessage);
+      throw new Error(fullMessage);
+    } else {
+      const fullMessage = `Erro ${res.status}: ${errorData.error || 'Erro ao criar missão'}`;
+      console.log('🔍 Lançando erro genérico:', fullMessage);
+      throw new Error(fullMessage);
+    }
+  }
+  
   return res.json();
 }
 
@@ -184,6 +206,27 @@ export async function getSharedMissions() {
       'Authorization': `Bearer ${token}`,
       'Content-Type': 'application/json',
     }
+  });
+  return res.json();
+}
+
+// Validar missão compartilhada
+export async function validateSharedMission(data: {
+  aircraftId: number;
+  departure_date: string;
+  return_date: string;
+  flight_hours: number;
+  origin: string;
+  destination: string;
+}) {
+  const token = localStorage.getItem('token');
+  const res = await fetch(`${backendUrl}/shared-missions/validate`, {
+    method: 'POST',
+    headers: {
+      'Authorization': `Bearer ${token}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(data)
   });
   return res.json();
 }
@@ -202,6 +245,7 @@ export async function createSharedMission(data: {
   pricePerSeat: number;
   totalCost: number;
   overnightFee?: number;
+  flight_hours?: number;
 }) {
   const token = localStorage.getItem('token');
   const res = await fetch(`${backendUrl}/shared-missions`, {

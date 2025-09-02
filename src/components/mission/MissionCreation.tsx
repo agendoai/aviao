@@ -49,6 +49,7 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
   // Dados da missão
   const [origin, setOrigin] = useState('SBAU'); // Araçatuba como padrão
   const [destination, setDestination] = useState('');
+  const [secondaryDestination, setSecondaryDestination] = useState(''); // Destino secundário
   const [departureDate, setDepartureDate] = useState(format(initialTimeSlot.start, 'yyyy-MM-dd'));
   const [departureTime, setDepartureTime] = useState(format(initialTimeSlot.start, 'HH:mm'));
   const [returnDate, setReturnDate] = useState(format(initialTimeSlot.end, 'yyyy-MM-dd'));
@@ -70,7 +71,73 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
     };
   };
 
+  // Calcular horas de voo baseado na rota
+  const calculateFlightHours = () => {
+    if (!destination) return 2; // Valor padrão
+    
+    // Coordenadas dos aeroportos (mock - idealmente viria da API)
+    const airports = {
+      SBAU: { lat: -21.1411, lon: -50.4247 }, // Araçatuba
+      SBSP: { lat: -23.6273, lon: -46.6566 }, // São Paulo
+      SBGR: { lat: -23.4356, lon: -46.4731 }, // Guarulhos
+      SBSV: { lat: -12.9089, lon: -38.3225 }, // Salvador
+      SBRJ: { lat: -22.9104, lon: -43.1631 }, // Rio de Janeiro
+      SBKP: { lat: -23.0074, lon: -47.1345 }, // Campinas
+      SBCF: { lat: -19.6336, lon: -43.9686 }, // Belo Horizonte
+      SBFL: { lat: -27.6705, lon: -48.5477 }, // Florianópolis
+      SBBR: { lat: -15.8697, lon: -47.9208 }, // Brasília
+      SBPA: { lat: -29.9939, lon: -51.1714 }, // Porto Alegre
+    };
+
+    const origem = airports[origin] || airports['SBAU'];
+    const destino = airports[destination] || airports['SBSP'];
+    
+    // Calcular distância base (origem → destino)
+    const distanceBase = haversine(origem.lat, origem.lon, destino.lat, destino.lon);
+    
+    let totalDistance = distanceBase;
+    
+    // Se tem destino secundário, calcular rota completa
+    if (secondaryDestination && airports[secondaryDestination]) {
+      const destinoSecundario = airports[secondaryDestination];
+      
+      // Rota: Origem → Destino → Destino Secundário → Origem
+      const distanceToSecondary = haversine(destino.lat, destino.lon, destinoSecundario.lat, destinoSecundario.lon);
+      const distanceBackToOrigin = haversine(destinoSecundario.lat, destinoSecundario.lon, origem.lat, origem.lon);
+      
+      totalDistance = distanceBase + distanceToSecondary + distanceBackToOrigin;
+    } else {
+      // Rota simples: Origem → Destino → Origem (ida e volta)
+      totalDistance = distanceBase * 2;
+    }
+    
+    // Calcular tempo de voo: Distância (NM) / Velocidade (KT)
+    const aircraftSpeed = 108; // Velocidade média em nós (KT)
+    const flightTimeHours = totalDistance / aircraftSpeed;
+    
+    return Math.max(1, Math.ceil(flightTimeHours));
+  };
+
+  // Função para calcular distância usando fórmula de Haversine
+  const haversine = (lat1: number, lon1: number, lat2: number, lon2: number) => {
+    const R = 3440.065; // Raio da Terra em milhas náuticas
+    const dLat = (lat2 - lat1) * Math.PI / 180;
+    const dLon = (lon2 - lon1) * Math.PI / 180;
+    const a = 
+      Math.sin(dLat/2) * Math.sin(dLat/2) +
+      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) * 
+      Math.sin(dLon/2) * Math.sin(dLon/2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+    return R * c;
+  };
+
   const costs = calculateCosts();
+
+  // Atualizar horas de voo quando destinos mudarem
+  React.useEffect(() => {
+    const newFlightHours = calculateFlightHours();
+    setFlightHours(newFlightHours);
+  }, [destination, secondaryDestination]);
 
   const handleCreateMission = async () => {
     if (!destination) {
@@ -119,6 +186,7 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
         aircraftId: aircraft.id,
         origin,
         destination,
+        secondaryDestination: secondaryDestination || null,
         departure_date: convertBrazilianDateToUTCString(departureDateTime),
         return_date: convertBrazilianDateToUTCString(returnDateTime),
         passengers,
@@ -137,7 +205,9 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
         aircraft: aircraft,
         start: initialTimeSlot.start,
         end: initialTimeSlot.end,
-        destinations: [{ origin, destination }],
+        destinations: secondaryDestination 
+          ? [{ origin, destination }, { origin: destination, destination: secondaryDestination }, { origin: secondaryDestination, destination: origin }]
+          : [{ origin, destination }],
         totalCost: costs.totalCost,
         bookingId: result.id
       };
@@ -148,7 +218,17 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
       
     } catch (error) {
       console.error('❌ Erro ao criar missão:', error);
-      toast.error('Erro ao criar missão');
+      console.error('❌ Tipo do erro:', typeof error);
+      console.error('❌ Erro completo:', error);
+      
+      // Mostrar mensagem de erro específica
+      if (error instanceof Error) {
+        console.log('🔍 Exibindo mensagem de erro:', error.message);
+        toast.error(error.message);
+      } else {
+        console.log('🔍 Erro não é instância de Error, exibindo mensagem genérica');
+        toast.error('Erro ao criar missão');
+      }
     } finally {
       setCreating(false);
     }
@@ -233,6 +313,27 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
                 />
               </div>
             </div>
+            
+            <div>
+              <Label htmlFor="secondaryDestination">
+                Destino Secundário (Opcional)
+                <span className="text-sm text-gray-500 ml-2">
+                  {secondaryDestination ? '✓ Adicionado' : 'Não definido'}
+                </span>
+              </Label>
+              <Input
+                id="secondaryDestination"
+                value={secondaryDestination}
+                onChange={(e) => setSecondaryDestination(e.target.value)}
+                placeholder="Deixe em branco para voo direto ida/volta"
+                className={secondaryDestination ? 'border-green-500' : ''}
+              />
+              {secondaryDestination && (
+                <p className="text-xs text-green-600 mt-1">
+                  Rota: {origin} → {destination} → {secondaryDestination} → {origin}
+                </p>
+              )}
+            </div>
 
             <div className="grid grid-cols-2 gap-4">
               <DateTimePicker
@@ -270,14 +371,24 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
                 />
               </div>
               <div>
-                <Label htmlFor="flightHours">Horas de Voo</Label>
+                <Label htmlFor="flightHours">
+                  Horas de Voo
+                  <span className="text-sm text-gray-500 ml-2">(Calculado automaticamente)</span>
+                </Label>
                 <Input
                   id="flightHours"
                   type="number"
                   min="1"
                   value={flightHours}
                   onChange={(e) => setFlightHours(parseInt(e.target.value))}
+                  className="bg-gray-50"
+                  readOnly
                 />
+                {secondaryDestination && (
+                  <p className="text-xs text-blue-600 mt-1">
+                    Inclui voo secundário: {destination} → {secondaryDestination}
+                  </p>
+                )}
               </div>
             </div>
 
@@ -313,6 +424,17 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
               <span className="text-gray-600">Pernoites ({overnightStays}x):</span>
               <span className="font-medium">R$ {costs.overnightCost.toLocaleString('pt-BR')}</span>
             </div>
+            
+            {/* Informações da rota */}
+            {secondaryDestination && (
+              <div className="bg-blue-50 p-2 rounded-lg">
+                <div className="text-xs text-blue-800 font-medium mb-1">Rota com Voo Secundário:</div>
+                <div className="text-xs text-blue-700">
+                  {origin} → {destination} → {secondaryDestination} → {origin}
+                </div>
+              </div>
+            )}
+            
             <div className="border-t pt-3">
               <div className="flex justify-between">
                 <span className="text-lg font-semibold">Total:</span>

@@ -29,9 +29,9 @@ export const convertBrazilianDateToUTCString = (brazilianDate: Date): string => 
 export const convertUTCToBrazilianTime = (utcDate: string | Date): Date => {
   const date = typeof utcDate === 'string' ? new Date(utcDate) : utcDate;
   
-  // A data já está no horário brasileiro (não converter)
-  // O backend salva as datas no horário local
-  const brazilianTime = new Date(date.getTime());
+  // Converter UTC para horário brasileiro (UTC-3)
+  // Adicionar 3 horas para converter de UTC para horário brasileiro
+  const brazilianTime = new Date(date.getTime() + (3 * 60 * 60 * 1000));
   
   return brazilianTime;
 };

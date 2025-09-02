@@ -50,6 +50,7 @@ model Booking {
   aircraftId     Int
   origin         String
   destination    String
+  secondaryDestination String? // Destino secundário (opcional)
   departure_date DateTime
   return_date    DateTime
   actual_departure_date DateTime? // Data real de ida (para exibição)
@@ -77,6 +78,8 @@ model SharedMission {
   destination     String
   departure_date  DateTime
   return_date     DateTime
+  actual_departure_date DateTime? // Data real de ida (para exibição)
+  actual_return_date DateTime? // Data real de volta (para exibição)
   aircraftId      Int
   totalSeats      Int
   availableSeats  Int
@@ -84,6 +87,10 @@ model SharedMission {
   totalCost       Float    @default(0) // Custo total da missão
   overnightFee    Float    @default(0) // Taxa de pernoite por pessoa
   overnightStays  Int      @default(0) // Número de pernoites
+  flight_hours    Float    @default(2.0) // Tempo total de voo
+  paymentId       String? // ID do pagamento
+  blocked_until   DateTime? // Horário até quando a aeronave fica bloqueada
+  maintenance_buffer_hours Int @default(3) // Horas de manutenção após o voo
   status          String   @default("active") // active, completed, cancelled
   createdBy       Int
   createdAt       DateTime @default(now())

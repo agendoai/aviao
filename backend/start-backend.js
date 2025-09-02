@@ -11,3 +11,4 @@ exec('npm run dev', { cwd: './backend' }, (error, stdout, stderr) => {
     console.log(stdout);
   }
 });
+

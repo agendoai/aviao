@@ -34,6 +34,20 @@ const POS_VOO_HORAS = 3;
 const PROXIMA_MISSAO_HORAS = 3;
 
 /**
+ * Converte uma data para o início do dia (00:00:00)
+ */
+function inicioDoDia(data: Date): Date {
+  return new Date(data.getFullYear(), data.getMonth(), data.getDate());
+}
+
+/**
+ * Converte uma data para o fim do dia (23:59:59)
+ */
+function fimDoDia(data: Date): Date {
+  return new Date(data.getFullYear(), data.getMonth(), data.getDate(), 23, 59, 59, 999);
+}
+
+/**
  * Calcula o tempo de voo de volta baseado no tempo total
  */
 export function calcularTempoVolta(flightHoursTotal: number): number {
@@ -74,14 +88,12 @@ export function janelaBloqueada(m: Missao): JanelaBloqueada[] {
 
 /**
  * Menor início possível DEPOIS de uma missão (para sugerir no UI)
- * E = retorno + tVolta + 3h (fim lógico da missão)
- * Smin = E (próxima decolagem possível - já inclui 3h livres antes)
+ * CORRIGIDA: m.retorno já é o fim do pós-voo, então a próxima decolagem é retorno + 3h
  */
 export function proximaDecolagemPossivel(m: Missao): Date {
-  const tVoltaMs = calcularTempoVolta(m.flightHoursTotal) * H(1);
-  const pousoVolta = new Date(m.retorno.getTime() + tVoltaMs);
-  const fimLogico = new Date(pousoVolta.getTime() + H(POS_VOO_HORAS)); // E = pouso volta + 3h
-  return fimLogico; // Smin = E (já inclui 3h livres antes)
+  // m.retorno já é o fim do pós-voo (21:00), então a próxima decolagem possível é 3h depois
+  const proximaDecolagem = new Date(m.retorno.getTime() + H(PROXIMA_MISSAO_HORAS));
+  return proximaDecolagem;
 }
 
 /**
@@ -154,6 +166,12 @@ export function validarMissaoCompleta(
     };
   }
   
+  // VALIDAÇÃO PRIORITÁRIA: Verificar se há missões no caminho entre partida e retorno
+  const validacaoMissaoNoCaminho = validarMissaoNoCaminho(missaoProposta, missoesExistentes);
+  if (!validacaoMissaoNoCaminho.valido) {
+    return validacaoMissaoNoCaminho;
+  }
+  
   // Validar início da missão
   const validacaoInicio = inicioValido(missaoProposta.partida, missoesExistentes);
   if (!validacaoInicio.valido) {
@@ -196,7 +214,8 @@ export function validarMissaoCompleta(
   return { 
     valido: true, 
     mensagem: "✅ Missão válida", 
-    sugerido: missaoProposta.partida 
+    sugerido: missaoProposta.partida,
+    proximaDisponibilidade: new Date(missaoProposta.retorno.getTime() + (3 * 60 * 60 * 1000)) // 3h após o retorno
   };
 }
 
@@ -254,4 +273,190 @@ export function sugerirHorarios(
   }
   
   return sugestoes;
+}
+
+/**
+ * Verifica se há missões no caminho entre partida e retorno de uma missão proposta
+ * Esta validação é específica para verificar se existem missões que impedem a criação de uma missão
+ * CORRIGIDA: Agora só considera conflito quando há sobreposição real de horários
+ */
+export function validarMissaoNoCaminho(
+  missaoProposta: Missao,
+  missoesExistentes: Missao[]
+): ValidationResult {
+  // Se não há missões existentes, não há conflito
+  if (missoesExistentes.length === 0) {
+    return { valido: true, mensagem: "✅ Nenhuma missão existente no caminho" };
+  }
+
+  // Encontrar missões que realmente sobrepõem com a missão proposta
+  const missoesConflitantes = missoesExistentes.filter(missao => {
+    // Verificar sobreposição real usando as janelas bloqueadas
+    const janelasProposta = janelaBloqueada(missaoProposta);
+    const janelasExistente = janelaBloqueada(missao);
+    
+    // Verificar se há sobreposição entre as janelas
+    for (const janelaProposta of janelasProposta) {
+      for (const janelaExistente of janelasExistente) {
+        if (temInterseção(
+          janelaProposta.inicio, 
+          janelaProposta.fim, 
+          janelaExistente.inicio, 
+          janelaExistente.fim
+        )) {
+          return true; // Há sobreposição real
+        }
+      }
+    }
+    
+    return false; // Não há sobreposição
+  });
+
+  if (missoesConflitantes.length === 0) {
+    return { valido: true, mensagem: "✅ Nenhuma missão conflitante no caminho" };
+  }
+
+  // Ordenar missões por data de partida para melhor apresentação
+  const missoesOrdenadas = [...missoesConflitantes].sort((a, b) => 
+    a.partida.getTime() - b.partida.getTime()
+  );
+
+  // Retornar a primeira missão que está em conflito
+  const primeiraMissaoConflitante = missoesOrdenadas[0];
+  
+  return {
+    valido: false,
+    mensagem: `⛔ CONFLITO DE HORÁRIOS! Existe uma missão conflitante: ${primeiraMissaoConflitante.origin || 'N/A'} → ${primeiraMissaoConflitante.destination || 'N/A'} (${primeiraMissaoConflitante.partida.toLocaleDateString('pt-BR')} - ${primeiraMissaoConflitante.retorno.toLocaleDateString('pt-BR')})`,
+    conflitoCom: primeiraMissaoConflitante
+  };
+}
+
+/**
+ * Verifica se uma missão proposta "atropela" outras missões existentes
+ * Uma missão atropela quando cria gaps que impedem outras missões
+ * Exemplo: missão dia 25, proposta dia 23-27 (atropela a missão do dia 25)
+ */
+export function validarAtropelamentoMissao(
+  missaoProposta: Missao,
+  missoesExistentes: Missao[]
+): ValidationResult {
+  // Primeiro, verificar se há missões no caminho
+  const validacaoCaminho = validarMissaoNoCaminho(missaoProposta, missoesExistentes);
+  if (!validacaoCaminho.valido) {
+    return validacaoCaminho;
+  }
+
+  // Se não há missões existentes, não há atropelamento
+  if (missoesExistentes.length === 0) {
+    return { valido: true, mensagem: "✅ Nenhuma missão existente para atropelar" };
+  }
+
+  // Encontrar missões que estão dentro do período da missão proposta
+  const missoesDentroDoPeriodo = missoesExistentes.filter(missao => {
+    // Verificar se a missão existente está dentro do período da missão proposta
+    const missaoInicio = inicioDoDia(missao.partida);
+    const missaoFim = fimDoDia(missao.retorno);
+    const propostaInicio = inicioDoDia(missaoProposta.partida);
+    const propostaFim = fimDoDia(missaoProposta.retorno);
+
+    // A missão está dentro se:
+    // 1. O início da missão existente está dentro do período da proposta, OU
+    // 2. O fim da missão existente está dentro do período da proposta, OU
+    // 3. A missão existente contém completamente o período da proposta
+    return (missaoInicio >= propostaInicio && missaoInicio <= propostaFim) ||
+           (missaoFim >= propostaInicio && missaoFim <= propostaFim) ||
+           (missaoInicio <= propostaInicio && missaoFim >= propostaFim);
+  });
+
+  if (missoesDentroDoPeriodo.length === 0) {
+    return { valido: true, mensagem: "✅ Nenhuma missão no período para atropelar" };
+  }
+
+  // Verificar se há missões que serão "atropeladas"
+  // Uma missão é atropelada se:
+  // 1. Está dentro do período da missão proposta
+  // 2. A missão proposta não é contínua (tem gaps)
+  // 3. A missão proposta impede outras missões de serem criadas
+
+  // Ordenar missões por data de partida
+  const missoesOrdenadas = [...missoesDentroDoPeriodo].sort((a, b) => 
+    a.partida.getTime() - b.partida.getTime()
+  );
+
+  // Verificar se a missão proposta cria gaps problemáticos
+  for (let i = 0; i < missoesOrdenadas.length; i++) {
+    const missaoAtual = missoesOrdenadas[i];
+    const missaoAnterior = i > 0 ? missoesOrdenadas[i - 1] : null;
+    const missaoPosterior = i < missoesOrdenadas.length - 1 ? missoesOrdenadas[i + 1] : null;
+
+    // Verificar se a missão proposta impede a missão atual
+    const propostaInicio = missaoProposta.partida;
+    const propostaFim = missaoProposta.retorno;
+    const missaoAtualInicio = missaoAtual.partida;
+    const missaoAtualFim = missaoAtual.retorno;
+
+    // Se a missão proposta sobrepõe com a missão atual, é um atropelamento
+    if (temInterseção(propostaInicio, propostaFim, missaoAtualInicio, missaoAtualFim)) {
+      return {
+        valido: false,
+        mensagem: `⛔ ATROPELAMENTO DETECTADO! A missão proposta (${propostaInicio.toLocaleDateString('pt-BR')} - ${propostaFim.toLocaleDateString('pt-BR')}) atropela a missão existente de ${missaoAtual.origin || 'N/A'} → ${missaoAtual.destination || 'N/A'} (${missaoAtualInicio.toLocaleDateString('pt-BR')} - ${missaoAtualFim.toLocaleDateString('pt-BR')})`,
+        conflitoCom: missaoAtual
+      };
+    }
+
+    // Verificar se a missão proposta cria um gap que impede outras missões
+    // Se há uma missão anterior e posterior, e a proposta está entre elas
+    if (missaoAnterior && missaoPosterior) {
+      const anteriorFim = missaoAnterior.retorno;
+      const posteriorInicio = missaoPosterior.partida;
+      
+      // Se a missão proposta está entre duas missões existentes
+      if (propostaInicio > anteriorFim && propostaFim < posteriorInicio) {
+        // Verificar se o gap criado é muito pequeno para outras missões
+        const gapAntes = propostaInicio.getTime() - anteriorFim.getTime();
+        const gapDepois = posteriorInicio.getTime() - propostaFim.getTime();
+        
+        // Se algum gap é menor que 24 horas, pode ser problemático
+        const umDia = 24 * 60 * 60 * 1000;
+        if (gapAntes < umDia || gapDepois < umDia) {
+          return {
+            valido: false,
+            mensagem: `⛔ GAP PROBLEMÁTICO! A missão proposta cria gaps muito pequenos que impedem outras missões. Gap anterior: ${Math.round(gapAntes / (60 * 60 * 1000))}h, Gap posterior: ${Math.round(gapDepois / (60 * 60 * 1000))}h`,
+            conflitoCom: missaoAtual
+          };
+        }
+      }
+    }
+  }
+
+  // Verificar se a missão proposta está isolada (não contínua com outras missões)
+  const propostaInicio = missaoProposta.partida;
+  const propostaFim = missaoProposta.retorno;
+  
+  // Encontrar missões que são adjacentes (antes e depois)
+  const missaoAnterior = missoesOrdenadas
+    .filter(m => m.retorno <= propostaInicio)
+    .sort((a, b) => b.retorno.getTime() - a.retorno.getTime())[0];
+    
+  const missaoPosterior = missoesOrdenadas
+    .filter(m => m.partida >= propostaFim)
+    .sort((a, b) => a.partida.getTime() - b.partida.getTime())[0];
+
+  // Se há missões adjacentes, verificar se a proposta não quebra a continuidade
+  if (missaoAnterior && missaoPosterior) {
+    const gapAnterior = propostaInicio.getTime() - missaoAnterior.retorno.getTime();
+    const gapPosterior = missaoPosterior.partida.getTime() - propostaFim.getTime();
+    
+    // Se os gaps são muito grandes, pode indicar que a proposta está isolada
+    const tresDias = 3 * 24 * 60 * 60 * 1000;
+    if (gapAnterior > tresDias && gapPosterior > tresDias) {
+      return {
+        valido: false,
+        mensagem: `⛔ MISSÃO ISOLADA! A missão proposta está muito isolada das missões existentes, criando gaps de ${Math.round(gapAnterior / (24 * 60 * 60 * 1000))} dias antes e ${Math.round(gapPosterior / (24 * 60 * 60 * 1000))} dias depois`,
+        conflitoCom: missaoAnterior
+      };
+    }
+  }
+
+  return { valido: true, mensagem: "✅ Nenhum atropelamento detectado" };
 }

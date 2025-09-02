@@ -84,3 +84,4 @@ async function checkCurrentWeek() {
 }
 
 checkCurrentWeek().catch(console.error);
+

@@ -71,6 +71,11 @@ const ConversationalBookingFlow: React.FC = () => {
   const [selectedPaymentMethod, setSelectedPaymentMethod] = useState<'balance' | 'card'>('balance');
   const [isProcessing, setIsProcessing] = useState(false);
 
+  // Criar departureDateTime para validação de retorno
+  const departureDateTime = departureDate && departureTime 
+    ? new Date(`${departureDate.split('/').reverse().join('-')}T${departureTime}`)
+    : undefined;
+
   const steps: BookingStep[] = [
     { step: 1, title: 'Aeronave', completed: selectedAircraft !== null },
     { step: 2, title: 'Destino', completed: destination !== '' },
@@ -425,6 +430,8 @@ const ConversationalBookingFlow: React.FC = () => {
               selectedDate={returnDate}
               currentMonth={currentMonth}
               selectedAircraft={selectedAircraft}
+              isReturnSelection={true}
+              departureDateTime={departureDateTime}
               onTimeSelect={(timeSlot) => {
                 if (typeof timeSlot === 'object' && timeSlot.start) {
                   const timeString = timeSlot.start.toLocaleTimeString('pt-BR', {

@@ -78,3 +78,4 @@ async function cleanAllData() {
 
 // Executar o script
 cleanAllData();
+
