@@ -69,10 +69,10 @@ router.get('/time-slots/:aircraftId', authMiddleware, async (req, res) => {
     // console.log(`📊 Slots enviados: ${slots.length}, Bloqueados: ${blockedSlots.length}`);
     if (blockedSlots.length > 0) {
       // console.log(`🚫 Slots bloqueados:`, blockedSlots.slice(0, 3).map(s => ({
-        time: s.start.toLocaleTimeString('pt-BR'),
-        reason: s.reason,
-        blockType: s.blockType
-      })));
+      //   time: s.start.toLocaleTimeString('pt-BR'),
+      //   reason: s.reason,
+      //   blockType: s.blockType
+      // })));
     }
 
     res.json(slots);

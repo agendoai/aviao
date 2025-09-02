@@ -47,7 +47,6 @@ import { Scheduler } from './services/scheduler';
 app.listen(PORT, () => {
   // console.log(`🚀 Servidor rodando na porta ${PORT}`);
   // console.log(`📡 Webhook Asaas: /api/webhooks/asaas`);
-  
   // Iniciar scheduler de agenda
   Scheduler.start();
 }); 
