@@ -978,16 +978,35 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
 
   // Função para adicionar destinos
   const handleAddDestination = (airport: Airport, type: 'main' | 'secondary') => {
-    console.log('🎯 Adicionando destino:', airport.icao, 'como', type);
-    setSelectedAirports(prev => ({
-      ...prev,
-      [airport.icao]: type
-    }));
+    const currentType = selectedAirports[airport.icao];
+    
+    // Se já está selecionado como o mesmo tipo, desselecionar
+    if (currentType === type) {
+      console.log('🎯 Desselecionando destino:', airport.icao);
+      setSelectedAirports(prev => {
+        const newSelected = { ...prev };
+        delete newSelected[airport.icao];
+        return newSelected;
+      });
 
-    if (type === 'main') {
-      setSelectedDestination(airport);
+      if (type === 'main') {
+        setSelectedDestination(null);
+      } else {
+        setSelectedSecondaryDestination(null);
+      }
     } else {
-      setSelectedSecondaryDestination(airport);
+      // Selecionar novo destino
+      console.log('🎯 Selecionando destino:', airport.icao, 'como', type);
+      setSelectedAirports(prev => ({
+        ...prev,
+        [airport.icao]: type
+      }));
+
+      if (type === 'main') {
+        setSelectedDestination(airport);
+      } else {
+        setSelectedSecondaryDestination(airport);
+      }
     }
   };
 
@@ -1983,18 +2002,18 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
                           <Button
                             size="sm"
                             variant={selectedAirports[airport.icao] === 'main' ? 'default' : 'outline'}
-                            className={selectedAirports[airport.icao] === 'main' ? 'bg-blue-500 hover:bg-blue-600 text-white' : ''}
+                            className={selectedAirports[airport.icao] === 'main' ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'hover:bg-blue-50'}
                             onClick={() => handleAddDestination(airport, 'main')}
                           >
-                            Destino Principal
+                            {selectedAirports[airport.icao] === 'main' ? '✓ Principal' : 'Destino Principal'}
                           </Button>
                           <Button
                             size="sm"
                             variant={selectedAirports[airport.icao] === 'secondary' ? 'default' : 'outline'}
-                            className={selectedAirports[airport.icao] === 'secondary' ? 'bg-gray-500 hover:bg-gray-600 text-white' : ''}
+                            className={selectedAirports[airport.icao] === 'secondary' ? 'bg-gray-500 hover:bg-gray-600 text-white' : 'hover:bg-gray-50'}
                             onClick={() => handleAddDestination(airport, 'secondary')}
                           >
-                            Secundário
+                            {selectedAirports[airport.icao] === 'secondary' ? '✓ Secundário' : 'Secundário'}
                           </Button>
                         </div>
                       </div>

@@ -861,27 +861,81 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
                      <span>R$ {missionCalculation.overnightCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                    </div>
                  )}
-                                   {missionCalculation.airportFees > 0 && (
-                    <div className="flex justify-between text-blue-600">
-                      <span>Taxas aeroportuárias (destinos):</span>
-                      <span>R$ {missionCalculation.airportFees.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
-                    </div>
-                  )}
+                                   {/* Separar taxas de navegação e aeroporto */}
+                 {Object.keys(missionCalculation.feeBreakdown).length > 0 && (
+                   <>
+                     {/* Taxas de Navegação */}
+                     {Object.entries(missionCalculation.feeBreakdown).some(([_, fees]) => fees.navigation_fee > 0) && (
+                       <div className="flex justify-between text-green-600">
+                         <span>Tarifas de navegação:</span>
+                         <span>R$ {Object.entries(missionCalculation.feeBreakdown)
+                           .reduce((total, [_, fees]) => total + (fees.navigation_fee || 0), 0)
+                           .toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                       </div>
+                     )}
+                     
+                     {/* Taxas de Aeroporto (pouso + decolagem + estacionamento + terminal) */}
+                     {Object.entries(missionCalculation.feeBreakdown).some(([_, fees]) => (fees.landing_fee || 0) + (fees.takeoff_fee || 0) + (fees.parking_fee || 0) + (fees.terminal_fee || 0) > 0) && (
+                       <div className="flex justify-between text-blue-600">
+                         <span>Taxas de aeroportos:</span>
+                         <span>R$ {Object.entries(missionCalculation.feeBreakdown)
+                           .reduce((total, [_, fees]) => total + (fees.landing_fee || 0) + (fees.takeoff_fee || 0) + (fees.parking_fee || 0) + (fees.terminal_fee || 0), 0)
+                           .toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                       </div>
+                     )}
+                   </>
+                 )}
                  <div className="border-t pt-2 flex justify-between font-bold">
                    <span>Total:</span>
                    <span>R$ {missionCalculation.totalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                  </div>
                </div>
                
-                               {/* Detalhamento das taxas aeroportuárias */}
+                               {/* Detalhamento das taxas por aeroporto */}
                 {Object.keys(missionCalculation.feeBreakdown).length > 0 && (
                   <div className="mt-4 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-                    <h5 className="font-medium text-blue-800 mb-2">Taxas Aeroportuárias dos Destinos:</h5>
-                    <div className="space-y-1 text-sm">
+                    <h5 className="font-medium text-blue-800 mb-2">Detalhamento por Aeroporto:</h5>
+                    <div className="space-y-2 text-sm">
                       {Object.entries(missionCalculation.feeBreakdown).map(([icao, fees]) => (
-                        <div key={icao} className="flex justify-between text-blue-700">
-                          <span>{icao} (destino):</span>
-                          <span>R$ {fees.total_fee.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        <div key={icao} className="border border-blue-200 rounded p-2 bg-white">
+                          <div className="font-medium text-blue-800 mb-1">{icao} (destino):</div>
+                          <div className="space-y-1">
+                            {fees.navigation_fee > 0 && (
+                              <div className="flex justify-between text-green-700">
+                                <span>Tarifa de navegação:</span>
+                                <span>R$ {fees.navigation_fee.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                              </div>
+                            )}
+                            {/* Detalhamento individual das taxas de aeroporto */}
+                            {fees.landing_fee > 0 && (
+                              <div className="flex justify-between text-blue-700">
+                                <span>• Taxa de pouso:</span>
+                                <span>R$ {fees.landing_fee.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                              </div>
+                            )}
+                            {fees.takeoff_fee > 0 && (
+                              <div className="flex justify-between text-blue-700">
+                                <span>• Taxa de decolagem:</span>
+                                <span>R$ {fees.takeoff_fee.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                              </div>
+                            )}
+                            {fees.parking_fee > 0 && (
+                              <div className="flex justify-between text-blue-700">
+                                <span>• Taxa de estacionamento:</span>
+                                <span>R$ {fees.parking_fee.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                              </div>
+                            )}
+                            {fees.terminal_fee > 0 && (
+                              <div className="flex justify-between text-blue-700">
+                                <span>• Taxa de terminal:</span>
+                                <span>R$ {fees.terminal_fee.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                              </div>
+                            )}
+                            <div className="border-t pt-1 flex justify-between font-medium text-blue-800">
+                              <span>Subtotal:</span>
+                              <span>R$ {fees.total_fee.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
+                          </div>
                         </div>
                       ))}
                     </div>

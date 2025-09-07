@@ -138,7 +138,17 @@ export default function IntelligentSharedMissionCalendar({
     if (slot.available) {
       onTimeSlotSelect(slot);
     } else {
-      toast.error('Horário indisponível', {
+      // Buscar próximos horários disponíveis
+      const slotsDisponiveis = timeSlots.filter(s => s.available);
+      const proximosHorarios = slotsDisponiveis.slice(0, 3).map(s => s.start);
+      
+      let message = '⛔ Horário indisponível!';
+      if (proximosHorarios.length > 0) {
+        const sugestoes = proximosHorarios.map(h => h.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })).join(', ');
+        message += ` 💡 Sugestões: ${sugestoes}`;
+      }
+      
+      toast.error(message, {
         description: 'Este horário está ocupado por outra missão'
       });
     }

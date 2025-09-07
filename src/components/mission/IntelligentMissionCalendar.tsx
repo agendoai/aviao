@@ -146,10 +146,16 @@ const IntelligentMissionCalendar: React.FC<IntelligentMissionCalendarProps> = ({
       setSelectedSlot(slot);
       onTimeSlotSelect(slot.start, slot.end);
     } else {
-      // Mostrar mensagem de erro
-      let message = 'Horário indisponível';
-      if (slot.nextAvailable) {
-        message += `. Próxima disponibilidade: ${format(slot.nextAvailable, 'dd/MM às HH:mm', { locale: ptBR })}`;
+      // Buscar próximos horários disponíveis
+      const slotsDisponiveis = timeSlots.filter(s => s.status === 'available');
+      const proximosHorarios = slotsDisponiveis.slice(0, 3).map(s => s.start);
+      
+      let message = '⛔ Horário indisponível!';
+      if (proximosHorarios.length > 0) {
+        const sugestoes = proximosHorarios.map(h => format(h, 'HH:mm', { locale: ptBR })).join(', ');
+        message += ` 💡 Sugestões: ${sugestoes}`;
+      } else if (slot.nextAvailable) {
+        message += ` 💡 Próxima disponibilidade: ${format(slot.nextAvailable, 'dd/MM às HH:mm', { locale: ptBR })}`;
       }
       toast.error(message);
     }

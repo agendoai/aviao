@@ -68,8 +68,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
   const [currentWeek, setCurrentWeek] = useState(() => {
     // Usar currentMonth se fornecido, senão usar data atual
     const initialDate = currentMonth || new Date();
-    console.log('📅 Data inicial:', initialDate.toLocaleDateString('pt-BR'));
-    console.log('📅 currentMonth fornecido:', currentMonth?.toLocaleDateString('pt-BR'));
     
     return initialDate;
   });
@@ -85,7 +83,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
   // Atualizar currentWeek quando currentMonth mudar
   useEffect(() => {
     if (currentMonth) {
-      console.log('📅 currentMonth mudou para:', currentMonth.toLocaleDateString('pt-BR'));
       setCurrentWeek(currentMonth);
     }
   }, [currentMonth]);
@@ -188,7 +185,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
       // Verificar se já buscamos para esta semana
       const weekKey = currentWeek.toDateString();
       if (lastFetchedWeek.current === weekKey) {
-        console.log('📅 Já buscamos slots para esta semana, pulando...');
         return;
       }
 
@@ -198,9 +194,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
         const dayStart = new Date(currentWeek);
         dayStart.setHours(0, 0, 0, 0); // Início do dia atual
         
-        console.log('📅 Dia atual sendo usado:', currentWeek.toLocaleDateString('pt-BR'));
-        console.log('📅 Dia sendo enviado para API:', dayStart.toISOString());
-        console.log('📅 Data atual:', new Date().toISOString());
         
         // Estimar duração da missão (padrão 2 horas se não especificado)
         const estimatedMissionDuration = 2; // horas
@@ -214,11 +207,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
           true // singleDay = true para mostrar apenas o dia atual
         );
         
-        console.log('📅 Slots recebidos do backend:', slots.length);
-        if (slots.length > 0) {
-          console.log('📅 Primeiro slot:', slots[0]);
-          console.log('📅 Último slot:', slots[slots.length - 1]);
-        }
         
 
         
@@ -291,8 +279,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
     // Se for muito cedo (antes das 6h), ir para 6h
     const targetSlotIndex = currentHour < 6 ? 12 : currentSlotIndex;
     
-    console.log('🎯 Hora atual:', currentHour + ':' + currentMinute);
-    console.log('🎯 Slot calculado:', targetSlotIndex);
     
     // Tentar encontrar o slot exato primeiro
     let slotElement = document.querySelector(`[data-slot-index="${targetSlotIndex}"]`);
@@ -302,7 +288,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
         behavior: 'smooth', 
         block: 'center' 
       });
-      console.log('✅ Rolou para o slot exato:', targetSlotIndex);
       return;
     }
     
@@ -317,7 +302,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
             behavior: 'smooth', 
             block: 'center' 
           });
-          console.log('✅ Rolou para slot anterior:', prevSlot);
           return;
         }
       }
@@ -331,13 +315,11 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
             behavior: 'smooth', 
             block: 'center' 
           });
-          console.log('✅ Rolou para slot posterior:', nextSlot);
           return;
         }
       }
     }
     
-    console.log('❌ Não conseguiu encontrar nenhum slot para rolar');
   };
 
   // Função para navegar para uma data específica
@@ -375,7 +357,28 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
 
     // BLOQUEAR SLOTS COM STATUS "booked"
     if (slot.status === 'booked') {
-      toast.error('⛔ Horário já reservado');
+      // Buscar próximos horários disponíveis (respeitando 3 horas)
+      const slotsDisponiveis = timeSlots.filter(s => s.status === 'available');
+      const proximosHorarios = [];
+      
+      // Encontrar slots que estão pelo menos 3 horas após o slot reservado
+      for (const slot of slotsDisponiveis) {
+        const horarioMinimo = new Date(slot.start.getTime() - (3 * 60 * 60 * 1000));
+        
+        if (horarioMinimo >= slot.end) { // slot.end é o fim do slot reservado
+          proximosHorarios.push(slot.start);
+          if (proximosHorarios.length >= 3) break;
+        }
+      }
+      
+      // Se não encontrou sugestões adequadas, buscar próximos disponíveis
+      if (proximosHorarios.length === 0) {
+        const proximosDisponiveis = slotsDisponiveis.slice(0, 3).map(s => s.start);
+        proximosHorarios.push(...proximosDisponiveis);
+      }
+      
+      const mensagem = `⛔ Horário já reservado! 💡 Sugestões: ${proximosHorarios.map(h => h.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })).join(', ')}`;
+      toast.error(mensagem);
       return; // BLOQUEAR COMPLETAMENTE
     }
 
@@ -425,7 +428,29 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
       
       if (conflictingSlots.length > 0) {
 
-        toast.error("Missão no caminho! Já existe missão entre esse período de tempo.");
+        // Buscar próximos horários disponíveis após o conflito (respeitando 3 horas)
+        const slotsDisponiveis = timeSlots.filter(s => s.status === 'available');
+        const proximosHorarios = [];
+        
+        // Encontrar slots que estão pelo menos 3 horas após o fim do conflito
+        for (const slot of slotsDisponiveis) {
+          const horarioMinimo = new Date(slot.start.getTime() - (3 * 60 * 60 * 1000));
+          const conflitoTermina = conflictingSlots[0].end; // Assumindo que há pelo menos um conflito
+          
+          if (horarioMinimo >= conflitoTermina) {
+            proximosHorarios.push(slot.start);
+            if (proximosHorarios.length >= 3) break;
+          }
+        }
+        
+        // Se não encontrou sugestões adequadas, buscar próximos disponíveis
+        if (proximosHorarios.length === 0) {
+          const proximosDisponiveis = slotsDisponiveis.slice(0, 3).map(s => s.start);
+          proximosHorarios.push(...proximosDisponiveis);
+        }
+        
+        const mensagem = `⛔ Conflito de horário! Já existe missão neste período. 💡 Sugestões: ${proximosHorarios.map(h => h.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })).join(', ')}`;
+        toast.error(mensagem);
 
         return; // BLOQUEAR seleção
       } else {
@@ -456,12 +481,24 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
         // Verificar se o retorno selecionado está DENTRO do período de 3h antes do pré-voo (deve bloquear)
         if (slot.start >= tresHorasAntes && slot.start < preVooInicio) {
           
-          const mensagem = `⛔ TEMPO INSUFICIENTE! Precisa de 3 horas livres antes do pré-voo. Retorno deve ser após o período de preparação.`;
-          toast.error(mensagem);
-          
           // Sugerir horário após o pré-voo
           const proximoHorario = new Date(proximoPreVoo.end.getTime() + (3 * 60 * 60 * 1000));
           const sugestao = proximoHorario.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+          
+          // Buscar horários disponíveis que respeitam a regra das 3 horas após o pré-voo
+          const horarioMinimoAposPreVoo = new Date(proximoPreVoo.end.getTime() + (3 * 60 * 60 * 1000));
+          const slotsDisponiveis = timeSlots.filter(s => s.status === 'available' && s.start >= horarioMinimoAposPreVoo);
+          const horariosSugeridos = slotsDisponiveis.slice(0, 3).map(s => s.start);
+          
+          // Se não encontrou sugestões adequadas, buscar próximos disponíveis
+          let sugestoesFinais = horariosSugeridos;
+          if (sugestoesFinais.length === 0) {
+            const proximosDisponiveis = timeSlots.filter(s => s.status === 'available' && s.start > proximoPreVoo.end);
+            sugestoesFinais = proximosDisponiveis.slice(0, 3).map(s => s.start);
+          }
+          
+          const mensagem = `⛔ Tempo insuficiente! Precisa de 3h livres antes do pré-voo. 💡 Sugestões: ${sugestoesFinais.map(h => h.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })).join(', ')}`;
+          toast.error(mensagem);
           setValidationMessage(`💡 Próximo horário disponível após o pré-voo`);
           setSuggestedTimes([proximoHorario]);
           
@@ -476,24 +513,56 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
       const preFim = slot.start;
       
       // Verificar se o período de 3h antes sobrepõe com algum slot bloqueado
-      const slotConflitante = timeSlots.find(existingSlot => {
+      // Encontrar TODOS os conflitos e pegar o que termina mais tarde
+      const conflitos = timeSlots.filter(existingSlot => {
         if (existingSlot.status === 'blocked' || existingSlot.status === 'booked') {
           // Verificar sobreposição entre o período de 3h antes e o slot bloqueado
           const sobrepoe = preInicio < existingSlot.end && existingSlot.start < preFim;
+          
+          
           return sobrepoe;
         }
         return false;
       });
       
+      // Pegar o conflito que termina mais tarde (o mais problemático)
+      const slotConflitante = conflitos.length > 0 ? 
+        conflitos.reduce((maior, atual) => atual.end > maior.end ? atual : maior) : 
+        null;
+      
       if (slotConflitante) {
-        const mensagem = `⛔ Tempo de preparação insuficiente! Precisa de 3 horas livres antes do horário selecionado`;
+        // Calcular horário mínimo necessário (3 horas após o fim do conflito)
+        const horarioMinimo = new Date(slotConflitante.end.getTime() + (3 * 60 * 60 * 1000));
+        
+        
+        // Buscar slots disponíveis que respeitam a regra das 3 horas
+        const slotsDisponiveis = timeSlots.filter(s => s.status === 'available');
+        const horariosSugeridos = [];
+        
+        // Encontrar slots que estão pelo menos 3 horas após o fim do conflito
+        for (const slot of slotsDisponiveis) {
+          if (slot.start >= horarioMinimo) {
+            horariosSugeridos.push(slot.start);
+            if (horariosSugeridos.length >= 3) break; // Limitar a 3 sugestões
+          }
+        }
+        
+        
+        // Se não encontrou sugestões adequadas, buscar próximos disponíveis
+        if (horariosSugeridos.length === 0) {
+          for (const slot of slotsDisponiveis) {
+            if (slot.start > slotConflitante.end) {
+              horariosSugeridos.push(slot.start);
+              if (horariosSugeridos.length >= 3) break;
+            }
+          }
+        }
+        
+        const mensagem = `⛔ Tempo insuficiente! Precisa de 3h livres antes do voo. 💡 Sugestões: ${horariosSugeridos.map(h => h.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })).join(', ')}`;
         toast.error(mensagem);
         
-        // Sugerir próximo horário disponível (3 horas após o fim do conflito)
-        const proximoHorario = new Date(slotConflitante.end.getTime() + (3 * 60 * 60 * 1000));
-        const sugestao = proximoHorario.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
-        setValidationMessage(`💡 Próximo horário disponível`);
-        setSuggestedTimes([proximoHorario]);
+        setValidationMessage(`💡 Horários sugeridos: ${horariosSugeridos.map(h => h.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })).join(', ')}`);
+        setSuggestedTimes(horariosSugeridos);
         
         return; // BLOQUEAR seleção
       }
@@ -808,7 +877,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
                        // Corrigir problema de timezone - criar data local
                        const [year, month, day] = e.target.value.split('-').map(Number);
                        const selectedDate = new Date(year, month - 1, day); // month é 0-indexed
-                       console.log('📅 Data selecionada:', e.target.value, '→', selectedDate.toLocaleDateString('pt-BR'));
                        setCurrentWeek(selectedDate);
                      }}
                      className="text-sm px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
@@ -821,7 +889,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
                      size="sm"
                      onClick={() => {
                        const today = new Date();
-                       console.log('📅 Voltando para hoje:', today.toLocaleDateString('pt-BR'));
                        setCurrentWeek(today);
                      }}
                      className="text-xs bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"

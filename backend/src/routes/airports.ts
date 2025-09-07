@@ -205,22 +205,22 @@ function getDefaultAirportFees(icao: string) {
   // Taxas baseadas no tamanho/importância do aeroporto
   const airportTiers = {
     // Aeroportos internacionais principais
-    'SBGR': { landing: 800, takeoff: 600, parking: 200, navigation: 300, terminal: 400 }, // Guarulhos
-    'SBSP': { landing: 700, takeoff: 500, parking: 150, navigation: 250, terminal: 350 }, // Congonhas
-    'SBGL': { landing: 750, takeoff: 550, parking: 180, navigation: 280, terminal: 380 }, // Galeão
-    'SBRJ': { landing: 600, takeoff: 450, parking: 120, navigation: 200, terminal: 300 }, // Santos Dumont
+    'SBGR': { landing: 400, takeoff: 300, parking: 100, navigation: 150, terminal: 200 }, // Guarulhos
+    'SBSP': { landing: 350, takeoff: 250, parking: 80, navigation: 120, terminal: 180 }, // Congonhas
+    'SBGL': { landing: 380, takeoff: 280, parking: 90, navigation: 140, terminal: 190 }, // Galeão
+    'SBRJ': { landing: 300, takeoff: 220, parking: 60, navigation: 100, terminal: 150 }, // Santos Dumont
     
     // Aeroportos regionais importantes
-    'SBBH': { landing: 500, takeoff: 400, parking: 100, navigation: 150, terminal: 250 }, // BH
-    'SBSV': { landing: 450, takeoff: 350, parking: 80, navigation: 120, terminal: 200 }, // Salvador
-    'SBBR': { landing: 550, takeoff: 450, parking: 120, navigation: 180, terminal: 280 }, // Brasília
-    'SBPA': { landing: 480, takeoff: 380, parking: 90, navigation: 140, terminal: 220 }, // Porto Alegre
+    'SBBH': { landing: 250, takeoff: 200, parking: 50, navigation: 80, terminal: 120 }, // BH
+    'SBSV': { landing: 220, takeoff: 180, parking: 40, navigation: 60, terminal: 100 }, // Salvador
+    'SBBR': { landing: 280, takeoff: 220, parking: 60, navigation: 90, terminal: 140 }, // Brasília
+    'SBPA': { landing: 240, takeoff: 190, parking: 45, navigation: 70, terminal: 110 }, // Porto Alegre
     
     // Aeroportos regionais menores
-    'SBAU': { landing: 300, takeoff: 250, parking: 50, navigation: 80, terminal: 120 }, // Araçatuba
-    'SBKP': { landing: 350, takeoff: 300, parking: 60, navigation: 100, terminal: 150 }, // Campinas
-    'SBCF': { landing: 400, takeoff: 320, parking: 70, navigation: 110, terminal: 180 }, // Confins
-    'SBFL': { landing: 380, takeoff: 310, parking: 65, navigation: 105, terminal: 170 }, // Florianópolis
+    'SBAU': { landing: 150, takeoff: 120, parking: 25, navigation: 40, terminal: 60 }, // Araçatuba
+    'SBKP': { landing: 180, takeoff: 150, parking: 30, navigation: 50, terminal: 75 }, // Campinas
+    'SBCF': { landing: 200, takeoff: 160, parking: 35, navigation: 55, terminal: 90 }, // Confins
+    'SBFL': { landing: 190, takeoff: 155, parking: 32, navigation: 52, terminal: 85 }, // Florianópolis
   };
 
   const fees = airportTiers[icao as keyof typeof airportTiers] || {
