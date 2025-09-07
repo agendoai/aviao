@@ -112,7 +112,9 @@ const AdvancedMissionCalendar: React.FC<AdvancedMissionCalendarProps> = ({
           selectedAircraft.id,
           currentWeek.toISOString(),
           selectedStart?.toISOString(),
-          selectedEnd?.toISOString()
+          selectedEnd?.toISOString(),
+          undefined,
+          false
         );
         
         // Converter strings para Date objects

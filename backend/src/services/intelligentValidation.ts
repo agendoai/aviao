@@ -177,8 +177,13 @@ export const generateTimeSlots = async (
   weekStart: Date,
   selectedStart?: Date,
   selectedEnd?: Date,
-  missionDuration?: number // Duração estimada da missão em horas
+  missionDuration?: number, // Duração estimada da missão em horas
+  singleDay?: boolean // Se true, gera slots apenas para o dia atual
 ): Promise<TimeSlot[]> => {
+  console.log('📅 Backend - generateTimeSlots chamado com:');
+  console.log('📅 weekStart:', weekStart.toISOString());
+  console.log('📅 Data atual:', new Date().toISOString());
+  
   const slots: TimeSlot[] = [];
 
   // Buscar missões existentes
@@ -204,10 +209,19 @@ export const generateTimeSlots = async (
   
 
 
-  // Gerar slots de 30 em 30 minutos das 00h às 23h30 para cada dia da semana
-  for (let day = 0; day < 7; day++) {
+  // Determinar quantos dias gerar
+  const daysToGenerate = singleDay ? 1 : 7;
+  
+  // Gerar slots de 30 em 30 minutos das 00h às 23h30
+  for (let day = 0; day < daysToGenerate; day++) {
     const currentDate = new Date(weekStart);
     currentDate.setDate(currentDate.getDate() + day);
+    
+    // Log apenas para o primeiro dia para debug
+    if (day === 0) {
+      console.log('📅 Primeiro dia:', currentDate.toISOString());
+      console.log('📅 Gerando slots para', singleDay ? '1 dia' : '7 dias');
+    }
     
     for (let hour = 0; hour <= 23; hour++) {
       for (let minute = 0; minute < 60; minute += 30) {
@@ -217,6 +231,11 @@ export const generateTimeSlots = async (
         
         const slotEnd = new Date(currentDate);
         slotEnd.setHours(hour, minute + 30, 0, 0);
+        
+        // Log apenas para o primeiro slot para debug
+        if (day === 0 && hour === 0 && minute === 0) {
+          console.log('📅 Primeiro slot gerado:', slotStart.toISOString());
+        }
 
         // Verificar se o slot está em conflito com alguma janela bloqueada
         const conflictingWindow = todasJanelas.find(janela => 

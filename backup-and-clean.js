@@ -72,3 +72,6 @@ async function backupAndClean() {
 // Executar o script
 backupAndClean();
 
+
+
+

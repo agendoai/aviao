@@ -11,6 +11,9 @@ router.get('/', async (req, res) => {
     { icao: 'SBAU', name: 'Araçatuba', city: 'Araçatuba', state: 'SP' },
     { icao: 'SBSP', name: 'Congonhas', city: 'São Paulo', state: 'SP' },
     { icao: 'SBGR', name: 'Guarulhos', city: 'São Paulo', state: 'SP' },
+    { icao: 'SBMT', name: 'Campo de Marte', city: 'São Paulo', state: 'SP' },
+    { icao: 'SBKP', name: 'Campinas', city: 'Campinas', state: 'SP' },
+    { icao: 'SBBS', name: 'Bauru', city: 'Bauru', state: 'SP' },
     { icao: 'SBRJ', name: 'Santos Dumont', city: 'Rio de Janeiro', state: 'RJ' },
     { icao: 'SBGL', name: 'Galeão', city: 'Rio de Janeiro', state: 'RJ' },
     { icao: 'SBBH', name: 'Belo Horizonte', city: 'Belo Horizonte', state: 'MG' },
@@ -155,7 +158,8 @@ function getLocalAirportCoordinates(icao: string): { lat: number; lon: number } 
     { icao: 'SBSP', latitude: -23.6273, longitude: -46.6566 },
     { icao: 'SBGR', latitude: -23.4356, longitude: -46.4731 },
     { icao: 'SBKP', latitude: -23.0074, longitude: -47.1345 },
-    { icao: 'SBBS', latitude: -22.3450, longitude: -49.0538 },
+    { icao: 'SBMT', latitude: -23.5092, longitude: -46.6378 }, // Campo de Marte - São Paulo
+    { icao: 'SBBS', latitude: -22.3450, longitude: -49.0538 }, // Bauru - Aeroporto Moussa Nakhl Tobias
     { icao: 'SBRP', latitude: -21.1344, longitude: -47.7742 },
     { icao: 'SBJD', latitude: -23.1808, longitude: -46.9444 },
     { icao: 'SBSJ', latitude: -23.2283, longitude: -45.8628 },

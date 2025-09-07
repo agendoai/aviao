@@ -45,7 +45,7 @@ const requireAdmin = async (req: any, res: any, next: any) => {
 router.get('/time-slots/:aircraftId', authMiddleware, async (req, res) => {
   try {
     const { aircraftId } = req.params;
-    const { weekStart, selectedStart, selectedEnd, missionDuration } = req.query;
+    const { weekStart, selectedStart, selectedEnd, missionDuration, singleDay } = req.query;
 
     if (!weekStart) {
       return res.status(400).json({ error: 'weekStart é obrigatório' });
@@ -55,13 +55,19 @@ router.get('/time-slots/:aircraftId', authMiddleware, async (req, res) => {
     const selectedStartDate = selectedStart ? new Date(selectedStart as string) : undefined;
     const selectedEndDate = selectedEnd ? new Date(selectedEnd as string) : undefined;
     const missionDurationNum = missionDuration ? parseFloat(missionDuration as string) : undefined;
+    const isSingleDay = singleDay === 'true';
+
+    console.log('📅 Backend - Parâmetros recebidos:');
+    console.log('📅 weekStart:', weekStartDate.toISOString());
+    console.log('📅 singleDay:', isSingleDay);
 
     const slots = await generateTimeSlots(
       parseInt(aircraftId),
       weekStartDate,
       selectedStartDate,
       selectedEndDate,
-      missionDurationNum
+      missionDurationNum,
+      isSingleDay
     );
 
     // Log para debug: verificar slots bloqueados

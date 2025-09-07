@@ -15,9 +15,10 @@ export interface Airport {
 // Base de dados de aeroportos brasileiros (coordenadas oficiais verificadas)
 const BRAZILIAN_AIRPORTS: Airport[] = [
   // São Paulo
-  { icao: 'SBAU', iata: 'AQA', name: 'Araçatuba', city: 'Araçatuba', state: 'SP', country: 'BR', latitude: -21.1411, longitude: -50.4247 },
+  { icao: 'SBAU', iata: 'ARU', name: 'Araçatuba', city: 'Araçatuba', state: 'SP', country: 'BR', latitude: -21.1411, longitude: -50.4247 },
   { icao: 'SBSP', iata: 'CGH', name: 'Congonhas', city: 'São Paulo', state: 'SP', country: 'BR', latitude: -23.6273, longitude: -46.6566 },
   { icao: 'SBGR', iata: 'GRU', name: 'Guarulhos', city: 'São Paulo', state: 'SP', country: 'BR', latitude: -23.4356, longitude: -46.4731 },
+  { icao: 'SBMT', iata: 'MTE', name: 'Campo de Marte', city: 'São Paulo', state: 'SP', country: 'BR', latitude: -23.5092, longitude: -46.6378 },
   { icao: 'SBKP', iata: 'VCP', name: 'Viracopos', city: 'Campinas', state: 'SP', country: 'BR', latitude: -23.0074, longitude: -47.1345 },
   { icao: 'SBBS', iata: 'BAU', name: 'Bauru', city: 'Bauru', state: 'SP', country: 'BR', latitude: -22.3450, longitude: -49.0538 },
   { icao: 'SBRP', iata: 'RAO', name: 'Ribeirão Preto', city: 'Ribeirão Preto', state: 'SP', country: 'BR', latitude: -21.1344, longitude: -47.7742 },
@@ -32,7 +33,7 @@ const BRAZILIAN_AIRPORTS: Airport[] = [
   // Minas Gerais
   { icao: 'SBBH', iata: 'BHZ', name: 'Belo Horizonte', city: 'Belo Horizonte', state: 'MG', country: 'BR', latitude: -19.8512, longitude: -43.9506 },
   { icao: 'SBUR', iata: 'UDI', name: 'Uberlândia', city: 'Uberlândia', state: 'MG', country: 'BR', latitude: -18.8828, longitude: -48.2256 },
-  { icao: 'SBJF', iata: 'JDF', name: 'Juiz de Fora', city: 'Juiz de Fora', state: 'MG', country: 'BR', latitude: -21.7733, longitude: -43.3508 },
+  { icao: 'SBJF', iata: 'IZA', name: 'Juiz de Fora', city: 'Juiz de Fora', state: 'MG', country: 'BR', latitude: -21.7733, longitude: -43.3508 },
   { icao: 'SBCF', iata: 'CNF', name: 'Confins', city: 'Belo Horizonte', state: 'MG', country: 'BR', latitude: -19.6336, longitude: -43.9686 },
   
   // Bahia - Coordenadas oficiais do aeroporto de Salvador
@@ -46,7 +47,6 @@ const BRAZILIAN_AIRPORTS: Airport[] = [
   { icao: 'SBFZ', iata: 'FOR', name: 'Fortaleza', city: 'Fortaleza', state: 'CE', country: 'BR', latitude: -3.7761, longitude: -38.5322 },
   
   // Pernambuco
-  { icao: 'SBPL', iata: 'REC', name: 'Recife', city: 'Recife', state: 'PE', country: 'BR', latitude: -8.1264, longitude: -34.9236 },
   { icao: 'SBRF', iata: 'REC', name: 'Recife', city: 'Recife', state: 'PE', country: 'BR', latitude: -8.1264, longitude: -34.9236 },
   
   // Alagoas
@@ -74,7 +74,7 @@ const BRAZILIAN_AIRPORTS: Airport[] = [
   { icao: 'SBRB', iata: 'RBR', name: 'Rio Branco', city: 'Rio Branco', state: 'AC', country: 'BR', latitude: -9.8692, longitude: -67.8939 },
   
   // Rondônia
-  { icao: 'SBGL', iata: 'PVH', name: 'Porto Velho', city: 'Porto Velho', state: 'RO', country: 'BR', latitude: -8.7094, longitude: -63.9022 },
+  { icao: 'SBPV', iata: 'PVH', name: 'Porto Velho', city: 'Porto Velho', state: 'RO', country: 'BR', latitude: -8.7094, longitude: -63.9022 },
   
   // Roraima
   { icao: 'SBBV', iata: 'BVB', name: 'Boa Vista', city: 'Boa Vista', state: 'RR', country: 'BR', latitude: 2.8419, longitude: -60.6922 },
@@ -326,14 +326,14 @@ export function getAircraftSpeed(aircraftModel: string): number {
   const model = aircraftModel.toLowerCase();
   
   if (model.includes('cessna') || model.includes('172')) {
-    return 97; // Cessna 172: ~97 KT (180 km/h)
+    return 185; // Cessna 172: ~185 KT (velocidade real de cruzeiro)
   } else if (model.includes('piper') || model.includes('cherokee')) {
-    return 103; // Piper Cherokee: ~103 KT (190 km/h)
+    return 190; // Piper Cherokee: ~190 KT
   } else if (model.includes('beechcraft') || model.includes('bonanza') || model.includes('baron')) {
-    return 119; // Beechcraft Baron: ~119 KT (220 km/h)
+    return 220; // Beechcraft Baron: ~220 KT
   } else if (model.includes('cirrus')) {
-    return 135; // Cirrus SR22: ~135 KT (250 km/h)
+    return 200; // Cirrus SR22: ~200 KT
   } else {
-    return 108; // Velocidade padrão para aeronaves pequenas (~200 km/h)
+    return 185; // Velocidade padrão para aeronaves pequenas (185 KT)
   }
 }

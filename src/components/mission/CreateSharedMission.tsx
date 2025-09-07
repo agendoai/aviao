@@ -33,6 +33,7 @@ interface SharedMissionData {
   returnTime: string;
   origin: string;
   destination: string;
+  secondaryDestination: string;
   stops: string;
   notes: string;
   availableSeats: number;
@@ -57,6 +58,8 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
   const [loadingAirports, setLoadingAirports] = useState(false);
   const [selectedDestination, setSelectedDestination] = useState<Airport | null>(null);
   const [selectedOrigin, setSelectedOrigin] = useState<Airport | null>(null);
+  const [selectedSecondaryDestination, setSelectedSecondaryDestination] = useState<Airport | null>(null);
+  const [selectedAirports, setSelectedAirports] = useState<{[icao: string]: 'main' | 'secondary'}>({});
   const [missionData, setMissionData] = useState({
     departureDate: '',
     departureTime: '',
@@ -64,6 +67,7 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
     returnTime: '',
     origin: '',
     destination: '',
+    secondaryDestination: '',
     stops: '',
     notes: '',
     availableSeats: 1
@@ -198,6 +202,36 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
     }));
   };
 
+  const handleSecondaryDestinationSelect = (airport: Airport) => {
+    setSelectedSecondaryDestination(airport);
+    setMissionData(prev => ({
+      ...prev,
+      secondaryDestination: airport.icao
+    }));
+  };
+
+  const handleAddDestination = (airport: Airport, type: 'main' | 'secondary') => {
+    console.log('🎯 Adicionando destino:', airport.icao, 'como', type);
+    setSelectedAirports(prev => ({
+      ...prev,
+      [airport.icao]: type
+    }));
+
+    if (type === 'main') {
+      setSelectedDestination(airport);
+      setMissionData(prev => ({
+        ...prev,
+        destination: airport.icao
+      }));
+    } else {
+      setSelectedSecondaryDestination(airport);
+      setMissionData(prev => ({
+        ...prev,
+        secondaryDestination: airport.icao
+      }));
+    }
+  };
+
   const handleOriginSelect = (airport: Airport) => {
     setSelectedOrigin(airport);
     setMissionData(prev => ({
@@ -216,15 +250,15 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
     const model = aircraftModel.toLowerCase();
     
     if (model.includes('cessna') || model.includes('172')) {
-      return 97; // Cessna 172: ~97 KT (180 km/h)
+      return 185; // Cessna 172: ~185 KT (velocidade real de cruzeiro)
     } else if (model.includes('piper') || model.includes('cherokee')) {
-      return 103; // Piper Cherokee: ~103 KT (190 km/h)
+      return 190; // Piper Cherokee: ~190 KT
     } else if (model.includes('beechcraft') || model.includes('bonanza') || model.includes('baron')) {
-      return 119; // Beechcraft Baron: ~119 KT (220 km/h)
+      return 220; // Beechcraft Baron: ~220 KT
     } else if (model.includes('cirrus')) {
-      return 135; // Cirrus SR22: ~135 KT (250 km/h)
+      return 200; // Cirrus SR22: ~200 KT
     } else {
-      return 108; // Velocidade padrão para aeronaves pequenas (~200 km/h)
+      return 185; // Velocidade padrão para aeronaves pequenas (185 KT)
     }
   };
 
@@ -282,8 +316,8 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
     const distance = haversine(origem.lat, origem.lon, destino.lat, destino.lon);
     
     // Calcular tempo de voo usando a fórmula correta: Tempo (H) = Distância (NM) / Velocidade Cruzeiro (KT)
-    const aircraftSpeed = selectedAircraft ? getAircraftSpeed(selectedAircraft.model) : 108; // Velocidade em nós (KT)
-    const flightTimeHours = distance / aircraftSpeed; // Tempo em horas
+    const aircraftSpeed = selectedAircraft ? getAircraftSpeed(selectedAircraft.model) : 185; // Velocidade em nós (KT)
+    const flightTimeHours = (distance / aircraftSpeed) * 1.1; // Tempo em horas + 10% para tráfego aéreo
     
     // Calcular tempo total (ida + volta)
     const flightHours = Math.max(1, Math.ceil(flightTimeHours * 2)); // Multiplicar por 2 para ida e volta
@@ -414,6 +448,7 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
         returnTime: missionData.returnTime,
         origin: missionData.origin,
         destination: missionData.destination,
+        secondaryDestination: missionData.secondaryDestination,
         stops: missionData.stops,
         notes: missionData.notes,
         availableSeats: missionData.availableSeats,
@@ -722,37 +757,40 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
                 </div>
 
                 {/* Lista de Aeroportos */}
-                <div className="space-y-1 max-h-32 overflow-y-auto">
+                <div>
+                  <Label>Aeroportos Disponíveis</Label>
+                  <div className="max-h-60 overflow-y-auto space-y-2 mt-2">
                   {airports.length > 0 ? (
                     airports.map((airport) => (
                       <div
                         key={airport.icao}
-                        className={`p-2 rounded border cursor-pointer transition-all text-xs ${
-                          selectedDestination?.icao === airport.icao
-                            ? 'border-sky-500 bg-sky-50'
-                            : 'border-gray-200 hover:border-sky-300 hover:bg-gray-50'
-                        }`}
-                        onClick={() => handleDestinationSelect(airport)}
+                        className="p-3 border border-gray-200 rounded-lg hover:border-sky-300 hover:bg-gray-50"
                       >
                         <div className="flex items-center justify-between">
                           <div>
-                            <div className="font-medium text-gray-900">
-                              {airport.icao} - {airport.name}
+                            <div className="font-medium">{airport.name}</div>
+                            <div className="text-sm text-gray-600">
+                              {airport.city}, {airport.state} - {airport.icao}
                             </div>
-                            <div className="text-gray-600">
-                              {airport.city}, {airport.state}
-                            </div>
-                            {airport.iata && (
-                              <div className="text-gray-500">
-                                IATA: {airport.iata}
-                              </div>
-                            )}
                           </div>
-                          {selectedDestination?.icao === airport.icao && (
-                            <div className="w-3 h-3 bg-sky-500 rounded-full flex items-center justify-center">
-                              <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
-                            </div>
-                          )}
+                          <div className="flex space-x-2">
+                            <Button
+                              size="sm"
+                              variant={selectedAirports[airport.icao] === 'main' ? 'default' : 'outline'}
+                              className={selectedAirports[airport.icao] === 'main' ? 'bg-blue-500 hover:bg-blue-600 text-white' : ''}
+                              onClick={() => handleAddDestination(airport, 'main')}
+                            >
+                              Destino Principal
+                            </Button>
+                            <Button
+                              size="sm"
+                              variant={selectedAirports[airport.icao] === 'secondary' ? 'default' : 'outline'}
+                              className={selectedAirports[airport.icao] === 'secondary' ? 'bg-gray-500 hover:bg-gray-600 text-white' : ''}
+                              onClick={() => handleAddDestination(airport, 'secondary')}
+                            >
+                              Secundário
+                            </Button>
+                          </div>
                         </div>
                       </div>
                     ))
@@ -763,6 +801,7 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
                       <p className="text-xs">Tente buscar por outro termo ou região</p>
                     </div>
                   )}
+                  </div>
                 </div>
 
                 {/* Estatísticas */}
@@ -772,8 +811,78 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
                     {selectedRegion && ` na região ${regions.find(r => r.id === selectedRegion)?.name}`}
                   </div>
                 )}
+
+                {/* Destinos Selecionados */}
+                {(selectedDestination || selectedSecondaryDestination) && (
+                  <div className="mt-4">
+                    <Label className="text-xs font-medium">Destinos Selecionados</Label>
+                    <div className="space-y-2 mt-2">
+                      {selectedDestination && (
+                        <div className="flex items-center justify-between p-2 bg-blue-50 border border-blue-200 rounded text-xs">
+                          <div>
+                            <div className="font-medium text-blue-800">{selectedDestination.icao}</div>
+                            <div className="text-blue-600">{selectedDestination.name}</div>
+                            <div className="text-blue-500">{selectedDestination.city}, {selectedDestination.state}</div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Badge variant="default" className="bg-blue-500 text-white text-xs">
+                              Destino Principal
+                            </Badge>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedDestination(null);
+                                setSelectedAirports(prev => {
+                                  const newState = { ...prev };
+                                  delete newState[selectedDestination.icao];
+                                  return newState;
+                                });
+                                setMissionData(prev => ({ ...prev, destination: '' }));
+                              }}
+                              className="h-6 w-6 p-0 text-blue-600 hover:text-blue-800"
+                            >
+                              ×
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                      {selectedSecondaryDestination && (
+                        <div className="flex items-center justify-between p-2 bg-gray-50 border border-gray-200 rounded text-xs">
+                          <div>
+                            <div className="font-medium text-gray-800">{selectedSecondaryDestination.icao}</div>
+                            <div className="text-gray-600">{selectedSecondaryDestination.name}</div>
+                            <div className="text-gray-500">{selectedSecondaryDestination.city}, {selectedSecondaryDestination.state}</div>
+                          </div>
+                          <div className="flex items-center space-x-2">
+                            <Badge variant="outline" className="text-xs">
+                              Secundário
+                            </Badge>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setSelectedSecondaryDestination(null);
+                                setSelectedAirports(prev => {
+                                  const newState = { ...prev };
+                                  delete newState[selectedSecondaryDestination.icao];
+                                  return newState;
+                                });
+                                setMissionData(prev => ({ ...prev, secondaryDestination: '' }));
+                              }}
+                              className="h-6 w-6 p-0 text-gray-600 hover:text-gray-800"
+                            >
+                              ×
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )}
               </div>
             </div>
+
 
             <div>
               <Label htmlFor="stops" className="text-xs">Escalas (opcional)</Label>

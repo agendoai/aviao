@@ -49,7 +49,7 @@ import {
   getMessageCounts,
   markMessagesAsRead
 } from '@/utils/api';
-import { searchAirports, getPopularAirports, getAirportsByRegion, Airport, calculateDistance, getAircraftSpeed, getAirportCoordinatesWithFallback, getAirportNameByICAO } from '@/utils/airport-search';
+import { searchAirports, getPopularAirports, getAirportsByRegion, Airport, calculateDistance, getAircraftSpeed, getAirportCoordinatesWithFallback, getAirportNameByICAO, calculateTotalMissionCost } from '@/utils/airport-search';
 import { getCalendar } from '@/utils/api';
 import IntelligentTimeSelectionStep from '../booking-flow/IntelligentTimeSelectionStep';
 import { buildApiUrl } from '@/config/api';
@@ -187,6 +187,9 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
   const [paymentId, setPaymentId] = useState<string>('');
   const [paying, setPaying] = useState(false);
   
+  // Estado para resumo da missão
+  const [missionSummary, setMissionSummary] = useState<any>(null);
+  
   // Estado para cache do pagamento pendente
   const [pendingPayment, setPendingPayment] = useState<{
     paymentId: string;
@@ -255,6 +258,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
       setTimeout(scrollToBottom, 100);
     }
   }, [chatMessages, showChat]);
+
 
   // Handle pending navigation to open specific chat
   useEffect(() => {
@@ -683,47 +687,69 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
     setTimeout(scrollToBottom, 200);
   };
 
+
   // Funções de cálculo: usar utilitários globais para consistência
   const calculateFlightTime = (distanceNM: number, cruiseSpeedKT: number) => distanceNM / cruiseSpeedKT;
 
-  // Função para calcular valor total
-  const calculateTotalCost = () => {
+  // Função para calcular valor total incluindo destino principal e secundário
+  const calculateTotalCost = async () => {
     if (!selectedAircraft || !selectedDestination) {
       return 0;
     }
     
-    // Usar coordenadas reais (local ou AISWEB) via utilitário
-    // selectedOrigin é SBAU fixo por enquanto
     const originIcao = selectedOrigin.icao;
-    const destIcao = selectedDestination.icao;
-
-    // Usar distância resolvida por AISWEB/local quando disponível
-    const distanceNM = resolvedDistanceNM ?? calculateDistance(
+    const mainDestIcao = selectedDestination.icao;
+    const secondaryDestIcao = selectedSecondaryDestination?.icao;
+    
+    // Calcular distâncias reais
+    const aircraftSpeed = getAircraftSpeed(selectedAircraft.model);
+    
+    // Distância da origem para destino principal
+    const originToMainDistance = resolvedDistanceNM ?? calculateDistance(
       (selectedOrigin as any).latitude || -21.1411,
       (selectedOrigin as any).longitude || -50.4247,
       (selectedDestination as any).latitude,
       (selectedDestination as any).longitude
     );
-
-    // Calcular tempo de voo usando a mesma lógica da missão solo
-    const aircraftSpeed = getAircraftSpeed(selectedAircraft.model); // Velocidade em nós (KT)
-    const flightTimeHours = distanceNM / aircraftSpeed; // Tempo em horas (ida)
     
-    // Calcular tempo total (ida + volta) - mesma lógica da missão solo
-    const totalFlightTime = flightTimeHours * 2; // Tempo total exato (ida + volta)
+    // Distância do destino principal para secundário (se existir)
+    let mainToSecondaryDistance = 0;
+    if (selectedSecondaryDestination) {
+      mainToSecondaryDistance = calculateDistance(
+        (selectedDestination as any).latitude,
+        (selectedDestination as any).longitude,
+        (selectedSecondaryDestination as any).latitude,
+        (selectedSecondaryDestination as any).longitude
+      );
+    }
     
-    // Calcular custo base usando o tempo exato (não arredondado)
-    const hourlyRate = selectedAircraft.hourlyRate;
-    const baseCost = totalFlightTime * hourlyRate;
+    // Distância do destino secundário (ou principal) de volta para origem
+    let returnDistance = 0;
+    if (selectedSecondaryDestination) {
+      returnDistance = calculateDistance(
+        (selectedSecondaryDestination as any).latitude,
+        (selectedSecondaryDestination as any).longitude,
+        (selectedOrigin as any).latitude || -21.1411,
+        (selectedOrigin as any).longitude || -50.4247
+      );
+    } else {
+      returnDistance = originToMainDistance; // Volta direta
+    }
     
-    // Calcular pernoite usando a mesma lógica da missão solo
+    // Calcular tempos de voo individuais
+    const originToMainTime = (originToMainDistance / aircraftSpeed) * 1.1; // +10% tráfego
+    const mainToSecondaryTime = (mainToSecondaryDistance / aircraftSpeed) * 1.1;
+    const returnFlightTime = (returnDistance / aircraftSpeed) * 1.1;
+    
+    // Tempo total de voo (ida + volta)
+    const totalFlightTime = originToMainTime + mainToSecondaryTime + returnFlightTime;
+    
+    // Calcular pernoite
     let overnightDays = 0;
-    
     if (departureDate && returnDate && departureTime && returnTime) {
       const departureHour = parseInt(departureTime.split(':')[0]);
       const returnHour = parseInt(returnTime.split(':')[0]);
       
-      // Verificar se as datas são diferentes
       if (departureDate !== returnDate) {
         const departureDateObj = new Date(departureDate);
         const returnDateObj = new Date(returnDate);
@@ -731,28 +757,104 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
         const daysDiff = Math.ceil(timeDiff / (1000 * 3600 * 24));
         overnightDays = daysDiff;
       } else {
-        // Mesmo dia, verificar se passa da meia-noite
         if (returnHour >= 0 && returnHour < 6) {
-          // Entre 00:00 e 05:59 = pernoite
           overnightDays = 1;
         } else if (returnHour >= 22) {
-          // Após 22:00 = pernoite (voo noturno)
           overnightDays = 1;
         }
       }
     }
     
-    const overnightCost = overnightDays * selectedAircraft.overnightRate;
+    // Preparar lista de destinos para cálculo de taxas
+    const destinations = [mainDestIcao];
+    if (secondaryDestIcao) {
+      destinations.push(secondaryDestIcao);
+    }
     
-    return {
-      distanceNM: distanceNM.toFixed(1),
-      flightHours: `${Math.floor(totalFlightTime)}h${totalFlightTime % 1 > 0 ? ` ${Math.round((totalFlightTime % 1) * 60)}min` : ''}`,
-      baseCost: baseCost,
-      overnightCost: overnightCost,
-      overnightDays: overnightDays,
-      totalCost: baseCost + overnightCost
-    };
+    // Calcular custos usando a função da missão solo
+    const hourlyRate = selectedAircraft.hourlyRate;
+    const overnightRate = selectedAircraft.overnightRate;
+    
+    try {
+      const costCalculation = await calculateTotalMissionCost(
+        originIcao,
+        destinations,
+        totalFlightTime,
+        hourlyRate,
+        overnightDays,
+        overnightRate
+      );
+      
+      // Calcular horários de pouso
+      let mainArrivalTime = '';
+      let secondaryArrivalTime = '';
+      let returnArrivalTime = '';
+      
+      if (departureTime && returnTime) {
+        const departureHour = parseInt(departureTime.split(':')[0]);
+        const departureMinute = parseInt(departureTime.split(':')[1]);
+        const returnHour = parseInt(returnTime.split(':')[0]);
+        const returnMinute = parseInt(returnTime.split(':')[1]);
+        
+        // Pouso no destino principal
+        const mainArrivalMinutes = departureMinute + (originToMainTime * 60);
+        const mainArrivalHour = departureHour + Math.floor(mainArrivalMinutes / 60);
+        const mainArrivalMin = Math.floor(mainArrivalMinutes % 60);
+        mainArrivalTime = `${mainArrivalHour.toString().padStart(2, '0')}:${mainArrivalMin.toString().padStart(2, '0')}`;
+        
+        // Pouso no destino secundário (se existir)
+        if (selectedSecondaryDestination) {
+          const secondaryArrivalMinutes = mainArrivalMin + (mainToSecondaryTime * 60);
+          const secondaryArrivalHour = mainArrivalHour + Math.floor(secondaryArrivalMinutes / 60);
+          const secondaryArrivalMin = Math.floor(secondaryArrivalMinutes % 60);
+          secondaryArrivalTime = `${secondaryArrivalHour.toString().padStart(2, '0')}:${secondaryArrivalMin.toString().padStart(2, '0')}`;
+        }
+        
+        // Pouso na origem (volta)
+        const returnArrivalMinutes = returnMinute + (returnFlightTime * 60);
+        const returnArrivalHour = returnHour + Math.floor(returnArrivalMinutes / 60);
+        const returnArrivalMin = Math.floor(returnArrivalMinutes % 60);
+        returnArrivalTime = `${returnArrivalHour.toString().padStart(2, '0')}:${returnArrivalMin.toString().padStart(2, '0')}`;
+      }
+      
+      // Calcular distância total
+      const totalDistance = originToMainDistance + mainToSecondaryDistance + returnDistance;
+      
+      // Separar tarifas de navegação das taxas de aeroportos
+      let totalNavigationFees = 0;
+      let totalAirportFees = 0;
+      
+      Object.values(costCalculation.feeBreakdown).forEach(fees => {
+        totalNavigationFees += fees.navigation_fee;
+        totalAirportFees += (fees.landing_fee + fees.takeoff_fee + fees.parking_fee + fees.terminal_fee);
+      });
+
+      return {
+        distanceNM: totalDistance.toFixed(1),
+        flightHours: `${Math.floor(totalFlightTime)}h${totalFlightTime % 1 > 0 ? ` ${Math.round((totalFlightTime % 1) * 60)}min` : ''}`,
+        baseCost: costCalculation.hourlyCost,
+        overnightCost: costCalculation.overnightCost,
+        overnightDays: overnightDays,
+        navigationFees: totalNavigationFees,
+        airportFees: totalAirportFees,
+        feeBreakdown: costCalculation.feeBreakdown,
+        mainArrivalTime: mainArrivalTime,
+        secondaryArrivalTime: secondaryArrivalTime,
+        returnArrivalTime: returnArrivalTime,
+        totalCost: costCalculation.totalCost,
+        // Detalhes da rota
+        routeDetails: {
+          originToMain: { distance: originToMainDistance.toFixed(1), time: originToMainTime.toFixed(2) },
+          mainToSecondary: selectedSecondaryDestination ? { distance: mainToSecondaryDistance.toFixed(1), time: mainToSecondaryTime.toFixed(2) } : null,
+          return: { distance: returnDistance.toFixed(1), time: returnFlightTime.toFixed(2) }
+        }
+      };
+    } catch (error) {
+      console.error('Erro ao calcular custos:', error);
+      return 0;
+    }
   };
+
 
   // Função para avançar etapa
   const nextStep = () => {
@@ -781,25 +883,6 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
     }
   };
 
-  // Função para gerar resumo
-  const generateSummary = () => {
-    if (!selectedAircraft || !selectedDestination) {
-      return null;
-    }
-    
-    const costCalculation = calculateTotalCost();
-    
-    return {
-      aircraft: selectedAircraft,
-      destination: selectedDestination,
-      departureDate,
-      departureTime,
-      returnDate,
-      returnTime,
-      availableSeats,
-      ...costCalculation
-    };
-  };
 
   // Função para filtrar as missões conforme os filtros de data/horário
   const applyFilters = () => {
@@ -846,6 +929,8 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
     longitude: -50.4247
   });
   const [selectedDestination, setSelectedDestination] = useState<Airport | null>(null);
+  const [selectedSecondaryDestination, setSelectedSecondaryDestination] = useState<Airport | null>(null);
+  const [selectedAirports, setSelectedAirports] = useState<{[icao: string]: 'main' | 'secondary'}>({});
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRegion, setSelectedRegion] = useState<string>('');
   const [airports, setAirports] = useState<Airport[]>([]);
@@ -856,11 +941,55 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
   const [returnTime, setReturnTime] = useState('');
   const [availableSeats, setAvailableSeats] = useState<string>('');
   const [totalSteps] = useState(6);
-  const [missionSummary, setMissionSummary] = useState<any>(null);
   const [availableSlots, setAvailableSlots] = useState<{ start: string; end: string }[]>([]);
   const [resolvedOriginCoords, setResolvedOriginCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [resolvedDestCoords, setResolvedDestCoords] = useState<{ lat: number; lon: number } | null>(null);
   const [resolvedDistanceNM, setResolvedDistanceNM] = useState<number | null>(null);
+
+  // Calcular resumo da missão quando os dados mudarem
+  useEffect(() => {
+    const calculateSummary = async () => {
+      if (selectedAircraft && selectedDestination && departureDate && returnDate && departureTime && returnTime) {
+        try {
+          const summary = await calculateTotalCost();
+          if (summary) {
+            setMissionSummary({
+              aircraft: selectedAircraft,
+              destination: selectedDestination,
+              departureDate,
+              departureTime,
+              returnDate,
+              returnTime,
+              availableSeats,
+              ...summary
+            });
+          }
+        } catch (error) {
+          console.error('Erro ao calcular resumo:', error);
+          setMissionSummary(null);
+        }
+      } else {
+        setMissionSummary(null);
+      }
+    };
+
+    calculateSummary();
+  }, [selectedAircraft, selectedDestination, departureDate, returnDate, departureTime, returnTime, availableSeats]);
+
+  // Função para adicionar destinos
+  const handleAddDestination = (airport: Airport, type: 'main' | 'secondary') => {
+    console.log('🎯 Adicionando destino:', airport.icao, 'como', type);
+    setSelectedAirports(prev => ({
+      ...prev,
+      [airport.icao]: type
+    }));
+
+    if (type === 'main') {
+      setSelectedDestination(airport);
+    } else {
+      setSelectedSecondaryDestination(airport);
+    }
+  };
 
   // Resolver coordenadas reais (AISWEB com fallback local)
   useEffect(() => {
@@ -987,9 +1116,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
       setDepartureTime(format(timeSlot.start, 'HH:mm'));
       
       // Avançar automaticamente para a próxima etapa
-      setTimeout(() => {
-        setCurrentStep(4);
-      }, 500); // Pequeno delay para mostrar a seleção
+      setCurrentStep(4);
     } else {
       const time = timeSlot.toString();
       setDepartureTime(time);
@@ -1018,9 +1145,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
       setReturnTime(format(timeSlot.start, 'HH:mm'));
       
       // Avançar automaticamente para a próxima etapa
-      setTimeout(() => {
-        setCurrentStep(5);
-      }, 500); // Pequeno delay para mostrar a seleção
+      setCurrentStep(5);
     } else {
       const time = timeSlot.toString();
       setReturnTime(time);
@@ -1073,7 +1198,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
             clearInterval(intervalId);
             
             // Mostrar tela de sucesso
-            const costCalculation = calculateTotalCost();
+            const costCalculation = await calculateTotalCost();
             setPaymentSuccessData({
               missionTitle: `Missão compartilhada de ${getAirportNameByICAO('SBAU')} para ${getAirportNameByICAO(selectedDestination?.icao || '')}`,
               totalCost: typeof costCalculation === 'object' ? costCalculation.totalCost : 0,
@@ -1138,7 +1263,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
       const departureDateTime = new Date(`${departureDate}T${departureTime}:00`);
       const returnDateTime = new Date(`${returnDate}T${returnTime}:00`);
 
-      const costCalculation = calculateTotalCost();
+      const costCalculation = await calculateTotalCost();
       if (costCalculation === 0) {
         toast({
           title: "Erro",
@@ -1165,7 +1290,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
         destCoords.lat, destCoords.lon
       );
       
-      const flightTimeHours = distanceNM / aircraftSpeed;
+      const flightTimeHours = (distanceNM / aircraftSpeed) * 1.1; // + 10% para tráfego aéreo
       const flightHours = flightTimeHours * 2; // Ida e volta
 
       // Dados da missão para enviar ao backend
@@ -1283,7 +1408,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
       
       if (data.success) {
         // Mostrar tela de sucesso do pagamento
-        const costCalculation = calculateTotalCost();
+        const costCalculation = await calculateTotalCost();
         setPaymentSuccessData({
           missionTitle: `Missão compartilhada de ${getAirportNameByICAO('SBAU')} para ${getAirportNameByICAO(selectedDestination?.icao || '')}`,
           totalCost: typeof costCalculation === 'object' ? costCalculation.totalCost : 0,
@@ -1516,7 +1641,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
       const departureDateTime = new Date(`${departureDate}T${departureTime}:00`);
       const returnDateTime = new Date(`${returnDate}T${returnTime}:00`);
 
-      const costCalculation = calculateTotalCost();
+      const costCalculation = await calculateTotalCost();
       if (costCalculation === 0) {
         toast({
           title: "Erro",
@@ -1543,7 +1668,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
         destCoords.lat, destCoords.lon
       );
       
-      const flightTimeHours = distanceNM / aircraftSpeed;
+      const flightTimeHours = (distanceNM / aircraftSpeed) * 1.1; // + 10% para tráfego aéreo
       const flightHours = flightTimeHours * 2; // Ida e volta
       
       // console.log(`🔍 FRONTEND FLIGHT HOURS DEBUG:`);
@@ -1845,27 +1970,33 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
                   {airports.map((airport) => (
                     <div
                       key={airport.icao}
-                      className={`p-2 rounded border cursor-pointer transition-all text-xs ${
-                        selectedDestination?.icao === airport.icao
-                              ? 'border-blue-500 bg-blue-50'
-                              : 'border-gray-200 hover:border-blue-300 hover:bg-gray-50'
-                      }`}
-                      onClick={() => handleDestinationSelect(airport)}
+                      className="p-3 border border-gray-200 rounded-lg hover:border-sky-300 hover:bg-gray-50"
                     >
                       <div className="flex items-center justify-between">
                         <div>
-                          <div className="font-medium text-gray-900">
-                            {airport.icao} - {airport.name}
-                          </div>
-                          <div className="text-gray-600">
-                            {airport.city}, {airport.state}
+                          <div className="font-medium">{airport.name}</div>
+                          <div className="text-sm text-gray-600">
+                            {airport.city}, {airport.state} - {airport.icao}
                           </div>
                         </div>
-                        {selectedDestination?.icao === airport.icao && (
-                              <div className="w-3 h-3 bg-blue-500 rounded-full flex items-center justify-center">
-                            <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
-                          </div>
-                        )}
+                        <div className="flex space-x-2">
+                          <Button
+                            size="sm"
+                            variant={selectedAirports[airport.icao] === 'main' ? 'default' : 'outline'}
+                            className={selectedAirports[airport.icao] === 'main' ? 'bg-blue-500 hover:bg-blue-600 text-white' : ''}
+                            onClick={() => handleAddDestination(airport, 'main')}
+                          >
+                            Destino Principal
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant={selectedAirports[airport.icao] === 'secondary' ? 'default' : 'outline'}
+                            className={selectedAirports[airport.icao] === 'secondary' ? 'bg-gray-500 hover:bg-gray-600 text-white' : ''}
+                            onClick={() => handleAddDestination(airport, 'secondary')}
+                          >
+                            Secundário
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1931,8 +2062,8 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
               {selectedAircraft && selectedDepartureSlot && (
                 <IntelligentTimeSelectionStep
                   title="Selecione o horário de retorno"
-                  selectedDate={format(new Date(), 'dd')}
-                  currentMonth={new Date()}
+                  selectedDate={selectedDepartureSlot?.start ? format(selectedDepartureSlot.start, 'dd') : format(new Date(), 'dd')}
+                  currentMonth={selectedDepartureSlot?.start || new Date()}
                   selectedAircraft={{
                     id: selectedAircraft.id,
                     name: selectedAircraft.name,
@@ -2051,8 +2182,8 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
               </div>
               
               {(() => {
-                const summary = generateSummary();
-                if (!summary) return <div>Carregando...</div>;
+                if (!missionSummary) return <div>Carregando...</div>;
+                const summary = missionSummary;
                 
                 return (
                   <div className="space-y-2">
@@ -2093,15 +2224,50 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
                       <div className="space-y-0.5 text-xs">
                         <div className="flex justify-between">
                           <span>Distância:</span>
-                          <span className="font-medium">{summary.distanceNM} NM</span>
+                          <span className="font-medium">{parseFloat(summary.distanceNM).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} NM</span>
                         </div>
                         <div className="flex justify-between">
-                          <span>Tempo de voo total:</span>
+                          <span>Tempo de voo total (ida + volta):</span>
                           <span className="font-medium">{summary.flightHours}</span>
                         </div>
                         <div className="flex justify-between">
                           <span>Base (ida + volta):</span>
-                          <span className="font-medium">R$ {summary.baseCost.toFixed(2)}</span>
+                          <span className="font-medium">R$ {summary.baseCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                        {/* Tarifas por aeroporto */}
+                        {Object.entries(summary.feeBreakdown).map(([icao, fees]) => {
+                          const airportFees = fees as any; // Type assertion para AirportFees
+                          return (
+                          <div key={icao} className="border-l-2 border-green-300 pl-2 ml-2">
+                            <div className="text-xs font-medium text-green-800 mb-1">
+                              {icao} ({getAirportNameByICAO(icao)})
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-xs">Tarifa de navegação:</span>
+                              <span className="font-medium text-xs">R$ {airportFees.navigation_fee.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-xs">Taxas de aeroporto:</span>
+                              <span className="font-medium text-xs">R$ {(airportFees.landing_fee + airportFees.takeoff_fee + airportFees.parking_fee + airportFees.terminal_fee).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
+                            <div className="flex justify-between text-xs font-bold text-green-700 border-t pt-0.5 mt-1">
+                              <span>Subtotal {icao}:</span>
+                              <span>R$ {airportFees.total_fee.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                            </div>
+                          </div>
+                          );
+                        })}
+                        
+                        {/* Totais gerais */}
+                        <div className="border-t pt-1 mt-2">
+                          <div className="flex justify-between">
+                            <span>Total tarifas de navegação:</span>
+                            <span className="font-medium">R$ {summary.navigationFees?.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) || '0,00'}</span>
+                          </div>
+                          <div className="flex justify-between">
+                            <span>Total taxas de aeroportos:</span>
+                            <span className="font-medium">R$ {summary.airportFees.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                          </div>
                         </div>
                         {summary.overnightCost > 0 && (
                           <>
@@ -2111,13 +2277,55 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
                             </div>
                             <div className="flex justify-between">
                               <span>Taxa de pernoite:</span>
-                            <span className="font-medium">R$ {summary.overnightCost.toFixed(2)}</span>
+                            <span className="font-medium">R$ {summary.overnightCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
                           </div>
                           </>
                         )}
                         <div className="flex justify-between font-bold text-green-700 border-t pt-0.5">
                           <span>Total:</span>
-                          <span>R$ {summary.totalCost.toFixed(2)}</span>
+                          <span>R$ {summary.totalCost.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Horários de Pouso */}
+                    <div className="bg-gray-50 p-2 rounded-lg mt-2">
+                      <h4 className="font-medium text-gray-900 text-xs mb-1">Horários de Pouso</h4>
+                      <div className="space-y-0.5 text-xs">
+                        <div className="flex justify-between">
+                          <span>Pouso no destino principal:</span>
+                          <span className="font-medium">{summary.mainArrivalTime || 'N/A'}</span>
+                        </div>
+                        {summary.secondaryArrivalTime && (
+                          <div className="flex justify-between">
+                            <span>Pouso no destino secundário:</span>
+                            <span className="font-medium">{summary.secondaryArrivalTime}</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span>Pouso na origem (volta):</span>
+                          <span className="font-medium">{summary.returnArrivalTime || 'N/A'}</span>
+                        </div>
+                      </div>
+                    </div>
+                    
+                    {/* Detalhes da Rota */}
+                    <div className="bg-blue-50 p-2 rounded-lg mt-2">
+                      <h4 className="font-medium text-blue-900 text-xs mb-1">Detalhes da Rota</h4>
+                      <div className="space-y-0.5 text-xs">
+                        <div className="flex justify-between">
+                          <span>SBAU (Araçatuba) → {summary.destination.icao} ({getAirportNameByICAO(summary.destination.icao)}):</span>
+                          <span className="font-medium">{parseFloat(summary.routeDetails.originToMain.distance).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} NM ({summary.routeDetails.originToMain.time}h)</span>
+                        </div>
+                        {summary.routeDetails.mainToSecondary && selectedSecondaryDestination && (
+                          <div className="flex justify-between">
+                            <span>{summary.destination.icao} ({getAirportNameByICAO(summary.destination.icao)}) → {selectedSecondaryDestination.icao} ({getAirportNameByICAO(selectedSecondaryDestination.icao)}):</span>
+                            <span className="font-medium">{parseFloat(summary.routeDetails.mainToSecondary.distance).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} NM ({summary.routeDetails.mainToSecondary.time}h)</span>
+                          </div>
+                        )}
+                        <div className="flex justify-between">
+                          <span>{(selectedSecondaryDestination?.icao || summary.destination.icao)} ({(selectedSecondaryDestination ? getAirportNameByICAO(selectedSecondaryDestination.icao) : getAirportNameByICAO(summary.destination.icao))}) → SBAU (Araçatuba):</span>
+                          <span className="font-medium">{parseFloat(summary.routeDetails.return.distance).toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 1 })} NM ({summary.routeDetails.return.time}h)</span>
                         </div>
                       </div>
                     </div>

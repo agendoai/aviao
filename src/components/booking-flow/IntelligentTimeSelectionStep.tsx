@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -66,9 +66,12 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
 }) => {
   const [aircrafts, setAircrafts] = useState<Aircraft[]>([]);
   const [currentWeek, setCurrentWeek] = useState(() => {
-    // Iniciar na semana atual, começando na segunda-feira
-    const today = new Date();
-    return startOfWeek(today, { weekStartsOn: 1 });
+    // Usar currentMonth se fornecido, senão usar data atual
+    const initialDate = currentMonth || new Date();
+    console.log('📅 Data inicial:', initialDate.toLocaleDateString('pt-BR'));
+    console.log('📅 currentMonth fornecido:', currentMonth?.toLocaleDateString('pt-BR'));
+    
+    return initialDate;
   });
   const [loading, setLoading] = useState(true);
   const [loadingSlots, setLoadingSlots] = useState(false);
@@ -77,6 +80,15 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
   const [validationMessage, setValidationMessage] = useState<string | null>(null);
   const [suggestedTimes, setSuggestedTimes] = useState<Date[]>([]);
   const [bookings, setBookings] = useState<any[]>([]);
+  const lastFetchedWeek = useRef<string>('');
+
+  // Atualizar currentWeek quando currentMonth mudar
+  useEffect(() => {
+    if (currentMonth) {
+      console.log('📅 currentMonth mudou para:', currentMonth.toLocaleDateString('pt-BR'));
+      setCurrentWeek(currentMonth);
+    }
+  }, [currentMonth]);
 
   // Carregar dados
   useEffect(() => {
@@ -173,22 +185,40 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
     const fetchTimeSlots = async () => {
       if (!selectedAircraft) return;
 
+      // Verificar se já buscamos para esta semana
+      const weekKey = currentWeek.toDateString();
+      if (lastFetchedWeek.current === weekKey) {
+        console.log('📅 Já buscamos slots para esta semana, pulando...');
+        return;
+      }
+
       try {
         setLoadingSlots(true);
-        const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
+        // Usar apenas o dia atual para a API
+        const dayStart = new Date(currentWeek);
+        dayStart.setHours(0, 0, 0, 0); // Início do dia atual
         
-
+        console.log('📅 Dia atual sendo usado:', currentWeek.toLocaleDateString('pt-BR'));
+        console.log('📅 Dia sendo enviado para API:', dayStart.toISOString());
+        console.log('📅 Data atual:', new Date().toISOString());
         
         // Estimar duração da missão (padrão 2 horas se não especificado)
         const estimatedMissionDuration = 2; // horas
         
         const slots = await getTimeSlots(
           selectedAircraft.id, 
-          weekStart.toISOString(),
+          dayStart.toISOString(),
           undefined,
           undefined,
-          estimatedMissionDuration
+          estimatedMissionDuration,
+          true // singleDay = true para mostrar apenas o dia atual
         );
+        
+        console.log('📅 Slots recebidos do backend:', slots.length);
+        if (slots.length > 0) {
+          console.log('📅 Primeiro slot:', slots[0]);
+          console.log('📅 Último slot:', slots[slots.length - 1]);
+        }
         
 
         
@@ -224,6 +254,15 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
 
         
         setTimeSlots(convertedSlots);
+        
+        // Auto-scroll para a posição mais útil após carregar os slots
+        setTimeout(() => {
+          autoScrollToBestPosition();
+        }, 300);
+        
+        // Marcar que já buscamos para esta semana
+        lastFetchedWeek.current = weekKey;
+        
       } catch (error) {
         console.error('Erro ao buscar slots de tempo:', error);
         toast.error('Erro ao carregar calendário');
@@ -235,9 +274,76 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
     fetchTimeSlots();
   }, [selectedAircraft?.id, currentWeek]);
 
-  // Navegar entre semanas
+  // Navegar entre dias
   const navigateWeek = (direction: 'prev' | 'next') => {
-    setCurrentWeek(prev => addDays(prev, direction === 'next' ? 7 : -7));
+    setCurrentWeek(prev => addDays(prev, direction === 'next' ? 1 : -1));
+  };
+
+  // Função para auto-scroll para a melhor posição
+  const autoScrollToBestPosition = () => {
+    const today = new Date();
+    const currentHour = today.getHours();
+    const currentMinute = today.getMinutes();
+    
+    // Calcular o slot atual (hora * 2 + minuto >= 30)
+    const currentSlotIndex = (currentHour * 2) + (currentMinute >= 30 ? 1 : 0);
+    
+    // Se for muito cedo (antes das 6h), ir para 6h
+    const targetSlotIndex = currentHour < 6 ? 12 : currentSlotIndex;
+    
+    console.log('🎯 Hora atual:', currentHour + ':' + currentMinute);
+    console.log('🎯 Slot calculado:', targetSlotIndex);
+    
+    // Tentar encontrar o slot exato primeiro
+    let slotElement = document.querySelector(`[data-slot-index="${targetSlotIndex}"]`);
+    
+    if (slotElement) {
+      slotElement.scrollIntoView({ 
+        behavior: 'smooth', 
+        block: 'center' 
+      });
+      console.log('✅ Rolou para o slot exato:', targetSlotIndex);
+      return;
+    }
+    
+    // Se não encontrar, tentar slots próximos
+    for (let offset = 1; offset <= 5; offset++) {
+      // Tentar slot anterior
+      const prevSlot = targetSlotIndex - offset;
+      if (prevSlot >= 0) {
+        slotElement = document.querySelector(`[data-slot-index="${prevSlot}"]`);
+        if (slotElement) {
+          slotElement.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+          });
+          console.log('✅ Rolou para slot anterior:', prevSlot);
+          return;
+        }
+      }
+      
+      // Tentar slot posterior
+      const nextSlot = targetSlotIndex + offset;
+      if (nextSlot <= 47) { // Máximo 23:30
+        slotElement = document.querySelector(`[data-slot-index="${nextSlot}"]`);
+        if (slotElement) {
+          slotElement.scrollIntoView({ 
+            behavior: 'smooth', 
+            block: 'center' 
+          });
+          console.log('✅ Rolou para slot posterior:', nextSlot);
+          return;
+        }
+      }
+    }
+    
+    console.log('❌ Não conseguiu encontrar nenhum slot para rolar');
+  };
+
+  // Função para navegar para uma data específica
+  const goToDate = (date: Date) => {
+    setCurrentWeek(date);
+    // O auto-scroll será executado automaticamente pelo useEffect
   };
 
   // Lidar com clique em slot
@@ -400,7 +506,7 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
     setSuggestedTimes([]);
     
     onTimeSelect(slot);
-    toast.success(`✅ Horário selecionado: ${format(slot.start, 'dd/MM/yyyy às HH:mm', { locale: ptBR })}`);
+    // toast.success(`✅ Horário selecionado: ${format(slot.start, 'dd/MM/yyyy às HH:mm', { locale: ptBR })}`);
   };
 
   // Obter cor do slot baseado no status
@@ -530,6 +636,7 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
            <div className="flex space-x-2">
              {(selectedSlot || validationMessage) && (
                <Button 
+                 type="button"
                  variant="outline" 
                  size="sm" 
                  onClick={clearValidation}
@@ -538,7 +645,7 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
                  Limpar
                </Button>
              )}
-             <Button variant="outline" size="sm" onClick={onBack} className="flex items-center space-x-1 md:space-x-2 flex-shrink-0">
+             <Button type="button" variant="outline" size="sm" onClick={onBack} className="flex items-center space-x-1 md:space-x-2 flex-shrink-0">
                <ArrowLeft className="h-4 w-4" />
                <span className="hidden sm:inline">Voltar</span>
              </Button>
@@ -653,199 +760,205 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
                                </div>
                              </div>
                              
-                             {/* Navegação da Semana */}
+                             {/* Navegação do Dia */}
                <div className="flex items-center justify-between mb-3 md:mb-4">
                  <Button
+                   type="button"
                    variant="outline"
                    size="sm"
                    onClick={() => navigateWeek('prev')}
                    className="text-xs md:text-sm"
                  >
                    <ChevronLeft className="h-3 w-3 md:h-4 md:w-4 mr-1" />
-                   <span className="hidden sm:inline">Semana Anterior</span>
+                   <span className="hidden sm:inline">Dia Anterior</span>
                    <span className="sm:hidden">Anterior</span>
                  </Button>
                  
                  <div className="text-center flex-1 mx-2">
                    <h3 className="text-sm md:text-lg font-semibold">
-                     {format(currentWeek, 'MMMM yyyy', { locale: ptBR })}
+                     {format(currentWeek, 'dd/MM/yyyy', { locale: ptBR })}
                    </h3>
                    <p className="text-xs md:text-sm text-gray-600">
-                     {format(startOfWeek(currentWeek, { weekStartsOn: 1 }), 'dd/MM', { locale: ptBR })} -{' '}
-                     {format(endOfWeek(currentWeek, { weekStartsOn: 1 }), 'dd/MM', { locale: ptBR })}
+                     {format(currentWeek, 'EEEE', { locale: ptBR })} - {format(currentWeek, 'MMMM yyyy', { locale: ptBR })}
                    </p>
                  </div>
 
                  <Button
+                   type="button"
                    variant="outline"
                    size="sm"
                    onClick={() => navigateWeek('next')}
                    className="text-xs md:text-sm"
                  >
-                   <span className="hidden sm:inline">Próxima Semana</span>
+                   <span className="hidden sm:inline">Próximo Dia</span>
                    <span className="sm:hidden">Próxima</span>
                    <ChevronRight className="h-3 w-3 md:h-4 md:w-4 ml-1" />
                  </Button>
                </div>
 
+               {/* Navegação Rápida - Seletor de Data */}
+               <div className="flex justify-center mb-3">
+                 <div className="flex items-center space-x-3 bg-gray-50 p-2 rounded-lg">
+                   <Calendar className="h-4 w-4 text-gray-600" />
+                   <span className="text-sm text-gray-700 font-medium">Ir para data:</span>
+                   <input
+                     type="date"
+                     value={format(currentWeek, 'yyyy-MM-dd')}
+                     onChange={(e) => {
+                       // Corrigir problema de timezone - criar data local
+                       const [year, month, day] = e.target.value.split('-').map(Number);
+                       const selectedDate = new Date(year, month - 1, day); // month é 0-indexed
+                       console.log('📅 Data selecionada:', e.target.value, '→', selectedDate.toLocaleDateString('pt-BR'));
+                       setCurrentWeek(selectedDate);
+                     }}
+                     className="text-sm px-3 py-1 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white"
+                     min={format(new Date(), 'yyyy-MM-dd')}
+                     title="Selecione uma data para navegar rapidamente"
+                   />
+                   <Button
+                     type="button"
+                     variant="outline"
+                     size="sm"
+                     onClick={() => {
+                       const today = new Date();
+                       console.log('📅 Voltando para hoje:', today.toLocaleDateString('pt-BR'));
+                       setCurrentWeek(today);
+                     }}
+                     className="text-xs bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
+                     title="Voltar para hoje"
+                   >
+                     Hoje
+                   </Button>
+                 </div>
+               </div>
+
                              {/* Grade de Horários */}
 
                <div className="overflow-x-auto">
-                 {/* Desktop: Grade completa */}
-                 <div className="hidden md:block min-w-[800px]">
-                   {/* Cabeçalho dos dias */}
-                   <div className="grid grid-cols-8 gap-1 mb-2">
-                     <div className="h-8"></div> {/* Espaço vazio para horários */}
-                     {Array.from({ length: 7 }, (_, i) => {
-                       const day = addDays(startOfWeek(currentWeek, { weekStartsOn: 1 }), i);
+                 {/* Desktop: Grade organizada em colunas */}
+                 <div className="hidden md:block">
+                   {/* Cabeçalho do dia */}
+                   <div className="text-center mb-3">
+                     <div className="text-sm font-semibold text-gray-800 p-2 bg-blue-50 rounded">
+                       {format(currentWeek, 'EEEE', { locale: ptBR })} - {format(currentWeek, 'dd/MM/yyyy', { locale: ptBR })}
+                     </div>
+                   </div>
+
+                   {/* Grade de slots com tamanho maior */}
+                   <div className="grid grid-cols-8 gap-2">
+                     {Array.from({ length: 48 }, (_, slotIndex) => {
+                       const hour = Math.floor(slotIndex / 2);
+                       const minute = (slotIndex % 2) * 30;
+                       const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
+                       
+                       const slot = timeSlots.find(s => {
+                         if (!(s.start instanceof Date) || isNaN(s.start.getTime())) {
+                           return false;
+                         }
+                         
+                         const isSameSlot = s.start.getDate() === currentWeek.getDate() &&
+                                s.start.getMonth() === currentWeek.getMonth() &&
+                                s.start.getFullYear() === currentWeek.getFullYear() &&
+                                s.start.getHours() === hour && 
+                                s.start.getMinutes() === minute;
+                         
+                         return isSameSlot;
+                       });
+
+                       if (!slot) return <div key={slotIndex} className="h-12"></div>;
+
                        return (
-                         <div key={i} className="text-center text-sm font-medium text-gray-700 p-2 bg-gray-50 rounded">
-                           <div>{format(day, 'EEE', { locale: ptBR })}</div>
-                           <div className="text-xs text-gray-500">{format(day, 'dd/MM')}</div>
-                         </div>
+                         <Tooltip key={slotIndex}>
+                           <TooltipTrigger asChild>
+                             <div
+                               data-slot-index={slotIndex}
+                               className={`h-12 border rounded text-sm transition-all duration-200 relative group ${getSlotColor(slot)} ${
+                                 slot.status === 'available' ? 'cursor-pointer' : 'cursor-not-allowed'
+                               }`}
+                               onClick={(e) => {
+                                 e.preventDefault();
+                                 e.stopPropagation();
+                                 handleSlotClick(slot);
+                               }}
+                             >
+                               {/* Conteúdo do slot com horário completo */}
+                               <div className="flex flex-col items-center justify-center h-full p-1">
+                                 <div className="text-xs font-semibold">
+                                   {format(slot.start, 'HH:mm')} - {format(slot.end, 'HH:mm')}
+                                 </div>
+                                 <div className="text-xs mt-1">
+                                   {React.cloneElement(getSlotIcon(slot.status, slot), {
+                                     className: 'h-3 w-3'
+                                   })}
+                                 </div>
+                               </div>
+                             </div>
+                           </TooltipTrigger>
+                           <TooltipContent side="top" className="max-w-xs">
+                             <div className="space-y-1">
+                               {/* Intervalo de tempo - Padrão 04:00 - 04:29 */}
+                               <div className="text-xs text-gray-500 border-b pb-1 mb-1">
+                                 <strong>Horário:</strong> {format(slot.start, 'HH:mm')} - {format(slot.end, 'HH:mm')}
+                               </div>
+                               
+                               <div className="text-sm">
+                                 {departureDateTime && slot.start <= departureDateTime ? (
+                                   <span className="text-red-600">❌ Antes da partida</span>
+                                 ) : slot.status === 'available' ? (
+                                   <span className="text-green-600">✅ Disponível</span>
+                                 ) : slot.status === 'blocked' ? (
+                                   <span className="text-yellow-600">{slot.reason}</span>
+                                 ) : (
+                                   <span className="text-red-600">{slot.reason}</span>
+                                 )}
+                               </div>
+                               
+                               {departureDateTime && slot.start <= departureDateTime && (
+                                 <div className="text-xs text-blue-600">
+                                   ⏰ Partida: {format(departureDateTime, 'dd/MM HH:mm', { locale: ptBR })}
+                                 </div>
+                               )}
+                               {slot.status === 'blocked' && slot.blockType === 'pre-voo' && (
+                                 <div className="text-xs text-yellow-600">
+                                   ⏰ 3h necessárias antes da decolagem
+                                 </div>
+                               )}
+                               {slot.status === 'blocked' && slot.blockType === 'pos-voo' && (
+                                 <div className="text-xs text-orange-600">
+                                   🔧 3h de encerramento/manutenção
+                                 </div>
+                               )}
+
+                               {slot.nextAvailable && slot.nextAvailable instanceof Date && !isNaN(slot.nextAvailable.getTime()) && (
+                                 <div className="text-xs text-blue-600">
+                                   ✅ Próxima disponibilidade: {format(slot.nextAvailable, 'dd/MM às HH:mm', { locale: ptBR })}
+                                 </div>
+                               )}
+                             </div>
+                           </TooltipContent>
+                         </Tooltip>
                        );
                      })}
                    </div>
-
-                                      {/* Slots de tempo */}
-                   {Array.from({ length: 48 }, (_, slotIndex) => {
-                     const hour = Math.floor(slotIndex / 2); // 00h às 23h
-                     const minute = (slotIndex % 2) * 30; // 00 ou 30 minutos
-                     const timeString = `${hour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-                     
-                     return (
-                       <div key={slotIndex} className="grid grid-cols-8 gap-1 mb-2">
-                         {/* Horário */}
-                         <div className="text-right text-sm text-gray-600 p-2 pr-3 flex items-center justify-end">
-                           {timeString}
-                         </div>
-
-                         {/* Slots para cada dia */}
-                         {Array.from({ length: 7 }, (_, dayIndex) => {
-                           const currentDay = addDays(startOfWeek(currentWeek, { weekStartsOn: 1 }), dayIndex);
-                           
-                           const slot = timeSlots.find(s => {
-                             // Verificar se s.start é um objeto Date válido
-                             if (!(s.start instanceof Date) || isNaN(s.start.getTime())) {
-                               console.warn('Slot com data inválida:', s);
-                               return false;
-                             }
-                             
-                             // Verificar se é o mesmo dia, hora e minuto
-                             const isSameSlot = s.start.getDate() === currentDay.getDate() &&
-                                    s.start.getMonth() === currentDay.getMonth() &&
-                                    s.start.getFullYear() === currentDay.getFullYear() &&
-                                    s.start.getHours() === hour && 
-                                    s.start.getMinutes() === minute;
-                            
-                             return isSameSlot;
-                           });
-
-                           if (!slot) return <div key={dayIndex} className="h-8"></div>;
-
-                                                                                     return (
-                               <Tooltip key={dayIndex}>
-                                 <TooltipTrigger asChild>
-                                                                      <div
-                                     className={`h-12 md:h-16 border rounded transition-colors ${getSlotColor(slot)} ${
-                                       slot.status === 'available' ? 'cursor-pointer' : 'cursor-not-allowed'
-                                     }`}
-                                     onClick={() => {
-                                       // SEMPRE chamar handleSlotClick - a validação será feita lá
-                                       handleSlotClick(slot);
-                                     }}
-                                   >
-                                     <div className="flex flex-col items-center justify-center h-full p-1">
-                                       {/* Intervalo de tempo */}
-                                       <div className="text-xs font-medium text-gray-700 mb-1">
-                                         {format(slot.start, 'HH:mm')} - {format(slot.end, 'HH:mm')}
-                                       </div>
-                                       {/* Ícone do status */}
-                                       <div className="flex-shrink-0">
-                                         {getSlotIcon(slot.status, slot)}
-                                       </div>
-                                     </div>
-                                   </div>
-                               </TooltipTrigger>
-                               <TooltipContent side="top" className="max-w-xs">
-                                 <div className="space-y-1">
-                                   {/* Intervalo de tempo - TESTE SIMPLES */}
-                                   <div className="text-xs text-gray-500 border-b pb-1 mb-1">
-                                     <strong>TESTE:</strong> {format(slot.start, 'HH:mm')} - {format(slot.end, 'HH:mm')}
-                                   </div>
-                                   
-                                   <div className="text-sm">
-                                     {departureDateTime && slot.start <= departureDateTime ? (
-                                       <span className="text-red-600">❌ Antes da partida</span>
-                                     ) : slot.status === 'available' ? (
-                                       <span className="text-green-600">✅ Disponível</span>
-                                     ) : slot.status === 'blocked' ? (
-                                       <span className="text-yellow-600">{slot.reason}</span>
-                                     ) : (
-                                       <span className="text-red-600">{slot.reason}</span>
-                                     )}
-                                   </div>
-                                   
-
-                                   
-                                   {departureDateTime && slot.start <= departureDateTime && (
-                                     <div className="text-xs text-blue-600">
-                                       ⏰ Partida: {format(departureDateTime, 'dd/MM HH:mm', { locale: ptBR })}
-                                     </div>
-                                   )}
-                                   {slot.status === 'blocked' && slot.blockType === 'pre-voo' && (
-                                     <div className="text-xs text-yellow-600">
-                                       ⏰ 3h necessárias antes da decolagem
-                                     </div>
-                                   )}
-                                   {slot.status === 'blocked' && slot.blockType === 'pos-voo' && (
-                                     <div className="text-xs text-orange-600">
-                                       🔧 3h de encerramento/manutenção
-                                     </div>
-                                   )}
-
-                                   {slot.nextAvailable && slot.nextAvailable instanceof Date && !isNaN(slot.nextAvailable.getTime()) && (
-                                     <div className="text-xs text-blue-600">
-                                       ✅ Próxima disponibilidade: {format(slot.nextAvailable, 'dd/MM às HH:mm', { locale: ptBR })}
-                                     </div>
-                                   )}
-                                   
-
-                                 </div>
-                               </TooltipContent>
-                             </Tooltip>
-                           );
-                         })}
-                       </div>
-                     );
-                   })}
                  </div>
 
                  {/* Mobile: Lista vertical de horários */}
                  <div className="md:hidden space-y-3">
-                   {Array.from({ length: 7 }, (_, dayIndex) => {
-                     const day = addDays(startOfWeek(currentWeek, { weekStartsOn: 1 }), dayIndex);
-                     const daySlots = timeSlots.filter(s => {
-                       if (!(s.start instanceof Date) || isNaN(s.start.getTime())) return false;
-                       return s.start.getDate() === day.getDate();
-                     });
-
-                     return (
-                       <div key={dayIndex} className="border rounded-lg p-3">
-                         <div className="text-center mb-3">
-                           <div className="font-medium text-gray-900">
-                             {format(day, 'EEEE', { locale: ptBR })}
-                           </div>
-                           <div className="text-sm text-gray-600">
-                             {format(day, 'dd/MM/yyyy', { locale: ptBR })}
-                           </div>
-                         </div>
+                   <div className="border rounded-lg p-3">
+                     <div className="text-center mb-3">
+                       <div className="font-medium text-gray-900">
+                         {format(currentWeek, 'EEEE', { locale: ptBR })}
+                       </div>
+                       <div className="text-sm text-gray-600">
+                         {format(currentWeek, 'dd/MM/yyyy', { locale: ptBR })}
+                       </div>
+                     </div>
                          
                          <div className="grid grid-cols-6 gap-3">
                            {Array.from({ length: 48 }, (_, slotIndex) => {
                              const hour = Math.floor(slotIndex / 2);
                              const minute = (slotIndex % 2) * 30;
-                             const slot = daySlots.find(s => 
+                             const slot = timeSlots.find(s => 
                                s.start.getHours() === hour && s.start.getMinutes() === minute
                              );
                              
@@ -855,11 +968,13 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
                                <Tooltip key={slotIndex}>
                                  <TooltipTrigger asChild>
                                    <div
+                                     data-slot-index={slotIndex}
                                      className={`h-16 md:h-20 border rounded flex items-center justify-center transition-colors ${getSlotColor(slot)} ${
                                        slot.status === 'available' ? 'cursor-pointer' : 'cursor-not-allowed'
                                      }`}
-                                     onClick={() => {
-                               
+                                     onClick={(e) => {
+                                       e.preventDefault();
+                                       e.stopPropagation();
                                        // SEMPRE chamar handleSlotClick - a validação será feita lá
                                        handleSlotClick(slot);
                                      }}
@@ -915,9 +1030,7 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
                              );
                            })}
                          </div>
-                       </div>
-                     );
-                   })}
+                   </div>
                  </div>
                </div>
             </CardContent>

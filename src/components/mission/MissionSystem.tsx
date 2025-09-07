@@ -319,8 +319,8 @@ const MissionSystem: React.FC = () => {
     }
 
     // Calcular tempo de voo usando a fórmula correta: Tempo (H) = Distância (NM) / Velocidade Cruzeiro (KT)
-    const aircraftSpeed = selectedAircraft ? getAircraftSpeed(selectedAircraft.model) : 108; // Velocidade em nós (KT)
-    const flightTimeHours = distance / aircraftSpeed; // Tempo em horas
+    const aircraftSpeed = selectedAircraft ? getAircraftSpeed(selectedAircraft.model) : 185; // Velocidade em nós (KT)
+    const flightTimeHours = (distance / aircraftSpeed) * 1.1; // Tempo em horas + 10% para tráfego aéreo
     
     // Debug removido para produção
 

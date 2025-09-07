@@ -66,9 +66,15 @@ const IntelligentMissionCalendar: React.FC<IntelligentMissionCalendarProps> = ({
   const [aircrafts, setAircrafts] = useState<Aircraft[]>([]);
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [currentWeek, setCurrentWeek] = useState(() => {
-    // Iniciar na semana atual, começando na segunda-feira
+    // SEMPRE usar a data atual real
     const today = new Date();
-    return startOfWeek(today, { weekStartsOn: 1 });
+    console.log('📅 IntelligentMissionCalendar - Data atual real:', today.toLocaleDateString('pt-BR'));
+    
+    // INICIAR NA SEMANA ATUAL, mas com auto-scroll para o dia atual
+    const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
+    console.log('📅 IntelligentMissionCalendar - Iniciando na semana atual:', currentWeekStart.toLocaleDateString('pt-BR'));
+    
+    return currentWeekStart;
   });
   const [loading, setLoading] = useState(true);
   const [selectedSlot, setSelectedSlot] = useState<TimeSlot | null>(null);
@@ -116,7 +122,7 @@ const IntelligentMissionCalendar: React.FC<IntelligentMissionCalendarProps> = ({
       try {
         setLoadingSlots(true);
         const weekStart = startOfWeek(currentWeek, { weekStartsOn: 1 });
-        const slots = await getTimeSlots(selectedAircraft.id, weekStart.toISOString());
+        const slots = await getTimeSlots(selectedAircraft.id, weekStart.toISOString(), undefined, undefined, undefined, false);
         setTimeSlots(slots);
       } catch (error) {
         console.error('Erro ao buscar slots de tempo:', error);

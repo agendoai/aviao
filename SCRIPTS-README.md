@@ -106,3 +106,6 @@ Para adicionar novos tipos de dados ao script:
 
 **💡 Dica**: Use `backup-and-clean.js` sempre que quiser testar o sistema do zero!
 
+
+
+

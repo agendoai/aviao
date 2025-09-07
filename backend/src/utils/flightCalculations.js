@@ -47,15 +47,15 @@ function getAircraftSpeed(aircraftModel) {
   const model = aircraftModel.toLowerCase();
   
   if (model.includes('cessna') || model.includes('172')) {
-    return 97; // Cessna 172: ~97 KT (180 km/h)
+    return 185; // Cessna 172: ~185 KT (velocidade real de cruzeiro)
   } else if (model.includes('piper') || model.includes('cherokee')) {
-    return 103; // Piper Cherokee: ~103 KT (190 km/h)
+    return 190; // Piper Cherokee: ~190 KT
   } else if (model.includes('beechcraft') || model.includes('bonanza') || model.includes('baron')) {
-    return 190; // Beechcraft Baron E-55: ~190 KT (350 km/h)
+    return 220; // Beechcraft Baron: ~220 KT
   } else if (model.includes('cirrus')) {
-    return 135; // Cirrus SR22: ~135 KT (250 km/h)
+    return 200; // Cirrus SR22: ~200 KT
   } else {
-    return 108; // Velocidade padrão para aeronaves pequenas (~200 km/h)
+    return 185; // Velocidade padrão para aeronaves pequenas (185 KT)
   }
 }
 

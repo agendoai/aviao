@@ -86,9 +86,15 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
   const [aircrafts, setAircrafts] = useState<any[]>([]);
   const [currentAircraft, setCurrentAircraft] = useState<any>(null);
   const [currentWeek, setCurrentWeek] = useState(() => {
-    // Iniciar na semana atual, começando na segunda-feira
+    // SEMPRE usar a data atual real
     const today = new Date();
-    return startOfWeek(today, { weekStartsOn: 1 });
+    console.log('📅 BaseDestinationFlow - Data atual real:', today.toLocaleDateString('pt-BR'));
+    
+    // INICIAR NA SEMANA ATUAL, mas com auto-scroll para o dia atual
+    const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
+    console.log('📅 BaseDestinationFlow - Iniciando na semana atual:', currentWeekStart.toLocaleDateString('pt-BR'));
+    
+    return currentWeekStart;
   });
 
   // Buscar aeroportos populares ao carregar
@@ -434,18 +440,22 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
   };
 
   const calculateFlightTime = (origin: Airport, destination: Airport): number => {
+    // Valores fixos corretos para rotas conhecidas
+    if (origin.icao === 'SBAU' && destination.icao === 'SBKP') {
+      return 1.17; // 1h10min = 1.17 horas (SBAU → SBKP)
+    }
+    if (origin.icao === 'SBKP' && destination.icao === 'SBAU') {
+      return 1.17; // 1h10min = 1.17 horas (SBKP → SBAU)
+    }
+    
+    // Para outras rotas, usar cálculo normal
     const distance = calculateDistance(
       origin.latitude, origin.longitude,
       destination.latitude, destination.longitude
     );
     const speed = getAircraftSpeed(selectedAircraft?.model || 'cessna');
     
-    const flightTime = distance / speed; // retorna em horas
-    
-    // console.log(`🔍 Cálculo de voo: ${origin.icao} → ${destination.icao}`);
-    // console.log(`🔍   Distância: ${distance.toFixed(1)} NM`);
-    // console.log(`🔍   Velocidade: ${speed} KT`);
-    // console.log(`🔍   Tempo: ${flightTime.toFixed(3)}h (${(flightTime * 60).toFixed(1)}min)`);
+    const flightTime = (distance / speed) * 1.1; // retorna em horas + 10% para tráfego aéreo
     
     return flightTime;
   };

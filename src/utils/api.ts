@@ -646,14 +646,16 @@ export const getTimeSlots = async (
   weekStart: string, 
   selectedStart?: string, 
   selectedEnd?: string,
-  missionDuration?: number
+  missionDuration?: number,
+  singleDay?: boolean
 ): Promise<any[]> => {
   const token = localStorage.getItem('token');
   const params = new URLSearchParams({
     weekStart,
     ...(selectedStart && { selectedStart }),
     ...(selectedEnd && { selectedEnd }),
-    ...(missionDuration && { missionDuration: missionDuration.toString() })
+    ...(missionDuration && { missionDuration: missionDuration.toString() }),
+    ...(singleDay && { singleDay: 'true' })
   });
 
   const res = await fetch(buildApiUrl(`/api/bookings/time-slots/${aircraftId}?${params}`), {
