@@ -316,7 +316,7 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
             
             <div>
               <Label htmlFor="secondaryDestination">
-                Destino Secundário (Opcional)
+                Segundo Destino (Opcional)
                 <span className="text-sm text-gray-500 ml-2">
                   {secondaryDestination ? '✓ Adicionado' : 'Não definido'}
                 </span>
@@ -428,7 +428,7 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
             {/* Informações da rota */}
             {secondaryDestination && (
               <div className="bg-blue-50 p-2 rounded-lg">
-                <div className="text-xs text-blue-800 font-medium mb-1">Rota com Voo Secundário:</div>
+                <div className="text-xs text-blue-800 font-medium mb-1">Rota com Segundo Destino:</div>
                 <div className="text-xs text-blue-700">
                   {origin} → {destination} → {secondaryDestination} → {origin}
                 </div>

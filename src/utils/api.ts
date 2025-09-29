@@ -237,6 +237,8 @@ export async function createSharedMission(data: {
   description?: string;
   origin: string;
   destination: string;
+  secondaryDestination?: string | null;
+  secondary_departure_time?: string | null;
   departure_date: string;
   return_date: string;
   aircraftId: number;

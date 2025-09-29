@@ -42,3 +42,10 @@ AND ("asaasCustomerId" IS NULL OR "asaasCustomerId" = '');
 
 
 
+
+
+
+
+
+
+

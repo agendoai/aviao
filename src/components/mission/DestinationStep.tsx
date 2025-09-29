@@ -388,7 +388,7 @@ const DestinationStep: React.FC<DestinationStepProps> = ({
                      <IntelligentTimeSelectionStep
                        title="Selecione o horário de retorno à base"
                        selectedDate={returnDate ? new Date(returnDate).getDate().toString() : departureDate.getDate().toString()}
-                       currentMonth={returnDate ? new Date(returnDate) : departureDate}
+                       currentMonth={returnDate ? new Date(returnDate) : new Date(departureDate)}
                        selectedAircraft={selectedAircraft}
                        onTimeSelect={handleReturnTimeSelect}
                        onAircraftSelect={handleAircraftSelect}

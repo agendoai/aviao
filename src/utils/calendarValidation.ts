@@ -40,21 +40,21 @@ export const validateTimeSlot = (
   endTime: Date,
   existingBookings: Booking[]
 ): ValidationResult => {
-  // Verificar se o horário está dentro do período de funcionamento (6h às 19h)
+  // Verificar se o horário está dentro do período de funcionamento (6h às 24h - incluindo slots noturnos)
   const startHour = startTime.getHours();
   const endHour = endTime.getHours();
   
-  if (startHour < 6 || startHour >= 19) {
+  if (startHour < 6 || startHour >= 24) {
     return {
       isValid: false,
-      reason: 'Horário fora do período de funcionamento (6h às 19h)'
+      reason: 'Horário fora do período de funcionamento (6h às 23:30h)'
     };
   }
 
-  if (endHour < 6 || endHour >= 19) {
+  if (endHour < 6 || endHour >= 24) {
     return {
       isValid: false,
-      reason: 'Horário fora do período de funcionamento (6h às 19h)'
+      reason: 'Horário fora do período de funcionamento (6h às 23:30h)'
     };
   }
 
@@ -136,7 +136,7 @@ export const calculateNextAvailableTime = (
       nextAvailable.setHours(6, 0, 0, 0);
       return nextAvailable;
     } else {
-      // Se for após 19h, retornar 6h do próximo dia
+      // Se for após 23:30h, retornar 6h do próximo dia
       const nextAvailable = new Date(afterTime);
       nextAvailable.setDate(nextAvailable.getDate() + 1);
       nextAvailable.setHours(6, 0, 0, 0);
@@ -166,12 +166,12 @@ export const generateTimeSlots = (
 ): TimeSlot[] => {
   const slots: TimeSlot[] = [];
 
-  // Gerar slots de hora em hora das 6h às 19h para cada dia da semana
+  // Gerar slots de hora em hora das 6h às 23h para cada dia da semana (incluindo slots noturnos)
   for (let day = 0; day < 7; day++) {
     const currentDate = new Date(weekStart);
     currentDate.setDate(currentDate.getDate() + day);
     
-    for (let hour = 6; hour < 19; hour++) {
+    for (let hour = 6; hour < 24; hour++) {
       const slotStart = new Date(currentDate);
       slotStart.setHours(hour, 0, 0, 0);
       
@@ -312,6 +312,13 @@ export const validateMission = (
 
   return { isValid: true };
 };
+
+
+
+
+
+
+
 
 
 

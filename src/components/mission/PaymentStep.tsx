@@ -112,7 +112,7 @@ const PaymentStep: React.FC<PaymentStepProps> = ({
       };
 
       // Chamar API para criar PIX
-      const response = await fetch('/api/bookings/pix-payment', {
+      const response = await fetch(buildApiUrl('/api/bookings/pix-payment'), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

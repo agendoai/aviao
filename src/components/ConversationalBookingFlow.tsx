@@ -76,6 +76,14 @@ const ConversationalBookingFlow: React.FC = () => {
     ? new Date(`${departureDate.split('/').reverse().join('-')}T${departureTime}`)
     : undefined;
 
+  // DEBUG: Verificar se departureDateTime está sendo criado corretamente
+  console.log('🔍 DEBUG ConversationalBookingFlow departureDateTime:', {
+    departureDate,
+    departureTime,
+    departureDateTime: departureDateTime?.toLocaleString(),
+    isValid: departureDateTime ? !isNaN(departureDateTime.getTime()) : false
+  });
+
   const steps: BookingStep[] = [
     { step: 1, title: 'Aeronave', completed: selectedAircraft !== null },
     { step: 2, title: 'Destino', completed: destination !== '' },

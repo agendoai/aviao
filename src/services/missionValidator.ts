@@ -8,8 +8,12 @@ export interface Missao {
   actualReturn?: Date;     // retorno real (17:00)
   flightHoursTotal: number; // horas totais (ida+volta)
   id?: number;
-  origin?: string;
-  destination?: string;
+  origin?: string;         // origem (Base)
+  destination?: string;    // destino principal
+  secondaryDestination?: string; // destino secundário
+  departureSecondaryTime?: Date; // horário de saída do destino principal para o secundário
+  departureFromSecondaryTime?: Date; // horário de saída do destino secundário para a base
+  hasSecondaryDestination?: boolean; // indica se a missão tem destino secundário
 }
 
 export interface ValidationResult {
@@ -23,7 +27,7 @@ export interface ValidationResult {
 export interface JanelaBloqueada {
   inicio: Date;
   fim: Date;
-  tipo: 'pre-voo' | 'missao' | 'pos-voo';
+  tipo: 'pre-voo' | 'missao' | 'missao-secundaria' | 'missao-retorno' | 'pos-voo';
   missao: Missao;
 }
 
@@ -55,26 +59,62 @@ export function janelaBloqueada(m: Missao): JanelaBloqueada[] {
     return [];
   }
   
-  const janelas = [
+  // Janelas padrão (sempre presentes)
+  const janelas: JanelaBloqueada[] = [
     {
-      inicio: new Date(m.partida.getTime()), // 04:00 (início pré-voo)
-      fim: new Date(m.partida.getTime() + H(PRE_VOO_HORAS)), // 07:00 (fim pré-voo)
+      inicio: new Date(m.partida.getTime()), // início pré-voo
+      fim: new Date(m.partida.getTime() + H(PRE_VOO_HORAS)), // fim pré-voo
       tipo: 'pre-voo' as const,
-      missao: m
-    },
-    {
-      inicio: new Date(m.partida.getTime() + H(PRE_VOO_HORAS)), // 07:00 (início missão)
-      fim: new Date(m.retorno.getTime() - H(POS_VOO_HORAS)), // 18:00 (fim missão = return_date - 3h)
-      tipo: 'missao' as const,
-      missao: m
-    },
-    {
-      inicio: new Date(m.retorno.getTime() - H(POS_VOO_HORAS)), // 18:00 (início pós-voo)
-      fim: new Date(m.retorno.getTime()), // 21:00 (fim pós-voo)
-      tipo: 'pos-voo' as const,
       missao: m
     }
   ];
+  
+  // Adicionar janelas baseadas no tipo de missão (com ou sem destino secundário)
+  if (m.hasSecondaryDestination && m.departureSecondaryTime && m.departureFromSecondaryTime) {
+    // Missão com destino secundário: Base → Principal → Secundário → Base
+    
+    // Trecho 1: Base → Destino Principal
+    janelas.push({
+      inicio: new Date(m.partida.getTime() + H(PRE_VOO_HORAS)), // fim do pré-voo
+      fim: new Date(m.departureSecondaryTime.getTime()), // chegada ao destino principal
+      tipo: 'missao' as const,
+      missao: m
+    });
+    
+    // Trecho 2: Destino Principal → Destino Secundário
+    janelas.push({
+      inicio: new Date(m.departureSecondaryTime.getTime()), // saída do destino principal
+      fim: new Date(m.departureFromSecondaryTime.getTime()), // chegada ao destino secundário
+      tipo: 'missao-secundaria' as const,
+      missao: m
+    });
+    
+    // Trecho 3: Destino Secundário → Base
+    janelas.push({
+      inicio: new Date(m.departureFromSecondaryTime.getTime()), // saída do destino secundário
+      fim: new Date(m.retorno.getTime() - H(POS_VOO_HORAS)), // chegada à base
+      tipo: 'missao-retorno' as const,
+      missao: m
+    });
+  } else {
+    // Missão padrão: Base → Destino Principal → Base
+    janelas.push({
+      inicio: new Date(m.partida.getTime() + H(PRE_VOO_HORAS)), // fim do pré-voo
+      fim: new Date(m.retorno.getTime() - H(POS_VOO_HORAS)), // início do pós-voo
+      tipo: 'missao' as const,
+      missao: m
+    });
+  }
+  
+  // Pós-voo (sempre presente)
+  // CORRIGIDO: m.retorno já é o fim do pós-voo (inclui tempo de voo volta + 3h)
+  // Então o pós-voo é 3h antes do fim
+  janelas.push({
+    inicio: new Date(m.retorno.getTime() - H(POS_VOO_HORAS)), // início pós-voo
+    fim: new Date(m.retorno.getTime()), // fim pós-voo (já inclui tempo de voo volta + 3h)
+    tipo: 'pos-voo' as const,
+    missao: m
+  });
   
   // Validar se todas as janelas têm datas válidas
   const janelasValidas = janelas.filter(janela => {
@@ -94,14 +134,12 @@ export function janelaBloqueada(m: Missao): JanelaBloqueada[] {
 
 /**
  * Menor início possível DEPOIS de uma missão (para sugerir no UI)
- * E = retorno + tVolta + 3h (fim lógico da missão)
- * Smin = E (próxima decolagem possível - já inclui 3h livres antes)
+ * CORRIGIDO: m.retorno já é o fim do pós-voo, então a próxima decolagem é retorno + 3h
  */
 export function proximaDecolagemPossivel(m: Missao): Date {
-  const tVoltaMs = calcularTempoVolta(m.flightHoursTotal) * H(1);
-  const pousoVolta = new Date(m.retorno.getTime() + tVoltaMs);
-  const fimLogico = new Date(pousoVolta.getTime() + H(POS_VOO_HORAS)); // E = pouso volta + 3h
-  return fimLogico; // Smin = E (já inclui 3h livres antes)
+  // m.retorno já é o fim do pós-voo (21:00), então a próxima decolagem possível é 3h depois
+  const proximaDecolagem = new Date(m.retorno.getTime() + H(PROXIMA_MISSAO_HORAS));
+  return proximaDecolagem;
 }
 
 /**
@@ -182,6 +220,43 @@ export function validarMissaoCompleta(
       valido: false,
       mensagem: "❌ Missão muito curta (mínimo 1 minuto)"
     };
+  }
+  
+  // Validar destino secundário, se estiver ativado
+  if (missaoProposta.hasSecondaryDestination) {
+    // Verificar se os horários do destino secundário foram definidos
+    if (!missaoProposta.departureSecondaryTime || !missaoProposta.departureFromSecondaryTime) {
+      return {
+        valido: false,
+        mensagem: "❌ Os horários do destino secundário devem ser definidos"
+      };
+    }
+
+    // Validar se o horário de saída do destino principal é após a chegada
+    const chegadaDestinoPrincipal = new Date(missaoProposta.partida.getTime() + H(PRE_VOO_HORAS));
+    if (missaoProposta.departureSecondaryTime < chegadaDestinoPrincipal) {
+      return {
+        valido: false,
+        mensagem: "❌ O horário de saída do destino principal deve ser após a chegada"
+      };
+    }
+
+    // Validar se o horário de saída do destino secundário é após a chegada
+    if (missaoProposta.departureFromSecondaryTime < missaoProposta.departureSecondaryTime) {
+      return {
+        valido: false,
+        mensagem: "❌ O horário de saída do destino secundário deve ser após a chegada"
+      };
+    }
+
+    // Validar se o retorno à base é após a saída do destino secundário
+    const chegadaBase = new Date(missaoProposta.retorno.getTime() - H(POS_VOO_HORAS));
+    if (chegadaBase < missaoProposta.departureFromSecondaryTime) {
+      return {
+        valido: false,
+        mensagem: "❌ O horário de chegada à base deve ser após a saída do destino secundário"
+      };
+    }
   }
   
   // Validar início da missão

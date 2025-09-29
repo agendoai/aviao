@@ -9,9 +9,10 @@ import { MapPin, Search, Plane, ArrowLeft, ArrowRight, Loader2, Globe, Calendar,
 import { toast } from 'sonner';
 import { format, addHours, addDays, parseISO, startOfWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { searchAirports, getPopularAirports, calculateDistance, getAirportsByRegion, Airport, getAirportCoordinatesWithFallback, getAircraftSpeed, calculateTotalMissionCost, AirportFees } from '@/utils/airport-search';
+import { searchAirports, getPopularAirports, calculateDistance, getAirportsByRegion, Airport, getAirportCoordinatesWithFallback, getAircraftSpeed, calculateTotalMissionCost, AirportFees, getAirportNameByICAO } from '@/utils/airport-search';
 import IntelligentTimeSelectionStep from '../booking-flow/IntelligentTimeSelectionStep';
 import { getAircrafts } from '@/utils/api';
+import { useMemo } from 'react';
 
 interface BaseDestinationFlowProps {
   selectedAircraft: any;
@@ -86,13 +87,13 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
   const [aircrafts, setAircrafts] = useState<any[]>([]);
   const [currentAircraft, setCurrentAircraft] = useState<any>(null);
   const [currentWeek, setCurrentWeek] = useState(() => {
-    // SEMPRE usar a data atual real
-    const today = new Date();
-    console.log('📅 BaseDestinationFlow - Data atual real:', today.toLocaleDateString('pt-BR'));
+    // Usar departureDate se fornecido, senão data atual
+    const baseDate = departureDate || new Date();
+    console.log('📅 BaseDestinationFlow - Data base:', baseDate.toLocaleDateString('pt-BR'));
     
-    // INICIAR NA SEMANA ATUAL, mas com auto-scroll para o dia atual
-    const currentWeekStart = startOfWeek(today, { weekStartsOn: 1 });
-    console.log('📅 BaseDestinationFlow - Iniciando na semana atual:', currentWeekStart.toLocaleDateString('pt-BR'));
+    // INICIAR NA SEMANA da data base
+    const currentWeekStart = startOfWeek(baseDate, { weekStartsOn: 1 });
+    console.log('📅 BaseDestinationFlow - Iniciando na semana:', currentWeekStart.toLocaleDateString('pt-BR'));
     
     return currentWeekStart;
   });
@@ -101,6 +102,20 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
   useEffect(() => {
     setAirports(getPopularAirports());
   }, []);
+
+  // Memoizar currentMonth para evitar recálculos desnecessários
+  const currentMonth = useMemo(() => {
+    // SEMPRE usar departureDate para evitar mudanças de timezone
+    const month = new Date(departureDate);
+    console.log('🔍 BaseDestinationFlow - currentMonth memoizado (FIXADO):', {
+      returnDate,
+      departureDate: departureDate.toISOString(),
+      departureDateLocal: departureDate.toLocaleDateString('pt-BR'),
+      monthCalculado: month.toISOString(),
+      monthLocal: month.toLocaleDateString('pt-BR')
+    });
+    return month;
+  }, [departureDate]); // ✅ Removido returnDate das dependências
 
   // Carregar aeronaves
   useEffect(() => {
@@ -604,7 +619,7 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
                              className={selectedAirports[airport.icao] === 'main' ? 'bg-blue-500 hover:bg-blue-600 text-white' : ''}
                             onClick={() => handleAddDestination(airport, 'main')}
                           >
-                            Destino Principal
+                            Primeiro Destino
                           </Button>
                           <Button
                             size="sm"
@@ -612,7 +627,7 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
                              className={selectedAirports[airport.icao] === 'secondary' ? 'bg-gray-500 hover:bg-gray-600 text-white' : ''}
                             onClick={() => handleAddDestination(airport, 'secondary')}
                           >
-                            Secundário
+                            Segundo Destino
                           </Button>
                         </div>
                       </div>
@@ -637,7 +652,7 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
                         <Badge variant={
                           dest.type === 'main' ? 'default' : 'outline'
                         }>
-                          {dest.type === 'main' ? 'Destino Principal' : 'Secundário'}
+                          {dest.type === 'main' ? 'Primeiro Destino' : 'Segundo Destino'}
                         </Badge>
                       </div>
                       <div className="flex items-center space-x-2">
@@ -684,46 +699,97 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
                          <span className="ml-2 text-xs bg-green-200 px-2 py-1 rounded">Disponibilidade em Tempo Real</span>
                        </div>
                        <IntelligentTimeSelectionStep
-                         title="Selecione o horário de retorno à base"
+                         title={destinations.some(dest => dest.type === 'secondary') 
+                           ? "Selecione os horários da missão com destino secundário"
+                           : "Selecione o horário de retorno à base"
+                         }
                          selectedDate={returnDate ? new Date(returnDate).getDate().toString() : departureDate.getDate().toString()}
-                         currentMonth={returnDate ? new Date(returnDate) : departureDate}
+                         currentMonth={currentMonth}
                          selectedAircraft={currentAircraft}
-                         departureDateTime={new Date(`${departureDate.toISOString().split('T')[0]}T${departureTime}`)}
+                         departureDateTime={(() => {
+                           // CORREÇÃO: Usar data local brasileira em vez de UTC
+                           const year = departureDate.getFullYear();
+                           const month = String(departureDate.getMonth() + 1).padStart(2, '0');
+                           const day = String(departureDate.getDate()).padStart(2, '0');
+                           const localDateString = `${year}-${month}-${day}`;
+                           return new Date(`${localDateString}T${departureTime}`);
+                         })()}
                          isReturnSelection={true}
+                         selectedAirport={destinations.find(dest => dest.type === 'main')?.airport.icao}
+                         hasSecondaryDestination={destinations.some(dest => dest.type === 'secondary')}
+                         selectedDestinations={{
+                           primary: destinations.find(dest => dest.type === 'main')?.airport.icao,
+                           secondary: destinations.find(dest => dest.type === 'secondary')?.airport.icao
+                         }}
+                         // Debug: Log dos destinos selecionados
+                         {...(console.log('🔍 BaseDestinationFlow - Destinos selecionados:', {
+                           destinations,
+                           primary: destinations.find(dest => dest.type === 'main')?.airport.icao,
+                           secondary: destinations.find(dest => dest.type === 'secondary')?.airport.icao
+                         }) || {})}
+                         onAutoAdvance={() => {
+                           // Auto-avançar para próxima etapa após seleção
+                           console.log('🚀 Auto-avançando após seleção de horário');
+                         }}
                          onTimeSelect={(timeSlot) => {
-                           // console.log('🔍 Slot selecionado no calendário:', timeSlot);
+                           console.log('🔍 BaseDestinationFlow - onTimeSelect chamado:', timeSlot);
+                           console.log('🔍 BaseDestinationFlow - timeSlot.start tipo:', typeof timeSlot.start);
+                           console.log('🔍 BaseDestinationFlow - timeSlot.start valor:', timeSlot.start);
                            
                            // Se timeSlot é um objeto com start/end (do IntelligentTimeSelectionStep)
                            if (typeof timeSlot === 'object' && timeSlot.start) {
-                             const selectedDate = new Date(timeSlot.start);
-                             const formattedDate = selectedDate.toISOString().split('T')[0];
+                             // CORREÇÃO CRÍTICA: Se timeSlot.start já é um objeto Date, usar diretamente
+                             // Se é uma string, usar new Date() pode causar problemas de timezone
+                             let selectedDate;
+                             
+                             if (timeSlot.start instanceof Date) {
+                               // Já é um Date object, usar diretamente
+                               selectedDate = timeSlot.start;
+                               console.log('🔍 BaseDestinationFlow - Usando Date object diretamente:', selectedDate);
+                             } else {
+                               // É uma string, converter com cuidado
+                               selectedDate = new Date(timeSlot.start);
+                               console.log('🔍 BaseDestinationFlow - Convertendo string para Date:', selectedDate);
+                             }
+                             
+                             // CORREÇÃO: Usar getters locais para evitar mudança de dia por timezone
+                             const year = selectedDate.getFullYear();
+                             const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+                             const day = String(selectedDate.getDate()).padStart(2, '0');
+                             const formattedDate = `${year}-${month}-${day}`;
                              const formattedTime = selectedDate.toLocaleTimeString('pt-BR', {
                                hour: '2-digit',
                                minute: '2-digit',
                                hour12: false
                              });
                              
-                             // console.log('🔍 Data selecionada do slot:', selectedDate);
-                             // console.log('🔍 Data formatada:', formattedDate);
-                             // console.log('🔍 Horário formatado:', formattedTime);
+                             console.log('🔍 BaseDestinationFlow - Data processada:', {
+                               originalStart: timeSlot.start,
+                               selectedDate: selectedDate,
+                               year, month, day,
+                               formattedDate,
+                               formattedTime
+                             });
                              
+                             console.log('🔍 BaseDestinationFlow - Antes de setReturnDate:', { formattedDate, formattedTime });
                              setReturnDate(formattedDate);
                              setReturnTime(formattedTime);
+                             console.log('🔍 BaseDestinationFlow - Depois de setReturnDate');
                              
-                             // Aguardar um pouco para garantir que o estado foi atualizado
-                             setTimeout(() => {
-                               // console.log('🎯 CONFIRMAÇÃO - Estados definidos:');
-                               // console.log('🎯 returnDate =', formattedDate);
-                               // console.log('🎯 returnTime =', formattedTime);
-                               toast.success(`Data/Hora de retorno selecionada: ${formattedDate} às ${formattedTime}`);
-                             }, 100);
+                             // Mostrar toast imediatamente
+                             toast.success(`Data/Hora de retorno selecionada: ${formattedDate} às ${formattedTime}`);
+                             console.log('🔍 BaseDestinationFlow - Toast exibido');
                            } else {
                              // Fallback para string (compatibilidade)
                              const time = timeSlot.toString();
                              const today = new Date();
                              const [hours, minutes] = time.split(':');
                              const selectedDateTime = new Date(today.getFullYear(), today.getMonth(), today.getDate(), parseInt(hours), parseInt(minutes));
-                             const formattedDate = selectedDateTime.toISOString().split('T')[0];
+                             // CORREÇÃO: Usar formatação local em vez de UTC para evitar mudança de dia
+                             const year = selectedDateTime.getFullYear();
+                             const month = String(selectedDateTime.getMonth() + 1).padStart(2, '0');
+                             const day = String(selectedDateTime.getDate()).padStart(2, '0');
+                             const formattedDate = `${year}-${month}-${day}`;
                              
                              // console.log('🔍 Usando fallback - Data formatada:', formattedDate);
                              // console.log('🔍 Usando fallback - Horário formatado:', time);
@@ -731,13 +797,8 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
                              setReturnDate(formattedDate);
                              setReturnTime(time);
                              
-                             // Aguardar um pouco para garantir que o estado foi atualizado
-                             setTimeout(() => {
-                               // console.log('🎯 CONFIRMAÇÃO FALLBACK - Estados definidos:');
-                               // console.log('🎯 returnDate =', formattedDate);
-                               // console.log('🎯 returnTime =', time);
-                               toast.success(`Data/Hora de retorno selecionada: ${formattedDate} às ${time}`);
-                             }, 100);
+                             // Mostrar toast imediatamente
+                             toast.success(`Data/Hora de retorno selecionada: ${formattedDate} às ${time}`);
                            }
                          }}
                          onAircraftSelect={(aircraft) => setCurrentAircraft(aircraft)}
@@ -813,11 +874,11 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
                     <div className="mt-2 pt-2 border-t border-gray-300">
                       <div className="text-xs font-medium text-gray-600 mb-1">Rota detalhada:</div>
                       <div className="text-xs text-gray-500 space-y-1">
-                        <div>SBAU → {destinations[0]?.airport.icao}: {Math.round(calculateFlightTime(origin!, destinations[0]?.airport!) * 60)}min</div>
+                        <div>{getAirportNameByICAO('SBAU')} → {getAirportNameByICAO(destinations[0]?.airport.icao || '')}: {Math.round(calculateFlightTime(origin!, destinations[0]?.airport!) * 60)}min</div>
                         {destinations.length > 1 && (
-                          <div>{destinations[0]?.airport.icao} → {destinations[1]?.airport.icao}: {Math.round(calculateFlightTime(destinations[0]?.airport!, destinations[1]?.airport!) * 60)}min</div>
+                          <div>{getAirportNameByICAO(destinations[0]?.airport.icao || '')} → {getAirportNameByICAO(destinations[1]?.airport.icao || '')}: {Math.round(calculateFlightTime(destinations[0]?.airport!, destinations[1]?.airport!) * 60)}min</div>
                         )}
-                        <div>{destinations[destinations.length - 1]?.airport.icao} → SBAU: {Math.round(calculateFlightTime(destinations[destinations.length - 1]?.airport!, origin!) * 60)}min</div>
+                        <div>{getAirportNameByICAO(destinations[destinations.length - 1]?.airport.icao || '')} → {getAirportNameByICAO('SBAU')}: {Math.round(calculateFlightTime(destinations[destinations.length - 1]?.airport!, origin!) * 60)}min</div>
                       </div>
                     </div>
                   </div>

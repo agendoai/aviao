@@ -51,14 +51,18 @@ router.get('/time-slots/:aircraftId', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'weekStart é obrigatório' });
     }
 
-    const weekStartDate = new Date(weekStart as string);
-    const selectedStartDate = selectedStart ? new Date(selectedStart as string) : undefined;
-    const selectedEndDate = selectedEnd ? new Date(selectedEnd as string) : undefined;
+    // CORREÇÃO: Processar datas como horário brasileiro local
+    // O frontend envia datas no formato "2025-09-27T00:00:00" que devem ser interpretadas como horário brasileiro
+    const weekStartDate = new Date(weekStart as string + (weekStart.toString().includes('T') && !weekStart.toString().includes('Z') ? '-03:00' : ''));
+    const selectedStartDate = selectedStart ? new Date(selectedStart as string + (selectedStart.toString().includes('T') && !selectedStart.toString().includes('Z') ? '-03:00' : '')) : undefined;
+    const selectedEndDate = selectedEnd ? new Date(selectedEnd as string + (selectedEnd.toString().includes('T') && !selectedEnd.toString().includes('Z') ? '-03:00' : '')) : undefined;
     const missionDurationNum = missionDuration ? parseFloat(missionDuration as string) : undefined;
     const isSingleDay = singleDay === 'true';
 
     console.log('📅 Backend - Parâmetros recebidos:');
-    console.log('📅 weekStart:', weekStartDate.toISOString());
+    console.log('📅 weekStart original:', weekStart);
+    console.log('📅 weekStart processado:', weekStartDate.toISOString());
+    console.log('📅 weekStart local BR:', weekStartDate.toLocaleDateString('pt-BR'));
     console.log('📅 singleDay:', isSingleDay);
 
     const slots = await generateTimeSlots(
@@ -173,8 +177,8 @@ router.post('/', authMiddleware, async (req, res) => {
     // return_date: horário real + tempo de voo volta + 3h (fim do pós-voo)
     const calculatedReturnDate = new Date(returnDateTime.getTime() + (returnFlightTime * 60 * 60 * 1000) + (3 * 60 * 60 * 1000));
     
-    // Calcular janela bloqueada - próximo voo só pode iniciar após retorno + tempo_voo_volta + 3h
-    const blockedUntil = new Date(returnDateTime.getTime() + (returnFlightTime + 3) * 60 * 60 * 1000);
+    // Calcular janela bloqueada - deve ser igual ao return_date 
+    const blockedUntil = calculatedReturnDate;
 
     // Criar booking
     const booking = await prisma.booking.create({
@@ -815,8 +819,8 @@ router.post('/pix-payment', authMiddleware, async (req, res) => {
     // return_date: horário real + tempo de voo volta + 3h (fim do pós-voo)
     const calculatedReturnDate = new Date(returnDateTime.getTime() + (returnFlightTime * 60 * 60 * 1000) + (3 * 60 * 60 * 1000));
     
-    // Calcular janela bloqueada - próximo voo só pode iniciar após retorno + tempo_voo_volta + 3h
-    const blockedUntil = new Date(returnDateTime.getTime() + (returnFlightTime + 3) * 60 * 60 * 1000);
+    // Calcular janela bloqueada - deve ser igual ao return_date 
+    const blockedUntil = calculatedReturnDate;
 
     // Criar booking com status 'pendente'
     const booking = await prisma.booking.create({

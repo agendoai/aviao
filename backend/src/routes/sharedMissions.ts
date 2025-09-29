@@ -62,6 +62,8 @@ router.post('/', authMiddleware, async (req, res) => {
       description,
       origin,
       destination,
+      secondaryDestination,
+      secondary_departure_time,
       departure_date,
       return_date,
       aircraftId,
@@ -178,6 +180,8 @@ router.post('/', authMiddleware, async (req, res) => {
         description,
         origin,
         destination,
+        secondaryDestination: secondaryDestination || null,
+        secondary_departure_time: secondary_departure_time ? new Date(secondary_departure_time) : null,
         departure_date: calculatedDepartureDate, // Horário calculado (real - 3h)
         return_date: calculatedReturnDate, // Horário calculado (real + voo volta + 3h)
         actual_departure_date: actualDepartureDate, // Horário real de partida (exatamente o que usuário selecionou)
@@ -221,6 +225,8 @@ router.post('/', authMiddleware, async (req, res) => {
         aircraftId: aircraftId,
         origin: origin,
         destination: destination,
+        secondaryDestination: secondaryDestination || null,
+        secondary_departure_time: secondary_departure_time ? new Date(secondary_departure_time) : null,
         departure_date: calculatedDepartureDate, // Horário calculado (real - 3h)
         return_date: calculatedReturnDate, // Horário calculado (real + voo volta + 3h)
         actual_departure_date: actualDepartureDate, // Horário real de partida (exatamente o que usuário selecionou)
@@ -1053,8 +1059,7 @@ router.get('/participation-requests/message-counts', authMiddleware, async (req,
         messageCounts.myMissionsCounts[mission.id] = {
           title: mission.title,
           totalRequests,
-          pendingRequests,
-          unreadCount: totalUnreadForMission
+          pendingRequests
         };
       }
     }
@@ -1124,6 +1129,8 @@ router.post('/pix-payment', authMiddleware, async (req, res) => {
       description,
       origin,
       destination,
+      secondaryDestination,
+      secondary_departure_time,
       departure_date,
       return_date,
       aircraftId,
@@ -1167,6 +1174,8 @@ router.post('/pix-payment', authMiddleware, async (req, res) => {
         description,
         origin,
         destination,
+        secondaryDestination: secondaryDestination || null,
+        secondary_departure_time: secondary_departure_time ? new Date(secondary_departure_time) : null,
         departure_date: new Date(departure_date),
         return_date: new Date(return_date),
         aircraftId,
@@ -1197,8 +1206,8 @@ router.post('/pix-payment', authMiddleware, async (req, res) => {
         asaasCustomerId = await createAsaasCustomer({
           name: user.name,
           email: user.email,
-          cpfCnpj: user.cpfCnpj,
-          phone: user.phone,
+          cpfCnpj: user.cpfCnpj || undefined,
+          phone: user.phone || undefined,
         });
         
         // Atualizar usuário com o customerId

@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { format, addMonths, subMonths, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay, isToday, isBefore, addDays } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
-import { convertUTCToBrazilianTime, formatUTCToBrazilian, formatUTCToBrazilianDateTime } from '@/utils/dateUtils';
+import { convertUTCToBrazilianTime, formatUTCToBrazilian, formatUTCToBrazilianDateTime, convertBlockedUntilToBrazilianTime } from '@/utils/dateUtils';
 import { Clock, Check, X, ChevronLeft, ChevronRight } from 'lucide-react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
@@ -182,15 +182,10 @@ const SimpleCalendar: React.FC<SimpleCalendarProps> = ({
       let end: Date;
       
       if (booking.blocked_until) {
-        end = convertUTCToBrazilianTime(booking.blocked_until);
+        end = convertBlockedUntilToBrazilianTime(booking.blocked_until);
       } else {
-        // Calcular: retorno + tempo de voo de volta + 3h de manutenção
-        const returnDate = convertUTCToBrazilianTime(booking.return_date);
-        const totalFlightDuration = booking.flight_hours || 1;
-        const returnFlightDuration = totalFlightDuration / 2; // Metade do tempo total para o voo de volta
-        const returnFlightDurationMinutes = returnFlightDuration * 60;
-        const flightEnd = new Date(returnDate.getTime() + (returnFlightDurationMinutes * 60 * 1000));
-        end = new Date(flightEnd.getTime() + (3 * 60 * 60 * 1000)); // +3h de manutenção
+        // CORRIGIDO: return_date já inclui tempo de voo de volta + 3h de manutenção
+        end = convertUTCToBrazilianTime(booking.return_date);
         
         // console.log(`🔍 Cálculo de bloqueio para missão ${booking.id}:`);
         // console.log(`🔍   Partida: ${start.toLocaleString('pt-BR')}`);

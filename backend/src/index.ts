@@ -13,6 +13,7 @@ import calendarRoutes from './routes/calendar';
 import webhookRoutes from './routes/webhooks';
 import scheduleRoutes from './routes/schedule';
 import airportRoutes from './routes/airports';
+import missionsRoutes from './routes/missions';
 const app = express();
 
 app.use(cors({
@@ -39,6 +40,7 @@ app.use('/api/admin', adminRoutes);
 app.use('/api/calendar', calendarRoutes);
 app.use('/api/webhooks', webhookRoutes);
 app.use('/api/schedule', scheduleRoutes);
+app.use('/api/missions', missionsRoutes);
 app.use('/api/airports', airportRoutes);
 
 const PORT = process.env.PORT || 4000;
@@ -50,4 +52,4 @@ app.listen(PORT, () => {
   // console.log(`📡 Webhook Asaas: /api/webhooks/asaas`);
   // Iniciar scheduler de agenda
   Scheduler.start();
-}); 
+});

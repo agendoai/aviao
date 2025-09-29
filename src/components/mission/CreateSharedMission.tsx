@@ -34,6 +34,9 @@ interface SharedMissionData {
   origin: string;
   destination: string;
   secondaryDestination: string;
+  primaryArrivalDate?: string; // Data de chegada no primeiro destino
+  primaryArrivalTime?: string; // Horário de chegada no primeiro destino
+  secondary_departure_time?: string; // Horário de saída do destino secundário
   stops: string;
   notes: string;
   availableSeats: number;
@@ -68,6 +71,12 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
     origin: '',
     destination: '',
     secondaryDestination: '',
+    primaryArrivalDate: '', // Data de chegada no primeiro destino
+    primaryArrivalTime: '', // Horário de chegada no primeiro destino
+    secondaryDepartureDate: '', // Data de saída do destino principal para o secundário
+    secondaryDepartureTime: '', // Horário de saída do destino principal para o secundário
+    secondaryReturnDate: '',    // Data de saída do destino secundário para a base
+    secondaryReturnTime: '',    // Horário de saída do destino secundário para a base
     stops: '',
     notes: '',
     availableSeats: 1
@@ -378,6 +387,14 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
       return false;
     }
 
+    // Validação OBRIGATÓRIA para destino secundário
+    if (selectedSecondaryDestination && !missionData.secondaryDepartureTime) {
+      toast.error("⚠️ Horário de Ida para Destino Secundário OBRIGATÓRIO", {
+        description: "Preencha o horário de ida para o destino secundário antes de continuar"
+      });
+      return false;
+    }
+
     if (missionData.availableSeats < 1 || missionData.availableSeats >= (selectedAircraft?.max_passengers || 1)) {
       toast.error("Poltronas disponíveis inválidas", {
         description: `Selecione entre 1 e ${(selectedAircraft?.max_passengers || 1) - 1} poltronas`
@@ -431,6 +448,9 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
          description: missionData.notes,
          origin: missionData.origin,
          destination: missionData.destination,
+         secondaryDestination: missionData.secondaryDestination || null,
+         secondary_departure_time: missionData.secondaryDepartureDate && missionData.secondaryDepartureTime ? 
+           `${missionData.secondaryDepartureDate}T${missionData.secondaryDepartureTime}` : null,
          departure_date: `${missionData.departureDate}T${missionData.departureTime}`,
          return_date: `${missionData.returnDate}T${missionData.returnTime}`,
          aircraftId: selectedAircraft!.id,
@@ -449,6 +469,10 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
         origin: missionData.origin,
         destination: missionData.destination,
         secondaryDestination: missionData.secondaryDestination,
+        primaryArrivalDate: missionData.primaryArrivalDate,
+        primaryArrivalTime: missionData.primaryArrivalTime,
+        secondary_departure_time: missionData.secondaryDepartureDate && missionData.secondaryDepartureTime ? 
+          `${missionData.secondaryDepartureDate}T${missionData.secondaryDepartureTime}` : undefined,
         stops: missionData.stops,
         notes: missionData.notes,
         availableSeats: missionData.availableSeats,
@@ -601,6 +625,40 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
               </div>
             </div>
 
+            {/* Campo OBRIGATÓRIO de horário de ida para destino secundário - aparece no calendário quando tem 2 destinos */}
+            {selectedSecondaryDestination && (
+              <div className="bg-red-50 border-2 border-red-300 rounded-lg p-4">
+                <h4 className="text-sm font-bold text-red-800 mb-2 flex items-center">
+                  ⚠️ Horário de Partida: {selectedDestination?.icao || 'Primeiro'} → {selectedSecondaryDestination.icao}
+                  <span className="ml-2 bg-red-600 text-white px-2 py-1 rounded text-xs">OBRIGATÓRIO</span>
+                </h4>
+                <p className="text-xs text-red-600 mb-3 font-semibold">
+                  ⚠️ Selecione quando a aeronave deve PARTIR do primeiro destino!
+                </p>
+                <div className="space-y-3">
+                  <div>
+                    <Label htmlFor="primaryToSecondaryTime" className="text-xs font-bold text-red-800">Horário de Partida:</Label>
+                    <Input
+                      id="primaryToSecondaryTime"
+                      type="time"
+                      value={missionData.secondaryDepartureTime}
+                      onChange={(e) => handleInputChange('secondaryDepartureTime', e.target.value)}
+                      className="mt-1 h-12 text-lg border-red-300 focus:border-red-500 bg-white font-bold"
+                      placeholder="--:--"
+                    />
+                  </div>
+                  <div className="bg-red-100 p-3 rounded text-sm text-red-700 font-bold text-center">
+                    🛫 {selectedDestination?.icao || 'SBSP'} → {selectedSecondaryDestination.icao || 'SBGR'}
+                  </div>
+                  {!missionData.secondaryDepartureTime && (
+                    <div className="bg-red-200 border border-red-400 p-2 rounded text-xs text-red-800 font-semibold">
+                      🚫 Preencha este horário para continuar com a missão
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             <div className="grid grid-cols-2 gap-3">
               <div>
                 <Label htmlFor="returnDate" className="text-xs">Data de Retorno</Label>
@@ -610,6 +668,7 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
                   value={missionData.returnDate}
                   onChange={(e) => handleInputChange('returnDate', e.target.value)}
                   className="mt-1 h-8 text-xs"
+                  disabled={selectedSecondaryDestination && !missionData.secondaryDepartureTime}
                 />
               </div>
               <div>
@@ -620,9 +679,115 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
                   value={missionData.returnTime}
                   onChange={(e) => handleInputChange('returnTime', e.target.value)}
                   className="mt-1 h-8 text-xs"
+                  disabled={selectedSecondaryDestination && !missionData.secondaryDepartureTime}
                 />
               </div>
             </div>
+
+            {selectedSecondaryDestination && !missionData.secondaryDepartureTime && (
+              <div className="bg-yellow-50 border border-yellow-300 rounded p-2 text-xs text-yellow-700">
+                ⚠️ Complete o horário de ida para destino secundário para habilitar os campos de retorno
+              </div>
+            )}
+
+            {/* Campo para horário de chegada no primeiro destino quando tiver segundo destino */}
+            {selectedSecondaryDestination && (
+              <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mt-4">
+                <h4 className="text-sm font-medium text-yellow-800 mb-2">Horário de Chegada no Primeiro Destino</h4>
+                <p className="text-xs text-yellow-600 mb-3">
+                  Defina quando a aeronave deve chegar em {selectedDestination?.icao || 'primeiro destino'} antes de seguir para {selectedSecondaryDestination.icao}.
+                </p>
+                
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <Label htmlFor="primaryArrivalDate" className="text-xs">Data de Chegada em {selectedDestination?.icao || 'Principal'}</Label>
+                    <Input
+                      id="primaryArrivalDate"
+                      type="date"
+                      value={missionData.primaryArrivalDate || missionData.departureDate}
+                      onChange={(e) => handleInputChange('primaryArrivalDate', e.target.value)}
+                      className="mt-1 h-8 text-xs"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="primaryArrivalTime" className="text-xs">Horário de Chegada</Label>
+                    <Input
+                      id="primaryArrivalTime"
+                      type="time"
+                      value={missionData.primaryArrivalTime}
+                      onChange={(e) => handleInputChange('primaryArrivalTime', e.target.value)}
+                      className="mt-1 h-8 text-xs"
+                    />
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Campos adicionais para segundo destino - igual à missão solo */}
+            {selectedSecondaryDestination && (
+              <>
+                <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 mt-4">
+                  <h4 className="text-sm font-medium text-blue-800 mb-2">Horários do Segundo Destino</h4>
+                  <p className="text-xs text-blue-600 mb-3">
+                    Defina exatamente quando a aeronave deve SAIR de {selectedDestination?.icao || 'primeiro destino'} para ir ao {selectedSecondaryDestination.icao}, e depois quando sair de {selectedSecondaryDestination.icao} para retornar à base.
+                  </p>
+                  
+                  {/* Saída do destino principal para o secundário */}
+                  <div className="grid grid-cols-2 gap-3 mb-3">
+                    <div>
+                      <Label htmlFor="secondaryDepartureDate" className="text-xs font-semibold text-blue-800">Data de DECOLAGEM: {selectedDestination?.icao || 'Principal'} → {selectedSecondaryDestination.icao}</Label>
+                      <Input
+                        id="secondaryDepartureDate"
+                        type="date"
+                        value={missionData.secondaryDepartureDate}
+                        onChange={(e) => handleInputChange('secondaryDepartureDate', e.target.value)}
+                        className="mt-1 h-8 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="secondaryDepartureTime" className="text-xs font-semibold text-blue-800">Horário de DECOLAGEM</Label>
+                      <Input
+                        id="secondaryDepartureTime"
+                        type="time"
+                        value={missionData.secondaryDepartureTime}
+                        onChange={(e) => handleInputChange('secondaryDepartureTime', e.target.value)}
+                        className="mt-1 h-8 text-xs"
+                        placeholder="Ex: 12:00"
+                      />
+                    </div>
+                  </div>
+
+                  {/* Saída do destino secundário para a base */}
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <Label htmlFor="secondaryReturnDate" className="text-xs">Data: {selectedSecondaryDestination.icao} → Base</Label>
+                      <Input
+                        id="secondaryReturnDate"
+                        type="date"
+                        value={missionData.secondaryReturnDate}
+                        onChange={(e) => handleInputChange('secondaryReturnDate', e.target.value)}
+                        className="mt-1 h-8 text-xs"
+                      />
+                    </div>
+                    <div>
+                      <Label htmlFor="secondaryReturnTime" className="text-xs">Horário de Saída</Label>
+                      <Input
+                        id="secondaryReturnTime"
+                        type="time"
+                        value={missionData.secondaryReturnTime}
+                        onChange={(e) => handleInputChange('secondaryReturnTime', e.target.value)}
+                        className="mt-1 h-8 text-xs"
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="mt-2 text-xs text-blue-600 bg-blue-100 p-2 rounded">
+                    <strong>Rota completa:</strong> {missionData.origin} → {selectedDestination?.icao || 'Principal'} → {selectedSecondaryDestination.icao} → {missionData.origin}<br/>
+                    <strong>Horário de decolagem do primeiro destino:</strong> {missionData.secondaryDepartureTime ? `${missionData.secondaryDepartureDate} às ${missionData.secondaryDepartureTime}` : 'Não definido'}
+                  </div>
+                </div>
+              </>
+            )}
 
             <div>
               <Label htmlFor="origin" className="text-xs">Origem</Label>
@@ -780,7 +945,7 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
                               className={selectedAirports[airport.icao] === 'main' ? 'bg-blue-500 hover:bg-blue-600 text-white' : ''}
                               onClick={() => handleAddDestination(airport, 'main')}
                             >
-                              Destino Principal
+                              Primeiro Destino
                             </Button>
                             <Button
                               size="sm"
@@ -788,7 +953,7 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
                               className={selectedAirports[airport.icao] === 'secondary' ? 'bg-gray-500 hover:bg-gray-600 text-white' : ''}
                               onClick={() => handleAddDestination(airport, 'secondary')}
                             >
-                              Secundário
+                              Segundo Destino
                             </Button>
                           </div>
                         </div>
@@ -826,7 +991,7 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
                           </div>
                           <div className="flex items-center space-x-2">
                             <Badge variant="default" className="bg-blue-500 text-white text-xs">
-                              Destino Principal
+                              Primeiro Destino
                             </Badge>
                             <Button
                               variant="ghost"
@@ -856,7 +1021,7 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
                           </div>
                           <div className="flex items-center space-x-2">
                             <Badge variant="outline" className="text-xs">
-                              Secundário
+                              Segundo Destino
                             </Badge>
                             <Button
                               variant="ghost"
@@ -976,6 +1141,9 @@ const CreateSharedMission: React.FC<CreateSharedMissionProps> = ({
               onTimeSlotSelect={handleTimeSlotSelect}
               selectedTimeSlot={selectedTimeSlot}
               onBack={() => setShowCalendar(false)}
+              hasSecondaryDestination={!!selectedSecondaryDestination}
+              primaryDestination={selectedDestination?.icao || ''}
+              secondaryDestination={selectedSecondaryDestination?.icao || ''}
             />
           </div>
         </div>

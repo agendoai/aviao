@@ -75,7 +75,7 @@ const WeeklySchedule: React.FC<WeeklyScheduleProps> = ({ aircraft, onCreateMissi
   }, [currentWeek]);
 
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(currentWeek, i));
-  const timeSlots = Array.from({ length: 14 }, (_, i) => i + 6); // 6h às 19h
+  const timeSlots = Array.from({ length: 18 }, (_, i) => i + 6); // 6h às 23h (incluindo slots noturnos)
 
   const getReservationForSlot = (aircraftId: number, day: Date, hour: number) => {
     const slotStart = new Date(day);

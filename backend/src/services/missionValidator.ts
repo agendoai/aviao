@@ -60,26 +60,25 @@ export function calcularTempoVolta(flightHoursTotal: number): number {
  * USAR APENAS departure_date e return_date que já estão calculados!
  */
 export function janelaBloqueada(m: Missao): JanelaBloqueada[] {
-  // m.partida já é o início do pré-voo (04:00)
-  // m.retorno já é o fim do pós-voo (21:00)
-  // USAR APENAS departure_date e return_date que já estão calculados!
+  // Voltar para lógica original - usar partida/retorno que já incluem buffers
+  // O problema está no frontend, não no backend
   
   return [
     {
-      inicio: new Date(m.partida.getTime()), // 04:00 (início pré-voo)
-      fim: new Date(m.partida.getTime() + H(PRE_VOO_HORAS)), // 07:00 (fim pré-voo)
+      inicio: new Date(m.partida.getTime()), // início do pré-voo
+      fim: new Date(m.partida.getTime() + H(PRE_VOO_HORAS)), // fim pré-voo
       tipo: 'pre-voo',
       missao: m
     },
     {
-      inicio: new Date(m.partida.getTime() + H(PRE_VOO_HORAS)), // 07:00 (início missão)
-      fim: new Date(m.retorno.getTime() - H(POS_VOO_HORAS)), // 18:00 (fim missão = return_date - 3h)
+      inicio: new Date(m.partida.getTime() + H(PRE_VOO_HORAS)), // início missão
+      fim: new Date(m.retorno.getTime() - H(POS_VOO_HORAS)), // fim missão
       tipo: 'missao',
       missao: m
     },
     {
-      inicio: new Date(m.retorno.getTime() - H(POS_VOO_HORAS)), // 18:00 (início pós-voo)
-      fim: new Date(m.retorno.getTime()), // 21:00 (fim pós-voo)
+      inicio: new Date(m.retorno.getTime() - H(POS_VOO_HORAS)), // início pós-voo
+      fim: new Date(m.retorno.getTime()), // fim pós-voo
       tipo: 'pos-voo',
       missao: m
     }
@@ -88,12 +87,12 @@ export function janelaBloqueada(m: Missao): JanelaBloqueada[] {
 
 /**
  * Menor início possível DEPOIS de uma missão (para sugerir no UI)
- * CORRIGIDA: m.retorno já é o fim do pós-voo, então a próxima decolagem é retorno + 3h
+ * CORRIGIDA: m.retorno já é o fim do pós-voo, aeronave fica disponível imediatamente
  */
 export function proximaDecolagemPossivel(m: Missao): Date {
-  // m.retorno já é o fim do pós-voo (21:00), então a próxima decolagem possível é 3h depois
-  const proximaDecolagem = new Date(m.retorno.getTime() + H(PROXIMA_MISSAO_HORAS));
-  return proximaDecolagem;
+  // m.retorno já é o fim do pós-voo (includes maintenance), então aeronave fica disponível imediatamente
+  // NÃO somar 3h extras pois o return_date já calculou tudo
+  return new Date(m.retorno.getTime());
 }
 
 /**

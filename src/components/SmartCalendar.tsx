@@ -168,11 +168,11 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
         });
         
         // console.log('📅 Eventos processados:', scheduleEvents.map(e => ({
-          title: e.title,
-          start: e.start.toLocaleString(),
-          end: e.end.toLocaleString(),
-          blocked_until: e.resource?.blocked_until ? new Date(e.resource.blocked_until).toLocaleString() : 'N/A'
-        })));
+        //   title: e.title,
+        //   start: e.start.toLocaleString(),
+        //   end: e.end.toLocaleString(),
+        //   blocked_until: e.resource?.blocked_until ? new Date(e.resource.blocked_until).toLocaleString() : 'N/A'
+        // })));
         
         setEvents(scheduleEvents);
         
@@ -201,9 +201,23 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
         return false;
       }
 
-      const dayEvents = scheduleEvents.filter(event => 
-        isSameDay(new Date(event.start), date)
-      );
+      const dayEvents = scheduleEvents.filter(event => {
+        const eventStart = new Date(event.start);
+        
+        // Calcular o período total de bloqueio (usar return_date se blocked_until não existir)
+        let eventEnd: Date;
+        if (event.resource?.blocked_until) {
+          eventEnd = new Date(event.resource.blocked_until);
+        } else {
+          eventEnd = new Date(event.end); // return_date
+        }
+        
+        // Criar limites do dia em UTC para comparar corretamente (alinhado com BRT UTC-3)
+        const dayStartUTC = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 3, 0, 0, 0)); // 00:00 BRT = 03:00 UTC
+        const dayEndUTC = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate() + 1, 3, 0, 0, 0)); // 00:00 BRT do próximo dia = 03:00 UTC
+        
+        return (eventStart < dayEndUTC && eventEnd > dayStartUTC);
+      });
       
              // Se há menos de 5 eventos no dia (mais permissivo), o dia está disponível
        // Ou se não há eventos cadastrados, considerar disponível
@@ -244,48 +258,59 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
     // CORREÇÃO: Buscar TODOS os eventos que podem afetar este dia
     // Incluindo eventos que atravessam a meia-noite
     const relevantEvents = events.filter(event => {
-      const eventStart = new Date(event.start);
+      const eventStart = new Date(event.start); // departure_date
+      const eventEnd = new Date(event.end);     // return_date
       
-      // Calcular o período total de bloqueio (incluindo voo de volta + manutenção)
-      let eventEnd: Date;
-      if (event.resource?.blocked_until) {
-        eventEnd = new Date(event.resource.blocked_until);
-      } else {
-        const returnTime = new Date(event.end);
-        const totalFlightDuration = event.resource?.flight_duration || 1;
-        const returnFlightDuration = totalFlightDuration / 2;
-        const flightEnd = new Date(returnTime.getTime() + (returnFlightDuration * 60 * 60 * 1000));
-        eventEnd = new Date(flightEnd.getTime() + (3 * 60 * 60 * 1000));
-      }
+      // Se tem blocked_until, usar ele (mais preciso)
+      const finalEnd = event.resource?.blocked_until ? 
+        new Date(event.resource.blocked_until) : eventEnd;
       
-      // Verificar se o evento afeta este dia específico
-      // Um evento afeta um dia se:
-      // 1. Começa neste dia, OU
-      // 2. Termina neste dia, OU  
-      // 3. Atravessa este dia (início antes e fim depois)
+      // Converter UTC para horário local brasileiro para comparação
+      const eventStartLocal = new Date(eventStart.getTime() - (3 * 60 * 60 * 1000));
+      const eventEndLocal = new Date(finalEnd.getTime() - (3 * 60 * 60 * 1000));
+      
+      // Verificar se o evento afeta este dia
       const dayStart = new Date(date);
       dayStart.setHours(0, 0, 0, 0);
       const dayEnd = new Date(date);
       dayEnd.setHours(23, 59, 59, 999);
       
-      return (eventStart <= dayEnd && eventEnd >= dayStart);
+      // CORREÇÃO PREVENTIVA: Para slots noturnos (21h-23h), verificar se o evento
+      // tem actual_departure_date no dia atual, independentemente do período total
+      let eventAffectsDay = (eventStartLocal < dayEnd && eventEndLocal > dayStart);
+      
+      // Se o evento tem actual_departure_date, usar essa data para slots noturnos
+      if (event.resource?.actual_departure_date) {
+        const actualDepartureLocal = new Date(new Date(event.resource.actual_departure_date).getTime() - (3 * 60 * 60 * 1000));
+        const actualDepartureDay = new Date(actualDepartureLocal);
+        actualDepartureDay.setHours(0, 0, 0, 0);
+        
+        // Se a partida real é neste dia, considerar o evento relevante para slots noturnos
+        if (actualDepartureDay.getTime() === dayStart.getTime()) {
+          eventAffectsDay = true;
+        }
+      }
+      
+      // Evento afeta o dia se há sobreposição
+      return eventAffectsDay;
     });
     
     const now = new Date();
     const isToday = isSameDay(date, now);
     
-         // console.log('🔍 SmartCalendar - Calculando slots para:', date.toLocaleDateString());
-     // console.log('🔍 Eventos relevantes:', relevantEvents.length);
-     relevantEvents.forEach((event, index) => {
-       // console.log(`   Evento ${index + 1}: ${event.title} - ${format(event.start, 'HH:mm')} até ${format(event.end, 'HH:mm')}`);
-       // console.log(`   Blocked until: ${event.resource?.blocked_until ? format(new Date(event.resource.blocked_until), 'HH:mm') : 'N/A'}`);
-     });
-    
-    return TIME_SLOTS.map(time => {
-      // Verificar se o horário já passou (se for hoje)
+    console.log('🔍 SmartCalendar - Calculando slots para:', date.toLocaleDateString());
+    console.log('🔍 Eventos relevantes:', relevantEvents.length);
+    console.log('🔍 É hoje:', isToday);
+    console.log('🔍 Hora atual:', now.toLocaleTimeString());
+    console.log('🔍 TIME_SLOTS total:', TIME_SLOTS.length);
+     
+    const slots = TIME_SLOTS.map(time => {
+      // CORREÇÃO: Não bloquear slots por "horário passado" quando estamos vendo calendário de retorno
+      // O calendário de retorno pode ser para dias futuros, então slots de 21:00 são válidos
+      // Apenas bloquear se for realmente o mesmo dia E horário já passou
       if (isToday) {
         const [hours, minutes] = time.split(':').map(Number);
-        const timeSlot = new Date(now);
+        const timeSlot = new Date(date); // Usar a data do calendário, não 'now'
         
         // Tratar 00:00 como 24:00 do dia atual
         if (hours === 0) {
@@ -294,7 +319,16 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
           timeSlot.setHours(hours, minutes, 0, 0);
         }
         
-        if (timeSlot <= now) {
+        // CORREÇÃO: Só bloquear se for EXATAMENTE o mesmo dia E horário já passou
+        // Se estamos vendo um calendário de retorno (dia futuro), não bloquear
+        const isExactlySameDay = isSameDay(date, now);
+        const isTimeInPast = isExactlySameDay && timeSlot <= now;
+        
+        console.log(`   🕐 Slot ${time}: data=${date.toLocaleDateString()}, hoje=${now.toLocaleDateString()}, mesmodia=${isExactlySameDay}, passou=${isTimeInPast}`);
+        
+        // Só bloquear se for exatamente hoje E horário passou E não há eventos
+        if (relevantEvents.length === 0 && isTimeInPast) {
+          console.log(`   ❌ Slot ${time} BLOQUEADO (passado no mesmo dia, sem eventos)`);
           return {
             time,
             available: false,
@@ -309,57 +343,69 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
            return false;
          }
 
-                   // Criar horário completo para o slot atual
-          const [hours, minutes] = time.split(':').map(Number);
-          // CORREÇÃO: Criar data UTC para comparação consistente com o backend
-          const slotDateTime = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), hours, minutes, 0, 0));
+         // LÓGICA SIMPLES: Usar departure_date e return_date/blocked_until diretamente
+         const [hours, minutes] = time.split(':').map(Number);
          
-         // CORREÇÃO: Determinar o período total bloqueado
-         // O período bloqueado vai desde o início da missão até: retorno + voo de volta + 3h de manutenção
-         let blockedUntil: Date;
-         if (event.resource?.blocked_until) {
-           // Se tem blocked_until, usar ele (inclui retorno + tempo de voo de volta + 3h de manutenção)
-           blockedUntil = new Date(event.resource.blocked_until);
-           // console.log(`🔍 Usando blocked_until: ${blockedUntil.toLocaleString()} (inclui retorno + voo de volta + manutenção)`);
+         // Criar slot no horário brasileiro
+         const slotDateTime = new Date(date);
+         // Para horários noturnos (21:00-23:30), manter no mesmo dia
+         // Para 00:00, colocar no próximo dia
+         if (hours === 0) {
+           // 00:00 = meia-noite do próximo dia
+           slotDateTime.setDate(date.getDate() + 1);
+           slotDateTime.setHours(0, minutes, 0, 0);
          } else {
-           // Se não tem blocked_until, calcular: retorno + tempo de voo de volta + 3h de manutenção
-           const returnTime = new Date(event.end); // Horário de retorno
-           const totalFlightDuration = event.resource?.flight_duration || 1; // tempo total de voo (ida + volta)
-           const returnFlightDuration = totalFlightDuration / 2; // tempo de voo de volta (metade do total)
-           const flightEnd = new Date(returnTime.getTime() + (returnFlightDuration * 60 * 60 * 1000)); // Retorno + tempo de voo de volta
-           blockedUntil = new Date(flightEnd.getTime() + (3 * 60 * 60 * 1000)); // +3 horas de manutenção
-           // console.log(`🔍 Calculado: retorno ${returnTime.toLocaleString()} + ${returnFlightDuration}h voo de volta + 3h manutenção = ${blockedUntil.toLocaleString()}`);
+           // Todos os outros horários (incluindo 21:00-23:30) ficam no mesmo dia
+           slotDateTime.setHours(hours, minutes, 0, 0);
          }
          
-                   // CORREÇÃO: Verificar se o slot atual está dentro do período bloqueado
-          // Um slot está bloqueado se qualquer parte dele (1 hora) está dentro do período bloqueado
-          const slotEnd = new Date(slotDateTime);
-          slotEnd.setHours(slotDateTime.getHours() + 1, 0, 0, 0);
-          
-          const isBlocked = slotDateTime < blockedUntil && slotEnd > event.start;
-          
-          // Debug para entender o problema específico
-          if (slotDateTime.getHours() === 0 || slotDateTime.getHours() === 12 || slotDateTime.getHours() === 11) {
-            // console.log(`🔍 VIROU DIA DEBUG ${slotDateTime.getHours()}h:`);
-            // console.log(`   slotDateTime: ${slotDateTime.toLocaleString()}`);
-            // console.log(`   event.start: ${event.start.toLocaleString()}`);
-            // console.log(`   blockedUntil: ${blockedUntil.toLocaleString()}`);
-            // console.log(`   >= start: ${slotDateTime >= event.start}, <= end: ${slotDateTime <= blockedUntil}`);
-            // console.log(`   isBlocked = ${isBlocked}`);
-          }
-          
-
+         const slotEndDateTime = new Date(slotDateTime.getTime() + (60 * 60 * 1000));
+         
+         // Usar os dados já calculados do backend
+         const eventStart = new Date(event.start);  // departure_date em UTC
+         const finalEnd = event.resource?.blocked_until ? 
+           new Date(event.resource.blocked_until) : new Date(event.end); // return_date/blocked_until em UTC
+         
+         // Converter para horário brasileiro
+         const eventStartLocal = new Date(eventStart.getTime() - (3 * 60 * 60 * 1000));
+         const eventEndLocal = new Date(finalEnd.getTime() - (3 * 60 * 60 * 1000));
+         
+         // CORREÇÃO PREVENTIVA: Para slots noturnos (21h-23h), verificar também
+         // se o slot está no período da partida real (actual_departure_date)
+         let isBlocked = slotDateTime < eventEndLocal && slotEndDateTime > eventStartLocal;
+         
+         // Se é um slot noturno (21h-23h) e o evento tem actual_departure_date
+         if (hours >= 21 && hours <= 23 && event.resource?.actual_departure_date) {
+           const actualDepartureLocal = new Date(new Date(event.resource.actual_departure_date).getTime() - (3 * 60 * 60 * 1000));
+           const actualReturnLocal = event.resource?.actual_return_date ? 
+             new Date(new Date(event.resource.actual_return_date).getTime() - (3 * 60 * 60 * 1000)) : 
+             actualDepartureLocal;
+           
+           // Verificar se o slot está no período da missão real (não apenas no período total com buffers)
+           const slotInRealMissionPeriod = slotDateTime < actualReturnLocal && slotEndDateTime > actualDepartureLocal;
+           
+           // Para slots noturnos, priorizar o período da missão real
+           if (slotInRealMissionPeriod) {
+             isBlocked = true;
+           }
+         }
          
          return isBlocked;
        });
       
       const isAvailable = !conflictingEvent;
       
-             // Debug: log para slots bloqueados
-       if (!isAvailable) {
-         // console.log(`❌ Slot ${time} BLOQUEADO por: ${conflictingEvent?.title}`);
-         // console.log(`   Evento: ${conflictingEvent?.start.toLocaleString()} → ${conflictingEvent?.resource?.blocked_until ? new Date(conflictingEvent.resource.blocked_until).toLocaleString() : conflictingEvent?.end.toLocaleString()}`);
-       }
+      // Debug: log para slots bloqueados
+      if (!isAvailable) {
+        console.log(`❌ Slot ${time} BLOQUEADO por: ${conflictingEvent?.title}`);
+        const finalEnd = conflictingEvent?.resource?.blocked_until ? 
+          new Date(conflictingEvent.resource.blocked_until) : new Date(conflictingEvent?.end);
+        const eventStartLocal = new Date(new Date(conflictingEvent?.start).getTime() - (3 * 60 * 60 * 1000));
+        const eventEndLocal = new Date(finalEnd.getTime() - (3 * 60 * 60 * 1000));
+        console.log(`   Missão: ${eventStartLocal.toLocaleString('pt-BR')} → ${eventEndLocal.toLocaleString('pt-BR')}`);
+      } else {
+        console.log(`✅ Slot ${time} DISPONÍVEL`);
+      }
       
       return {
         time,
@@ -367,6 +413,14 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
         booking: conflictingEvent
       };
     });
+    
+    console.log(`🔍 Slots processados: ${slots.length}`);
+    const availableSlots = slots.filter(s => s.available);
+    const unavailableSlots = slots.filter(s => !s.available);
+    console.log(`✅ Disponíveis: ${availableSlots.length} - ${availableSlots.map(s => s.time).join(', ')}`);
+    console.log(`❌ Indisponíveis: ${unavailableSlots.length} - ${unavailableSlots.map(s => s.time).join(', ')}`);
+    
+    return slots;
   };
 
   const handleDateSelect = (date: Date) => {
@@ -381,16 +435,20 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
        const selectedDateTime = new Date(selectedDate);
        const [hours, minutes] = time.split(':').map(Number);
        
-       // Tratar 00:00 como 24:00 do dia atual
+       // Para horários noturnos (21:00-23:30), manter no mesmo dia selecionado
+       // Para 00:00, colocar no próximo dia
        if (hours === 0) {
-         selectedDateTime.setHours(24, minutes, 0, 0);
+         // 00:00 = meia-noite do próximo dia
+         selectedDateTime.setDate(selectedDate.getDate() + 1);
+         selectedDateTime.setHours(0, minutes, 0, 0);
        } else {
+         // Todos os outros horários (incluindo 21:00-23:30) ficam no mesmo dia
          selectedDateTime.setHours(hours, minutes, 0, 0);
        }
        
        const endDateTime = new Date(selectedDateTime);
        if (hours === 0) {
-         endDateTime.setHours(25, minutes, 0, 0); // 01:00 do dia seguinte
+         endDateTime.setHours(1, minutes, 0, 0); // 01:00 do dia seguinte
        } else {
          endDateTime.setHours(hours + 1, minutes, 0, 0);
        }
