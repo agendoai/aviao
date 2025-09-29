@@ -278,27 +278,41 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
         });
 
         
-        // Converter strings para objetos Date e validar
-        // CORREÇÃO: Usar diretamente as datas do backend que já estão em horário brasileiro
+        // Converter e NORMALIZAR a data dos slots para o dia exibido (currentWeek)
         const convertedSlots = slots.map(slot => {
-          // O backend já envia as datas em horário brasileiro local
-          const start = new Date(slot.start);
-          
-          // Calcular o end time correto: 29 minutos após o start
-          const end = new Date(start.getTime() + 29 * 60 * 1000);
-          
-          const nextAvailable = slot.nextAvailable ? new Date(slot.nextAvailable) : undefined;
-          
-          // Validar se as datas são válidas
-          if (isNaN(start.getTime()) || isNaN(end.getTime())) {
+          const originalStart = new Date(slot.start);
+          if (isNaN(originalStart.getTime())) {
             console.warn('Slot com data inválida:', slot);
             return null;
           }
-          
+
+          // Extrair HH:mm do slot devolvido pela API
+          const hours = originalStart.getHours();
+          const minutes = originalStart.getMinutes();
+
+          // Fixar a data para currentWeek (dia exibido no calendário)
+          const baseDate = new Date(currentWeek);
+          const start = new Date(baseDate);
+          start.setHours(hours, minutes, 0, 0);
+
+          // Fim do slot: +29 minutos
+          const end = new Date(start.getTime() + 29 * 60 * 1000);
+
+          // Normalizar nextAvailable (se existir) para o mesmo dia exibido, mantendo HH:mm
+          let nextAvailable: Date | undefined = undefined;
+          if (slot.nextAvailable) {
+            const na = new Date(slot.nextAvailable);
+            if (!isNaN(na.getTime())) {
+              const naNorm = new Date(baseDate);
+              naNorm.setHours(na.getHours(), na.getMinutes(), 0, 0);
+              nextAvailable = naNorm;
+            }
+          }
+
           return {
             ...slot,
-            start: start,
-            end: end,
+            start,
+            end,
             nextAvailable
           };
         }).filter(Boolean); // Remover slots inválidos
@@ -408,6 +422,18 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
       toast.error('Erro: data inválida no slot');
       return;
     }
+
+    // Normalizar a data do slot para o dia atualmente exibido (currentWeek), preservando HH:mm
+    // Corrige casos em que o backend/envio trouxe a data do dia anterior por timezone
+    try {
+      if (currentWeek instanceof Date && slot.start instanceof Date) {
+        const normalizedStart = new Date(currentWeek);
+        normalizedStart.setHours(slot.start.getHours(), slot.start.getMinutes(), 0, 0);
+        const normalizedEnd = new Date(normalizedStart.getTime() + 29 * 60 * 1000);
+        // Substituir start/end do slot para garantir o dia correto
+        slot = { ...slot, start: normalizedStart, end: normalizedEnd };
+      }
+    } catch {}
 
     // VALIDAÇÃO OBRIGATÓRIA: Se é seleção de retorno com destino secundário, precisa preencher horário secundário primeiro
     if (isReturnSelection && hasSecondaryDestinationActive && !canSelectReturn) {

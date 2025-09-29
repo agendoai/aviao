@@ -138,7 +138,11 @@ const DestinationStep: React.FC<DestinationStepProps> = ({
           throw new Error('Data inválida recebida do calendário');
         }
         
-        const formattedDate = selectedDate.toISOString().split('T')[0];
+        // Montar data local (AAAA-MM-DD) para evitar shift por UTC
+        const year = selectedDate.getFullYear();
+        const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
+        const day = String(selectedDate.getDate()).padStart(2, '0');
+        const formattedDate = `${year}-${month}-${day}`;
         const formattedTime = selectedDate.toLocaleTimeString('pt-BR', {
           hour: '2-digit',
           minute: '2-digit',
@@ -163,14 +167,17 @@ const DestinationStep: React.FC<DestinationStepProps> = ({
         }
         
         const selectedDateTime = new Date(
-          today.getFullYear(), 
-          today.getMonth(), 
-          today.getDate(), 
-          parseInt(hours), 
+          today.getFullYear(),
+          today.getMonth(),
+          today.getDate(),
+          parseInt(hours),
           parseInt(minutes)
         );
-        
-        const formattedDate = selectedDateTime.toISOString().split('T')[0];
+        // Data local (AAAA-MM-DD)
+        const year = selectedDateTime.getFullYear();
+        const month = String(selectedDateTime.getMonth() + 1).padStart(2, '0');
+        const day = String(selectedDateTime.getDate()).padStart(2, '0');
+        const formattedDate = `${year}-${month}-${day}`;
         
         setReturnDate(formattedDate);
         setReturnTime(timeSlot);
@@ -385,15 +392,36 @@ const DestinationStep: React.FC<DestinationStepProps> = ({
                        🎯 Calendário Inteligente (30min) - {selectedAircraft.registration}
                        <span className="ml-2 text-xs bg-green-200 px-2 py-1 rounded">Disponibilidade em Tempo Real</span>
                      </div>
-                     <IntelligentTimeSelectionStep
+                    <IntelligentTimeSelectionStep
                        title="Selecione o horário de retorno à base"
-                       selectedDate={returnDate ? new Date(returnDate).getDate().toString() : departureDate.getDate().toString()}
-                       currentMonth={returnDate ? new Date(returnDate) : new Date(departureDate)}
+                      selectedDate={(() => {
+                        if (returnDate) {
+                          const [y, m, d] = returnDate.split('-').map(Number);
+                          return new Date(y, m - 1, d).getDate().toString();
+                        }
+                        return departureDate.getDate().toString();
+                      })()}
+                      currentMonth={(() => {
+                        if (returnDate) {
+                          const [y, m, d] = returnDate.split('-').map(Number);
+                          return new Date(y, m - 1, d);
+                        }
+                        return new Date(departureDate);
+                      })()}
                        selectedAircraft={selectedAircraft}
                        onTimeSelect={handleReturnTimeSelect}
                        onAircraftSelect={handleAircraftSelect}
                        onBack={() => {}} // Função vazia para compatibilidade
-                       departureDateTime={departureDate && departureTime ? new Date(`${departureDate.toISOString().split('T')[0]}T${departureTime}`) : undefined}
+                      departureDateTime={(() => {
+                        if (departureDate && departureTime) {
+                          const year = departureDate.getFullYear();
+                          const month = departureDate.getMonth();
+                          const day = departureDate.getDate();
+                          const [hh, mm] = departureTime.split(':').map(Number);
+                          return new Date(year, month, day, hh, mm, 0, 0);
+                        }
+                        return undefined;
+                      })()}
                      />
                    </CardContent>
                  </Card>
