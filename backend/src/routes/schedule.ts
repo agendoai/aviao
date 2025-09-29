@@ -393,9 +393,9 @@ router.get('/bookings/:aircraftId', async (req, res) => {
         const flightEnd = new Date(returnTime.getTime() + (returnFlightDurationMinutes * 60 * 1000)); // Retorno + tempo de voo de volta
         blockedUntil = new Date(flightEnd.getTime() + (3 * 60 * 60 * 1000)); // +3 horas de manutenção
         
-        // Arredondar para a próxima hora para evitar confusão no calendário
+        // Apenas zerar minutos para horário mais limpo, sem forçar próxima hora
         blockedUntil.setMinutes(0, 0, 0); // Zerar minutos, segundos e milissegundos
-        blockedUntil.setHours(blockedUntil.getHours() + 1); // Arredondar para próxima hora
+        // Removido o +1 hora que causava problemas de virada de dia
       }
       
       // console.log(`📅 Booking ${booking.id}: ${booking.origin} → ${booking.destination}`);

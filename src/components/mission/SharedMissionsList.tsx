@@ -2005,7 +2005,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
                             className={selectedAirports[airport.icao] === 'main' ? 'bg-blue-500 hover:bg-blue-600 text-white' : 'hover:bg-blue-50'}
                             onClick={() => handleAddDestination(airport, 'main')}
                           >
-                            {selectedAirports[airport.icao] === 'main' ? '✓ Principal' : 'Destino Principal'}
+                            {selectedAirports[airport.icao] === 'main' ? '✓ Primeiro' : 'Primeiro Destino'}
                           </Button>
                           <Button
                             size="sm"
@@ -2013,7 +2013,7 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
                             className={selectedAirports[airport.icao] === 'secondary' ? 'bg-gray-500 hover:bg-gray-600 text-white' : 'hover:bg-gray-50'}
                             onClick={() => handleAddDestination(airport, 'secondary')}
                           >
-                            {selectedAirports[airport.icao] === 'secondary' ? '✓ Secundário' : 'Secundário'}
+                            {selectedAirports[airport.icao] === 'secondary' ? '✓ Segundo' : 'Segundo Destino'}
                           </Button>
                         </div>
                       </div>
@@ -2058,6 +2058,20 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
                   }}
                   onTimeSelect={handleDepartureSlotSelect}
                   onBack={() => setCurrentStep(2)}
+                  hasSecondaryDestination={!!selectedSecondaryDestination}
+                  selectedDestinations={{
+                    primary: selectedDestination?.icao,
+                    secondary: selectedSecondaryDestination?.icao
+                  }}
+                  {...(console.log('🚀 DEBUG Step 3 - Passando props:', {
+                    hasSecondaryDestination: !!selectedSecondaryDestination,
+                    selectedDestination: selectedDestination?.icao,
+                    selectedSecondaryDestination: selectedSecondaryDestination?.icao,
+                    selectedDestinations: {
+                      primary: selectedDestination?.icao,
+                      secondary: selectedSecondaryDestination?.icao
+                    }
+                  }) || {})}
                   onAircraftSelect={(aircraft: CalendarAircraft) => {
                     const fullAircraft = aircrafts.find(a => a.id === aircraft.id);
                     if (fullAircraft) {
@@ -2094,6 +2108,21 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
                   onBack={() => setCurrentStep(3)}
                   departureDateTime={selectedDepartureSlot.start}
                   isReturnSelection={true}
+                  hasSecondaryDestination={!!selectedSecondaryDestination}
+                  selectedDestinations={{
+                    primary: selectedDestination?.icao,
+                    secondary: selectedSecondaryDestination?.icao
+                  }}
+                  {...(console.log('🚀 DEBUG Step 4 - Passando props:', {
+                    hasSecondaryDestination: !!selectedSecondaryDestination,
+                    selectedDestination: selectedDestination?.icao,
+                    selectedSecondaryDestination: selectedSecondaryDestination?.icao,
+                    selectedDestinations: {
+                      primary: selectedDestination?.icao,
+                      secondary: selectedSecondaryDestination?.icao
+                    },
+                    isReturnSelection: true
+                  }) || {})}
                   onAircraftSelect={(aircraft: CalendarAircraft) => {
                     const fullAircraft = aircrafts.find(a => a.id === aircraft.id);
                     if (fullAircraft) {
@@ -2312,12 +2341,12 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
                       <h4 className="font-medium text-gray-900 text-xs mb-1">Horários de Pouso</h4>
                       <div className="space-y-0.5 text-xs">
                         <div className="flex justify-between">
-                          <span>Pouso no destino principal:</span>
+                          <span>Pouso no primeiro destino:</span>
                           <span className="font-medium">{summary.mainArrivalTime || 'N/A'}</span>
                         </div>
                         {summary.secondaryArrivalTime && (
                           <div className="flex justify-between">
-                            <span>Pouso no destino secundário:</span>
+                            <span>Pouso no segundo destino:</span>
                             <span className="font-medium">{summary.secondaryArrivalTime}</span>
                           </div>
                         )}

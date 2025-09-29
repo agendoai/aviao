@@ -39,17 +39,17 @@ const bookingToMissao = (booking: any): Missao => {
     ? booking.return_date 
     : booking.return_date.toISOString();
 
-  // Para gerar slots, sempre usar departure_date e return_date (já calculados)
-  // actual_departure_date e actual_return_date são para horários reais
-  const actualDepartureDateStr = departureDateStr; // Usar departure_date (já tem horário calculado)
-  const actualReturnDateStr = returnDateStr; // Usar return_date (já tem horário calculado)
+  // Voltar para lógica original - usar departure_date e return_date
+  const actualDepartureDateStr = departureDateStr;
+  const actualReturnDateStr = returnDateStr;
 
   return {
     id: booking.id,
-    partida: new Date(departureDateStr.replace('Z', '-03:00')), // 04:00 (início pré-voo - já calculado)
-    retorno: new Date(returnDateStr.replace('Z', '-03:00')), // 21:00 (fim pós-voo - já calculado)
-    actualDeparture: new Date(departureDateStr.replace('Z', '-03:00')), // Usar departure_date (já tem horário calculado)
-    actualReturn: new Date(returnDateStr.replace('Z', '-03:00')), // Usar return_date (já tem horário calculado)
+    // Usar departure_date e return_date (já calculados com buffers)
+    partida: new Date(departureDateStr),
+    retorno: new Date(returnDateStr),
+    actualDeparture: new Date(actualDepartureDateStr),
+    actualReturn: new Date(actualReturnDateStr),
     flightHoursTotal: booking.flight_hours,
     origin: booking.origin,
     destination: booking.destination
@@ -214,27 +214,34 @@ export const generateTimeSlots = async (
   
   // Gerar slots de 30 em 30 minutos das 00h às 23h30
   for (let day = 0; day < daysToGenerate; day++) {
-    const currentDate = new Date(weekStart);
-    currentDate.setDate(currentDate.getDate() + day);
+    // CORREÇÃO CRÍTICA: Usar a data original do weekStart em timezone brasileiro
+    // Extrair ano, mês e dia do weekStart que já está em timezone brasileiro
+    const baseYear = weekStart.getFullYear();
+    const baseMonth = weekStart.getMonth();
+    const baseDate = weekStart.getDate();
+    
+    // Criar data para o dia atual mantendo o timezone brasileiro
+    const currentDate = new Date(baseYear, baseMonth, baseDate + day);
     
     // Log apenas para o primeiro dia para debug
     if (day === 0) {
-      console.log('📅 Primeiro dia:', currentDate.toISOString());
+      console.log('📅 Primeiro dia (original weekStart):', weekStart.toISOString());
+      console.log('📅 Primeiro dia (currentDate local):', currentDate.toISOString());
+      console.log('📅 Primeiro dia (currentDate BR):', currentDate.toLocaleDateString('pt-BR'));
       console.log('📅 Gerando slots para', singleDay ? '1 dia' : '7 dias');
     }
     
     for (let hour = 0; hour <= 23; hour++) {
       for (let minute = 0; minute < 60; minute += 30) {
-        // Criar datas locais (sem timezone)
-        const slotStart = new Date(currentDate);
-        slotStart.setHours(hour, minute, 0, 0);
+        // CORREÇÃO CRÍTICA: Criar slots usando a data base correta
+        const slotStart = new Date(baseYear, baseMonth, baseDate + day, hour, minute, 0, 0);
+        const slotEnd = new Date(baseYear, baseMonth, baseDate + day, hour, minute + 30, 0, 0);
         
-        const slotEnd = new Date(currentDate);
-        slotEnd.setHours(hour, minute + 30, 0, 0);
-        
-        // Log apenas para o primeiro slot para debug
-        if (day === 0 && hour === 0 && minute === 0) {
-          console.log('📅 Primeiro slot gerado:', slotStart.toISOString());
+        // Log para slots noturnos para debug
+        if (day === 0 && hour === 21 && minute === 0) {
+          console.log('📅 Slot 21:00 gerado:', slotStart.toISOString());
+          console.log('📅 Slot 21:00 local BR:', slotStart.toLocaleDateString('pt-BR'), slotStart.toLocaleTimeString('pt-BR'));
+          console.log('📅 Slot 21:00 toString():', slotStart.toString());
         }
 
         // Verificar se o slot está em conflito com alguma janela bloqueada

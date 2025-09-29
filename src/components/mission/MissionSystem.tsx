@@ -230,7 +230,7 @@ const MissionSystem: React.FC = () => {
   const calculateAvailableTimeSlots = (aircraftId: number, selectedDate: Date) => {
     const slots: TimeSlot[] = [];
     const startHour = 6; // 6h
-    const endHour = 19; // 19h
+    const endHour = 24; // 24h (incluindo slots noturnos até 23:30)
     
     // Entradas de calendário (agenda admin) para a aeronave e data
     const dayEntries = calendarEntries.filter(e => {
@@ -871,12 +871,12 @@ const MissionSystem: React.FC = () => {
                     {(() => {
                       try {
                         // Calcular horário de pouso retorno
-                        // departure_date já inclui o tempo de voo de volta + 3h
-                        if (missionData?.departure_date) {
-                          const departureDate = new Date(missionData.departure_date);
-                          return format(departureDate, 'HH:mm', { locale: ptBR });
+                        // CORRIGIDO: return_date já inclui tempo de voo de volta + 3h de pós-voo
+                        if (missionData?.return_date) {
+                          const returnDate = new Date(missionData.return_date);
+                          return format(returnDate, 'HH:mm', { locale: ptBR });
                         }
-                        // Fallback: calcular baseado no horário de volta + tempo de voo de volta + 3h (pós-voo)
+                        // Fallback: usar horário de retorno + tempo de voo de volta + 3h (pós-voo)
                         const returnDateToUse = returnDate ? new Date(returnDate + 'T00:00:00') : selectedDate;
                         const returnDateTime = new Date(returnDateToUse);
                         returnDateTime.setHours(parseInt(returnTime.split(':')[0]), parseInt(returnTime.split(':')[1]), 0, 0);

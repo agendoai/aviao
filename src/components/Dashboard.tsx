@@ -925,8 +925,7 @@ const Dashboard: React.FC = () => {
                         flightDate = new Date();
                         daysUntilFlight = 0;
                       } else {
-                        // Adicionar 3 horas para converter para horário brasileiro
-                        flightDate = new Date(flightDate.getTime() + (3 * 60 * 60 * 1000));
+                        // CORRIGIDO: As datas já estão em horário brasileiro correto
                         const now = new Date();
                         daysUntilFlight = Math.ceil((flightDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
                       }

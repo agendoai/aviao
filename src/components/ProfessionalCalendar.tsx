@@ -147,12 +147,8 @@ const ProfessionalCalendar: React.FC<ProfessionalCalendarProps> = ({
       if (booking.blocked_until) {
         blockedUntil = new Date(booking.blocked_until);
       } else {
-        // Calcular: retorno + tempo de voo de volta + 3h de manutenção
-        const totalFlightDuration = booking.flight_hours || 1;
-        const returnFlightDuration = totalFlightDuration / 2;
-        const returnFlightDurationMinutes = returnFlightDuration * 60;
-        const flightEnd = new Date(end.getTime() + (returnFlightDurationMinutes * 60 * 1000));
-        blockedUntil = new Date(flightEnd.getTime() + (3 * 60 * 60 * 1000));
+        // CORRIGIDO: return_date já inclui tempo de voo de volta + 3h de manutenção
+        blockedUntil = new Date(booking.return_date);
       }
 
       return {

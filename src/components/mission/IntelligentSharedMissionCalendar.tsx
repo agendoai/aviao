@@ -3,6 +3,8 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Calendar } from '@/components/ui/calendar';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { 
   Calendar as CalendarIcon, 
   Clock, 
@@ -29,24 +31,37 @@ interface IntelligentSharedMissionCalendarProps {
   onTimeSlotSelect: (slot: TimeSlot) => void;
   selectedTimeSlot: TimeSlot | null;
   onBack: () => void;
+  hasSecondaryDestination?: boolean;
+  primaryDestination?: string;
+  secondaryDestination?: string;
 }
 
 export default function IntelligentSharedMissionCalendar({
   selectedAircraft,
   onTimeSlotSelect,
   selectedTimeSlot,
-  onBack
+  onBack,
+  hasSecondaryDestination = false,
+  primaryDestination = '',
+  secondaryDestination = ''
 }: IntelligentSharedMissionCalendarProps) {
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [availableTimeSlots, setAvailableTimeSlots] = useState<TimeSlot[]>([]);
   const [loading, setLoading] = useState(false);
   const [calendarEntries, setCalendarEntries] = useState<any[]>([]);
+  const [secondaryDepartureTime, setSecondaryDepartureTime] = useState<string>('');
 
-  // Gerar slots de 30 minutos das 06:00 às 22:00
+  // DEBUG: Vamos logar as props para ver se estão chegando
+  console.log('🔍 DEBUG IntelligentSharedMissionCalendar props:');
+  console.log('   hasSecondaryDestination:', hasSecondaryDestination);
+  console.log('   primaryDestination:', primaryDestination);
+  console.log('   secondaryDestination:', secondaryDestination);
+
+  // Gerar slots de 30 minutos das 06:00 às 24:00 (incluindo slots noturnos)
   const generateTimeSlots = (date: Date): TimeSlot[] => {
     const slots: TimeSlot[] = [];
     const startHour = 6;
-    const endHour = 22;
+    const endHour = 24; // Alterado de 22 para 24 para incluir slots até 23:30
     
     for (let hour = startHour; hour < endHour; hour++) {
       for (let minute = 0; minute < 60; minute += 30) {
@@ -76,7 +91,7 @@ export default function IntelligentSharedMissionCalendar({
       const startDate = startOfDay(date);
       const endDate = endOfDay(addDays(date, 6)); // Uma semana
       
-      const response = await getCalendar(selectedAircraft.id, startDate.toISOString(), endDate.toISOString());
+      const response = await getCalendar();
       
       if (response && Array.isArray(response)) {
         setCalendarEntries(response);
@@ -139,7 +154,7 @@ export default function IntelligentSharedMissionCalendar({
       onTimeSlotSelect(slot);
     } else {
       // Buscar próximos horários disponíveis
-      const slotsDisponiveis = timeSlots.filter(s => s.available);
+      const slotsDisponiveis = availableTimeSlots.filter(s => s.available);
       const proximosHorarios = slotsDisponiveis.slice(0, 3).map(s => s.start);
       
       let message = '⛔ Horário indisponível!';
@@ -190,6 +205,64 @@ export default function IntelligentSharedMissionCalendar({
               className="rounded-md border"
               disabled={(date) => date < new Date()}
             />
+            
+            <div className="mt-4">
+              <p className="text-center text-xs text-gray-500 mb-2">
+                Ir para data: {format(selectedDate, 'dd/MM/yyyy')}
+              </p>
+              <p className="text-center text-xs text-blue-600 font-semibold">
+                Hoje
+              </p>
+            </div>
+            
+            {/* CAMPO OBRIGATÓRIO - SEMPRE VISÍVEL QUANDO TEM DESTINO SECUNDÁRIO */}
+            {/* DEBUG: Forçando aparecer para testar */}
+            <div className="mt-4 p-4 bg-red-50 border-2 border-red-300 rounded-lg">
+              <h4 className="text-sm font-bold text-red-800 mb-2 flex items-center">
+                ⚠️ Horário de Decolagem para Segundo Destino
+                <span className="ml-2 bg-red-600 text-white px-2 py-1 rounded text-xs">OBRIGATÓRIO</span>
+              </h4>
+              <p className="text-xs text-red-600 mb-3 font-semibold">
+                Preencha este campo antes de selecionar horário de retorno!
+              </p>
+              <p className="text-xs text-blue-600 mb-3">
+                DEBUG: hasSecondaryDestination = {hasSecondaryDestination ? 'TRUE' : 'FALSE'}
+              </p>
+              <p className="text-xs text-blue-600 mb-3">
+                DEBUG: primaryDestination = "{primaryDestination}"
+              </p>
+              <p className="text-xs text-blue-600 mb-3">
+                DEBUG: secondaryDestination = "{secondaryDestination}"
+              </p>
+              
+              <div className="space-y-3">
+                <Label htmlFor="secondaryDeptTime" className="text-xs font-bold text-red-800">
+                  Horário: {primaryDestination || 'SBSP'} → {secondaryDestination || 'SBGR'}
+                </Label>
+                <Input
+                  id="secondaryDeptTime"
+                  type="time"
+                  value={secondaryDepartureTime}
+                  onChange={(e) => setSecondaryDepartureTime(e.target.value)}
+                  className="h-12 text-lg border-red-300 focus:border-red-500 bg-white font-bold"
+                  placeholder="--:--"
+                />
+                
+                <div className="bg-red-100 p-2 rounded text-xs text-red-700 font-bold text-center">
+                  🛫 {primaryDestination || 'SBSP'} → {secondaryDestination || 'SBGR'}
+                </div>
+                
+                {!secondaryDepartureTime ? (
+                  <div className="bg-red-200 border border-red-400 p-2 rounded text-xs text-red-800 font-semibold">
+                    🚫 Bloqueado: Não é possível selecionar horário de retorno até preencher este campo
+                  </div>
+                ) : (
+                  <div className="bg-green-100 border border-green-400 p-2 rounded text-xs text-green-800 font-semibold">
+                    ✅ Horário definido: {secondaryDepartureTime}
+                  </div>
+                )}
+              </div>
+            </div>
           </CardContent>
         </Card>
 
@@ -297,6 +370,57 @@ export default function IntelligentSharedMissionCalendar({
                 {format(selectedTimeSlot.start, 'HH:mm')} - {format(selectedTimeSlot.end, 'HH:mm')}
               </Badge>
             </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Campo de horário de decolagem para segundo destino */}
+      {hasSecondaryDestination && selectedTimeSlot && (
+        <Card className="border-orange-200 bg-orange-50">
+          <CardHeader>
+            <CardTitle className="flex items-center space-x-2 text-orange-800">
+              <Plane className="h-5 w-5" />
+              <span>⚠️ Horário de Decolagem para Segundo Destino</span>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="bg-orange-100 p-3 rounded-lg">
+              <p className="text-sm font-semibold text-orange-800 mb-2">
+                🛫 Defina quando a aeronave deve DECOLAR de {primaryDestination || 'Primeiro Destino'} para {secondaryDestination || 'Segundo Destino'}
+              </p>
+              <p className="text-xs text-orange-600">
+                Este horário é obrigatório para missões com destino secundário
+              </p>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="secondaryDepartureTime" className="text-sm font-bold text-orange-800">
+                Horário de Decolagem: {primaryDestination} → {secondaryDestination}
+              </Label>
+              <Input
+                id="secondaryDepartureTime"
+                type="time"
+                value={secondaryDepartureTime}
+                onChange={(e) => setSecondaryDepartureTime(e.target.value)}
+                className="h-12 text-lg border-orange-300 focus:border-orange-500 bg-white font-bold"
+                placeholder="--:--"
+              />
+            </div>
+            
+            <div className="bg-white border border-orange-200 p-3 rounded-lg">
+              <div className="flex items-center justify-center space-x-2 text-orange-700">
+                <span className="font-bold">Rota:</span>
+                <span>🏠 Base → {primaryDestination} →</span>
+                <span className="bg-orange-200 px-2 py-1 rounded font-bold">{secondaryDepartureTime || '--:--'}</span>
+                <span>→ {secondaryDestination} → 🏠 Base</span>
+              </div>
+            </div>
+            
+            {!secondaryDepartureTime && (
+              <div className="bg-red-100 border border-red-300 p-2 rounded text-sm text-red-700 font-semibold">
+                🚫 Preencha o horário de decolagem para continuar
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

@@ -17,8 +17,8 @@ export const convertBrazilianDateToUTCString = (brazilianDate: Date): string => 
   const minutes = String(brazilianDate.getMinutes()).padStart(2, '0');
   const seconds = String(brazilianDate.getSeconds()).padStart(2, '0');
   
-  // Retornar no formato ISO mas sem conversão UTC
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}.000Z`;
+  // Retornar no formato ISO sem o Z para indicar que é horário local brasileiro
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
 };
 
 /**
@@ -29,31 +29,25 @@ export const convertBrazilianDateToUTCString = (brazilianDate: Date): string => 
 export const convertUTCToBrazilianTime = (utcDate: string | Date): Date => {
   const date = typeof utcDate === 'string' ? new Date(utcDate) : utcDate;
   
-  // Converter UTC para horário brasileiro (UTC-3)
-  // Adicionar 3 horas para converter de UTC para horário brasileiro
-  const brazilianTime = new Date(date.getTime() + (3 * 60 * 60 * 1000));
-  
-  return brazilianTime;
+  // CORRIGIDO: As datas já estão em horário brasileiro, não precisam de conversão
+  // O backend salva as datas já no horário brasileiro correto
+  return date;
 };
 
-// Função específica para partida (adiciona 3 horas)
+// Função específica para partida (não adiciona horas)
 export const convertUTCToBrazilianTimeDeparture = (utcDate: string | Date): Date => {
   const date = typeof utcDate === 'string' ? new Date(utcDate) : utcDate;
   
-  // Para partida: adicionar 3 horas (07:00 → 10:00)
-  const brazilianTime = new Date(date.getTime() + (3 * 60 * 60 * 1000));
-  
-  return brazilianTime;
+  // CORRIGIDO: As datas já estão em horário brasileiro correto
+  return date;
 };
 
-// Função específica para retorno (não adiciona 3 horas)
+// Função específica para retorno (não adiciona horas)
 export const convertUTCToBrazilianTimeReturn = (utcDate: string | Date): Date => {
   const date = typeof utcDate === 'string' ? new Date(utcDate) : utcDate;
   
-  // Para retorno: não adicionar (17:00 → 17:00)
-  const brazilianTime = new Date(date.getTime());
-  
-  return brazilianTime;
+  // CORRIGIDO: As datas já estão em horário brasileiro correto
+  return date;
 };
 
 /**
@@ -104,6 +98,18 @@ export const formatUTCToBrazilianTime = (utcDate: string | Date): string => {
 };
 
 /**
+ * Converte blocked_until que já está no horário brasileiro
+ * @param blockedUntilDate - Data do blocked_until
+ * @returns Date no horário brasileiro (sem conversão adicional)
+ */
+export const convertBlockedUntilToBrazilianTime = (blockedUntilDate: string | Date): Date => {
+  const date = typeof blockedUntilDate === 'string' ? new Date(blockedUntilDate) : blockedUntilDate;
+  
+  // blocked_until já está no horário brasileiro, não precisamos converter
+  return date;
+};
+
+/**
  * Verifica se uma data está no passado (considerando horário brasileiro)
  * @param utcDate - Data em formato UTC
  * @returns boolean
@@ -141,4 +147,37 @@ export const createBrazilianDate = (year: number, month: number, day: number, ho
   // Criar data no horário local (que deve ser brasileiro)
   const date = new Date(year, month, day, hour, minute, 0, 0);
   return date;
+};
+
+/**
+ * Converte uma data para o timezone brasileiro (UTC-3) para envio ao backend
+ * @param date - Data local
+ * @returns String ISO no timezone brasileiro
+ */
+export const convertToSaoPauloTimezone = (date: Date): string => {
+  // Criar uma nova data ajustada para o timezone de São Paulo (UTC-3)
+  const saoPauloOffset = -3 * 60; // -3 horas em minutos
+  const utc = date.getTime() + (date.getTimezoneOffset() * 60000);
+  const saoPauloTime = new Date(utc + (saoPauloOffset * 60000));
+  
+  return saoPauloTime.toISOString();
+};
+
+/**
+ * Converte startOfWeek para o timezone brasileiro antes de enviar para o backend
+ * @param weekStart - Data do início da semana
+ * @returns String ISO no timezone brasileiro
+ */
+export const convertWeekStartToBrazilianTimezone = (weekStart: Date): string => {
+  // CORREÇÃO: Não usar toISOString() pois converte para UTC
+  // Construir a string ISO usando os componentes locais da data
+  const year = weekStart.getFullYear();
+  const month = String(weekStart.getMonth() + 1).padStart(2, '0');
+  const day = String(weekStart.getDate()).padStart(2, '0');
+  const hours = String(weekStart.getHours()).padStart(2, '0');
+  const minutes = String(weekStart.getMinutes()).padStart(2, '0');
+  const seconds = String(weekStart.getSeconds()).padStart(2, '0');
+  
+  // Retornar no formato ISO preservando o horário brasileiro local
+  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
 };

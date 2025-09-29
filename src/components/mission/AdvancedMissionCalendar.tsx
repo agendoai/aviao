@@ -7,6 +7,8 @@ import { ChevronLeft, ChevronRight, Calendar, Clock, Plane, AlertTriangle, Check
 import { format, addWeeks, subWeeks, startOfWeek, addDays, isSameDay, isSameWeek } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { getTimeSlots } from '@/utils/api';
+import { buildApiUrl } from '@/config/api';
+import { convertWeekStartToBrazilianTimezone } from '@/utils/dateUtils';
 import { toast } from '@/hooks/use-toast';
 
 interface TimeSlot {
@@ -74,7 +76,7 @@ const AdvancedMissionCalendar: React.FC<AdvancedMissionCalendarProps> = ({
   useEffect(() => {
     const fetchAircrafts = async () => {
       try {
-        const response = await fetch('/api/aircrafts');
+        const response = await fetch(buildApiUrl('/api/aircrafts'));
         if (response.ok) {
           const data = await response.json();
           setAircrafts(data);
@@ -105,12 +107,19 @@ const AdvancedMissionCalendar: React.FC<AdvancedMissionCalendarProps> = ({
   useEffect(() => {
     if (!selectedAircraft) return;
 
+    // Limpar estados de drag ao carregar novos slots
+    setIsDragging(false);
+    setDragStart(null);
+    setDragEnd(null);
+
     const fetchTimeSlots = async () => {
       setLoading(true);
       try {
+        // Converter currentWeek para timezone brasileiro antes de enviar para o backend
+        const currentWeekBrazilian = convertWeekStartToBrazilianTimezone(currentWeek);
         const slots = await getTimeSlots(
           selectedAircraft.id,
-          currentWeek.toISOString(),
+          currentWeekBrazilian,
           selectedStart?.toISOString(),
           selectedEnd?.toISOString(),
           undefined,
@@ -142,8 +151,21 @@ const AdvancedMissionCalendar: React.FC<AdvancedMissionCalendarProps> = ({
   }, [selectedAircraft, currentWeek, selectedStart, selectedEnd]);
 
   // Navegação de semanas
-  const goToPreviousWeek = () => setCurrentWeek(subWeeks(currentWeek, 1));
-  const goToNextWeek = () => setCurrentWeek(addWeeks(currentWeek, 1));
+  const goToPreviousWeek = () => {
+    // Limpar estados de drag ao navegar
+    setIsDragging(false);
+    setDragStart(null);
+    setDragEnd(null);
+    setCurrentWeek(subWeeks(currentWeek, 1));
+  };
+  
+  const goToNextWeek = () => {
+    // Limpar estados de drag ao navegar
+    setIsDragging(false);
+    setDragStart(null);
+    setDragEnd(null);
+    setCurrentWeek(addWeeks(currentWeek, 1));
+  };
 
   // Gerar dias da semana
   const weekDays = useMemo(() => {
@@ -157,7 +179,13 @@ const AdvancedMissionCalendar: React.FC<AdvancedMissionCalendarProps> = ({
   // Obter cor do slot baseado no status
   const getSlotColor = (slot: TimeSlot) => {
     if (isDragging && dragStart && dragEnd) {
-      const isInSelection = slot.start >= dragStart && slot.end <= dragEnd;
+      // Corrigir lógica para seleção entre dias
+      const selectionStart = dragStart < dragEnd ? dragStart : dragEnd;
+      const selectionEnd = dragStart < dragEnd ? dragEnd : dragStart;
+      
+      // Um slot está na seleção se há sobreposição entre o slot e a seleção
+      const isInSelection = slot.start < selectionEnd && slot.end > selectionStart;
+      
       if (isInSelection) {
         return slot.status === 'available' ? 'bg-yellow-200 border-yellow-400' : 'bg-red-200 border-red-400';
       }
@@ -379,14 +407,18 @@ Status: ${slot.booking.status}`;
               <p className="mt-2 text-sm text-gray-500">Carregando horários...</p>
             </div>
           ) : (
-            <div className="grid grid-cols-8 gap-1">
+            <div className="grid grid-cols-49 gap-1">
               {/* Cabeçalho com horas */}
               <div className="p-2"></div>
-              {Array.from({ length: 24 }, (_, hour) => (
-                <div key={hour} className="p-1 text-xs text-center text-gray-600 font-medium">
-                  {hour.toString().padStart(2, '0')}h
-                </div>
-              ))}
+              {Array.from({ length: 48 }, (_, slotIndex) => {
+                const hour = Math.floor(slotIndex / 2);
+                const minute = (slotIndex % 2) * 30;
+                return (
+                  <div key={slotIndex} className="p-1 text-xs text-center text-gray-600 font-medium">
+                    {minute === 0 ? `${hour.toString().padStart(2, '0')}h` : ''}
+                  </div>
+                );
+              })}
 
               {/* Dias da semana */}
               {weekDays.map((day, dayIndex) => (
@@ -397,19 +429,24 @@ Status: ${slot.booking.status}`;
                     <div className="text-xs text-gray-500">{format(day, 'dd/MM')}</div>
                   </div>
 
-                  {/* Slots de hora */}
-                  {Array.from({ length: 24 }, (_, hour) => {
+                  {/* Slots de 30 minutos */}
+                  {Array.from({ length: 48 }, (_, slotIndex) => {
+                    const hour = Math.floor(slotIndex / 2);
+                    const minute = (slotIndex % 2) * 30;
+                    
                     const slot = timeSlots.find(s => 
-                      isSameDay(s.start, day) && s.start.getHours() === hour
+                      isSameDay(s.start, day) && 
+                      s.start.getHours() === hour && 
+                      s.start.getMinutes() === minute
                     );
 
-                    if (!slot) return <div key={hour} className="p-1"></div>;
+                    if (!slot) return <div key={slotIndex} className="p-1 min-h-[20px]"></div>;
 
                     return (
-                      <Tooltip key={hour}>
+                      <Tooltip key={slotIndex}>
                         <TooltipTrigger asChild>
                           <div
-                            className={`p-1 min-h-[40px] border rounded cursor-pointer transition-colors ${getSlotColor(slot)}`}
+                            className={`p-1 min-h-[20px] border rounded cursor-pointer transition-colors ${getSlotColor(slot)}`}
                             onClick={() => handleSlotClick(slot)}
                             onMouseDown={() => handleDragStart(slot)}
                             onMouseEnter={() => handleDragOver(slot)}
