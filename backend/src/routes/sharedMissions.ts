@@ -144,25 +144,20 @@ router.post('/', authMiddleware, async (req, res) => {
     }
 
     // Calcular horários usando a mesma lógica das missões solo
-    
-
-    
-    // Os horários recebidos são strings sem timezone, mas representam horários locais
-    // Para actual_departure_date e actual_return_date, salvamos exatamente o que o usuário selecionou
-    const actualDepartureDate = new Date(departure_date + ':00.000Z');
-    const actualReturnDate = new Date(return_date + ':00.000Z');
+    // Agora o frontend envia datas UTC corretas, então podemos usar diretamente
+    const actualDepartureDate = new Date(departure_date);
+    const actualReturnDate = new Date(return_date);
     
     // Para departure_date e return_date, usamos os horários calculados (com -3h e +voo+3h)
-    const departureDateUTC = new Date(departure_date + ':00.000Z');
-    const returnDateUTC = new Date(return_date + ':00.000Z');
-    
-
+    const departureDateUTC = new Date(departure_date);
+    const returnDateUTC = new Date(return_date);
     
     // departure_date: horário real - 3h (início do pré-voo) - salvar em UTC
     const calculatedDepartureDate = new Date(departureDateUTC.getTime() - (3 * 60 * 60 * 1000));
     
-    // return_date: horário real + tempo de voo volta + 3h (fim do pós-voo) - salvar em UTC
-    const calculatedReturnDate = new Date(returnDateUTC.getTime() + (returnFlightTime * 60 * 60 * 1000) + (3 * 60 * 60 * 1000));
+    // return_date: Data exata selecionada pelo usuário no calendário de retorno
+    // Esta é a data que o usuário escolheu para voltar, sem nenhum cálculo adicional
+    const calculatedReturnDate = new Date(return_date); // Data exata do calendário
     
     // Calcular janela bloqueada - próximo voo só pode iniciar após retorno + tempo_voo_volta + 3h
     const blockedUntil = new Date(returnDateUTC.getTime() + (returnFlightTime + 3) * 60 * 60 * 1000);

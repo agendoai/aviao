@@ -4,6 +4,7 @@ import { generateToken, AuthPayload } from '../auth';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import { createAsaasCustomer, createSubscription } from '../services/asaas';
+import { generateResetToken, sendPasswordResetEmail, isEmailConfigured } from '../services/email';
 
 const router = Router();
 const prisma = new PrismaClient();
@@ -245,6 +246,111 @@ router.post('/logout', (req, res) => {
   res.json({ success: true });
 });
 
+// Solicitar recuperação de senha
+router.post('/forgot-password', async (req, res) => {
+  const { email } = req.body;
+  
+  if (!email) {
+    return res.status(400).json({ error: 'Email é obrigatório' });
+  }
+
+  try {
+    // Verificar se o usuário existe
+    const user = await prisma.user.findUnique({ where: { email } });
+    
+    // Se o email não existir, retornar erro específico
+    if (!user) {
+      return res.status(404).json({ 
+        error: 'Email não encontrado. Verifique se o email está correto ou cadastre-se.' 
+      });
+    }
+
+    // Verificar se o email está configurado
+    if (!isEmailConfigured()) {
+      console.error('Configurações de email não encontradas');
+      return res.status(500).json({ error: 'Serviço de email não configurado' });
+    }
+
+    // Gerar token de recuperação
+    const resetToken = generateResetToken();
+    const resetTokenExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hora
+
+    // Salvar token no banco
+    await prisma.user.update({
+      where: { email },
+      data: {
+        resetToken,
+        resetTokenExpiry
+      }
+    });
+
+    // Enviar email
+    const emailSent = await sendPasswordResetEmail(email, resetToken, user.name);
+    
+    if (emailSent) {
+      res.json({ 
+        success: true, 
+        message: 'Email enviado! Verifique seu email para continuar os passos de recuperação.' 
+      });
+    } else {
+      res.status(500).json({ error: 'Erro ao enviar email de recuperação' });
+    }
+  } catch (error) {
+    console.error('Erro na recuperação de senha:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
+// Redefinir senha
+router.post('/reset-password', async (req, res) => {
+  const { token, newPassword } = req.body;
+  
+  if (!token || !newPassword) {
+    return res.status(400).json({ error: 'Token e nova senha são obrigatórios' });
+  }
+
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'A senha deve ter pelo menos 6 caracteres' });
+  }
+
+  try {
+    // Buscar usuário pelo token
+    const user = await prisma.user.findFirst({
+      where: {
+        resetToken: token,
+        resetTokenExpiry: {
+          gt: new Date() // Token ainda válido
+        }
+      }
+    });
+
+    if (!user) {
+      return res.status(400).json({ error: 'Token inválido ou expirado' });
+    }
+
+    // Hash da nova senha
+    const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+    // Atualizar senha e limpar token
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        password: hashedPassword,
+        resetToken: null,
+        resetTokenExpiry: null
+      }
+    });
+
+    res.json({ 
+      success: true, 
+      message: 'Senha redefinida com sucesso' 
+    });
+  } catch (error) {
+    console.error('Erro ao redefinir senha:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
 // Endpoint para criar admin (apenas para desenvolvimento)
 router.post('/create-admin', async (req, res) => {
   try {
@@ -287,4 +393,4 @@ router.post('/create-admin', async (req, res) => {
   }
 });
 
-export default router; 
+export default router;

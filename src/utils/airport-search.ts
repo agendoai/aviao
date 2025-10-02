@@ -1,5 +1,5 @@
 // Função para buscar aeroportos usando base local (com fallback AISWEB em outras funções)
-const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://72.60.62.143:4000';
+const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
 
 /**
  * Busca o nome do aeroporto por código ICAO
@@ -510,4 +510,4 @@ export async function calculateTotalMissionCost(
     totalCost,
     feeBreakdown
   };
-} 
+}

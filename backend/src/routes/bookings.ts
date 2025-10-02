@@ -145,7 +145,7 @@ router.post('/', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
     }
 
-    // Converter datas para objetos Date
+    // Converter datas UTC para objetos Date (agora o frontend envia UTC correto)
     const departureDateTime = new Date(departure_date);
     const returnDateTime = new Date(return_date);
 
@@ -157,10 +157,7 @@ router.post('/', authMiddleware, async (req, res) => {
       flight_hours
     );
 
-
-
     if (!validation.valido) {
-
       return res.status(409).json({
         error: validation.mensagem,
         nextAvailable: validation.proximaDisponibilidade,

@@ -8,17 +8,11 @@
  * @returns String ISO em UTC
  */
 export const convertBrazilianDateToUTCString = (brazilianDate: Date): string => {
-  // Criar uma string ISO que preserve o horário brasileiro
-  // Não usar toISOString() pois ele converte para UTC automaticamente
-  const year = brazilianDate.getFullYear();
-  const month = String(brazilianDate.getMonth() + 1).padStart(2, '0');
-  const day = String(brazilianDate.getDate()).padStart(2, '0');
-  const hours = String(brazilianDate.getHours()).padStart(2, '0');
-  const minutes = String(brazilianDate.getMinutes()).padStart(2, '0');
-  const seconds = String(brazilianDate.getSeconds()).padStart(2, '0');
+  // Converter para UTC subtraindo 3 horas (horário de Brasília é UTC-3)
+  const utcDate = new Date(brazilianDate.getTime() - (3 * 60 * 60 * 1000));
   
-  // Retornar no formato ISO sem o Z para indicar que é horário local brasileiro
-  return `${year}-${month}-${day}T${hours}:${minutes}:${seconds}`;
+  // Retornar no formato ISO UTC
+  return utcDate.toISOString();
 };
 
 /**

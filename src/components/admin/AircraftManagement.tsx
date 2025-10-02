@@ -29,6 +29,8 @@ const AircraftManagement: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [isAddDialogOpen, setIsAddDialogOpen] = useState(false);
   const [isEditDialogOpen, setIsEditDialogOpen] = useState(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState(false);
+  const [aircraftToDelete, setAircraftToDelete] = useState<Aircraft | null>(null);
   const [editingAircraft, setEditingAircraft] = useState<Aircraft | null>(null);
   const [newAircraft, setNewAircraft] = useState({
     name: '',
@@ -153,6 +155,44 @@ const AircraftManagement: React.FC = () => {
       console.error('❌ Erro ao atualizar aeronave:', error);
       toast.error(error instanceof Error ? error.message : "Erro ao atualizar aeronave");
     }
+  };
+
+  const deleteAircraft = async () => {
+    if (!aircraftToDelete) return;
+
+    try {
+      // Chamar API para deletar aeronave
+      const response = await fetch(buildApiUrl(`/api/aircrafts/${aircraftToDelete.id}`), {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Erro ao remover aeronave');
+      }
+
+      toast.success("Aeronave removida com sucesso");
+      
+      // Fechar modal e limpar estado
+      setIsDeleteDialogOpen(false);
+      setAircraftToDelete(null);
+      
+      // Recarregar lista de aeronaves
+      fetchAircraft();
+    } catch (error) {
+      console.error('❌ Erro ao remover aeronave:', error);
+      toast.error(error instanceof Error ? error.message : "Erro ao remover aeronave");
+    }
+  };
+
+  const openDeleteDialog = (aircraft: Aircraft) => {
+    setAircraftToDelete(aircraft);
+    setIsDeleteDialogOpen(true);
   };
 
   const openEditDialog = (aircraft: Aircraft) => {
@@ -350,6 +390,14 @@ const AircraftManagement: React.FC = () => {
                         >
                           <Edit className="h-3 w-3" />
                         </Button>
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          onClick={() => openDeleteDialog(plane)}
+                          className="h-6 w-6 p-0 text-red-500 hover:text-red-600"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                        </Button>
                         <Select
                           value={plane.status}
                           onValueChange={(newStatus: 'available' | 'maintenance') => updateAircraftStatus(plane.id, newStatus)}
@@ -468,6 +516,46 @@ const AircraftManagement: React.FC = () => {
               <Button onClick={editAircraft} className="w-full h-8 sm:h-9 text-xs sm:text-sm">
                 Salvar Alterações
               </Button>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Modal de Confirmação de Exclusão */}
+      <Dialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="text-base text-red-600">Confirmar Exclusão</DialogTitle>
+            <DialogDescription className="text-sm">
+              Esta ação não pode ser desfeita.
+            </DialogDescription>
+          </DialogHeader>
+          {aircraftToDelete && (
+            <div className="space-y-4">
+              <p className="text-sm text-gray-700">
+                Tem certeza que deseja remover a aeronave <strong>"{aircraftToDelete.name}"</strong>?
+              </p>
+              <div className="flex justify-end space-x-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    setIsDeleteDialogOpen(false);
+                    setAircraftToDelete(null);
+                  }}
+                  className="h-8 text-xs"
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  variant="destructive"
+                  size="sm"
+                  onClick={deleteAircraft}
+                  className="h-8 text-xs"
+                >
+                  Remover
+                </Button>
+              </div>
             </div>
           )}
         </DialogContent>

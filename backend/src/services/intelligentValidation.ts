@@ -28,28 +28,34 @@ export interface TimeSlot {
  * Converte booking do banco para interface Missao
  * departure_date já é o início do pré-voo (04:00), return_date já é o fim do pós-voo (21:00)
  * actual_departure_date é a decolagem real (07:00), actual_return_date é o retorno real (17:00)
+ * 
+ * IMPORTANTE: NÃO fazer conversão de timezone - usar as datas exatamente como estão no banco
  */
 const bookingToMissao = (booking: any): Missao => {
-  // Converter para string se for Date object
-  const departureDateStr = typeof booking.departure_date === 'string' 
-    ? booking.departure_date 
-    : booking.departure_date.toISOString();
-  
-  const returnDateStr = typeof booking.return_date === 'string' 
-    ? booking.return_date 
-    : booking.return_date.toISOString();
-
-  // Voltar para lógica original - usar departure_date e return_date
-  const actualDepartureDateStr = departureDateStr;
-  const actualReturnDateStr = returnDateStr;
+  // Função para converter data do banco SEM conversão de timezone
+  const convertToDate = (dateValue: any): Date => {
+    if (!dateValue) return new Date();
+    
+    if (dateValue instanceof Date) {
+      // Se já é um objeto Date, usar diretamente
+      return dateValue;
+    }
+    
+    if (typeof dateValue === 'string') {
+      // Se é string, criar Date diretamente
+      return new Date(dateValue);
+    }
+    
+    return new Date(dateValue);
+  };
 
   return {
     id: booking.id,
-    // Usar departure_date e return_date (já calculados com buffers)
-    partida: new Date(departureDateStr),
-    retorno: new Date(returnDateStr),
-    actualDeparture: new Date(actualDepartureDateStr),
-    actualReturn: new Date(actualReturnDateStr),
+    // Usar departure_date e return_date exatamente como estão no banco
+    partida: convertToDate(booking.departure_date),
+    retorno: convertToDate(booking.return_date),
+    actualDeparture: convertToDate(booking.actual_departure_date || booking.departure_date),
+    actualReturn: convertToDate(booking.actual_return_date || booking.return_date),
     flightHoursTotal: booking.flight_hours,
     origin: booking.origin,
     destination: booking.destination

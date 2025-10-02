@@ -1,7 +1,7 @@
 // Configuração centralizada da API
 export const API_CONFIG = {
   // URL base do backend
-  BACKEND_URL: import.meta.env.VITE_BACKEND_URL || 'http://72.60.62.143:4000',
+  BACKEND_URL: import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000',
   
   // Endpoints específicos
   ENDPOINTS: {

@@ -6,7 +6,7 @@ const TestEnv: React.FC = () => {
   console.log('NODE_ENV:', import.meta.env.NODE_ENV);
   console.log('MODE:', import.meta.env.MODE);
 
-  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://72.60.62.143:4000/api';
+  const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
   const calendarUrl = `${backendUrl}/calendar`;
 
   return (
