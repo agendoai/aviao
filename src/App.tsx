@@ -14,6 +14,7 @@ import LoginForm from "./components/LoginForm";
 import UserStatusCheck from "./components/UserStatusCheck";
 import TestCalendar from "./components/TestCalendar";
 import TestApiUrl from "./components/TestApiUrl";
+import { ResetPassword } from "./components/ResetPassword";
 
 
 const queryClient = new QueryClient();
@@ -39,6 +40,7 @@ const App = () => (
             <BrowserRouter>
               <Routes>
                 <Route path="/" element={<LoginForm />} />
+                <Route path="/reset-password" element={<ResetPassword />} />
                 <Route path="/dashboard" element={
                   <ProtectedRoute>
                     <UserStatusCheck>

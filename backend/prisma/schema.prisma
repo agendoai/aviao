@@ -21,6 +21,10 @@ model User {
   asaasSubscriptionId String? // Subscription ID do Asaas
   role               String   @default("user")
   status             String   @default("active") // active, inactive - baseado na mensalidade
+  resetToken         String?  // Token para recuperação de senha
+  resetTokenExpiry   DateTime? // Expiração do token de recuperação
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @default(now()) @updatedAt
   bookings           Booking[]
   transactions       Transaction[]
   sharedMissions     SharedMission[] @relation("SharedMissionCreator")

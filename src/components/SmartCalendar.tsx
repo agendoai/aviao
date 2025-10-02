@@ -67,7 +67,7 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
   }, [selectedAircraft, currentMonth]);
 
   const resolveBackendUrl = () => {
-    const raw = (import.meta as any).env.VITE_BACKEND_URL || 'http://72.60.62.143:4000';
+    const raw = (import.meta as any).env.VITE_BACKEND_URL || 'http://localhost:4000';
     return raw.endsWith('/api') ? raw : `${raw}/api`;
   };
 
@@ -343,52 +343,33 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
            return false;
          }
 
-         // LÓGICA SIMPLES: Usar departure_date e return_date/blocked_until diretamente
+         // LÓGICA CORRIGIDA: Criar slot no timezone local brasileiro
          const [hours, minutes] = time.split(':').map(Number);
          
-         // Criar slot no horário brasileiro
-         const slotDateTime = new Date(date);
+         // Usar diretamente o objeto Date local (não converter para UTC)
+         const slotDateTimeBR = new Date(date);
          // Para horários noturnos (21:00-23:30), manter no mesmo dia
          // Para 00:00, colocar no próximo dia
          if (hours === 0) {
            // 00:00 = meia-noite do próximo dia
-           slotDateTime.setDate(date.getDate() + 1);
-           slotDateTime.setHours(0, minutes, 0, 0);
+           slotDateTimeBR.setDate(date.getDate() + 1);
+           slotDateTimeBR.setHours(0, minutes, 0, 0);
          } else {
            // Todos os outros horários (incluindo 21:00-23:30) ficam no mesmo dia
-           slotDateTime.setHours(hours, minutes, 0, 0);
+           slotDateTimeBR.setHours(hours, minutes, 0, 0);
          }
          
+         // Usar diretamente o slotDateTimeBR (que já está correto em UTC)
+         const slotDateTime = slotDateTimeBR;
          const slotEndDateTime = new Date(slotDateTime.getTime() + (60 * 60 * 1000));
          
-         // Usar os dados já calculados do backend
+         // Usar as datas UTC diretamente do backend (sem conversão)
          const eventStart = new Date(event.start);  // departure_date em UTC
          const finalEnd = event.resource?.blocked_until ? 
            new Date(event.resource.blocked_until) : new Date(event.end); // return_date/blocked_until em UTC
          
-         // Converter para horário brasileiro
-         const eventStartLocal = new Date(eventStart.getTime() - (3 * 60 * 60 * 1000));
-         const eventEndLocal = new Date(finalEnd.getTime() - (3 * 60 * 60 * 1000));
-         
-         // CORREÇÃO PREVENTIVA: Para slots noturnos (21h-23h), verificar também
-         // se o slot está no período da partida real (actual_departure_date)
-         let isBlocked = slotDateTime < eventEndLocal && slotEndDateTime > eventStartLocal;
-         
-         // Se é um slot noturno (21h-23h) e o evento tem actual_departure_date
-         if (hours >= 21 && hours <= 23 && event.resource?.actual_departure_date) {
-           const actualDepartureLocal = new Date(new Date(event.resource.actual_departure_date).getTime() - (3 * 60 * 60 * 1000));
-           const actualReturnLocal = event.resource?.actual_return_date ? 
-             new Date(new Date(event.resource.actual_return_date).getTime() - (3 * 60 * 60 * 1000)) : 
-             actualDepartureLocal;
-           
-           // Verificar se o slot está no período da missão real (não apenas no período total com buffers)
-           const slotInRealMissionPeriod = slotDateTime < actualReturnLocal && slotEndDateTime > actualDepartureLocal;
-           
-           // Para slots noturnos, priorizar o período da missão real
-           if (slotInRealMissionPeriod) {
-             isBlocked = true;
-           }
-         }
+         // Comparar diretamente em UTC (sem dupla conversão de timezone)
+         let isBlocked = slotDateTime < finalEnd && slotEndDateTime > eventStart;
          
          return isBlocked;
        });

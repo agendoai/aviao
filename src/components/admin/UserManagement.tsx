@@ -64,7 +64,7 @@ export default function UserManagement() {
     try {
       const token = localStorage.getItem('token');
       
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://72.60.62.143:4000/api';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
       
       const response = await fetch(`${backendUrl}/users`, {
         headers: {
@@ -90,7 +90,7 @@ export default function UserManagement() {
   const updateUserStatus = async (userId: number, status: 'active' | 'blocked' | 'inactive') => {
     try {
       const token = localStorage.getItem('token');
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://72.60.62.143:4000/api';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
       const response = await fetch(`${backendUrl}/users/${userId}/status`, {
         method: 'PATCH',
         headers: {
@@ -113,7 +113,7 @@ export default function UserManagement() {
   const updateBookingStatus = async (bookingId: number, status: string) => {
     try {
       const token = localStorage.getItem('token');
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://72.60.62.143:4000/api';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
       const response = await fetch(`${backendUrl}/users/bookings/${bookingId}/status`, {
         method: 'PATCH',
         headers: {
@@ -136,7 +136,7 @@ export default function UserManagement() {
   const updateMissionStatus = async (missionId: number, status: string) => {
     try {
       const token = localStorage.getItem('token');
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://72.60.62.143:4000/api';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
       const response = await fetch(`${backendUrl}/users/missions/${missionId}/status`, {
         method: 'PATCH',
         headers: {
@@ -159,7 +159,7 @@ export default function UserManagement() {
   const updatePaymentStatus = async (paymentId: number, status: string) => {
     try {
       const token = localStorage.getItem('token');
-      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://72.60.62.143:4000/api';
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000/api';
       const response = await fetch(`${backendUrl}/users/membership/${paymentId}/status`, {
         method: 'PATCH',
         headers: {

@@ -170,6 +170,316 @@ router.put('/membership-config', authMiddleware, requireAdmin, async (req, res) 
   }
 });
 
+// Rota para dados financeiros consolidados
+router.get('/financials', authMiddleware, requireAdmin, async (req, res) => {
+  try {
+    const { period, startDate, endDate } = req.query;
+    
+    // Calcular datas baseado no período selecionado
+    let dateFilter: any = {};
+    const now = new Date();
+    
+    if (period) {
+      switch (period) {
+        case 'today':
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
+          const tomorrow = new Date(today);
+          tomorrow.setDate(tomorrow.getDate() + 1);
+          dateFilter = {
+            createdAt: {
+              gte: today,
+              lt: tomorrow
+            }
+          };
+          break;
+          
+        case 'week':
+          const startOfWeek = new Date(now);
+          startOfWeek.setDate(now.getDate() - now.getDay());
+          startOfWeek.setHours(0, 0, 0, 0);
+          dateFilter = {
+            createdAt: {
+              gte: startOfWeek
+            }
+          };
+          break;
+          
+        case 'month':
+          const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+          dateFilter = {
+            createdAt: {
+              gte: startOfMonth
+            }
+          };
+          break;
+          
+        case 'year':
+          const startOfYear = new Date(now.getFullYear(), 0, 1);
+          dateFilter = {
+            createdAt: {
+              gte: startOfYear
+            }
+          };
+          break;
+          
+        case 'custom':
+          if (startDate && endDate) {
+            dateFilter = {
+              createdAt: {
+                gte: new Date(startDate as string),
+                lte: new Date(endDate as string)
+              }
+            };
+          }
+          break;
+      }
+    }
+
+    // Buscar transações com filtro de data
+    const transactions = await prisma.transaction.findMany({
+      where: dateFilter,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        booking: {
+          select: {
+            id: true,
+            value: true,
+            status: true
+          }
+        }
+      },
+      orderBy: {
+        createdAt: 'desc'
+      }
+    });
+
+    // Buscar mensalidades com filtro de data
+    const memberships = await prisma.membershipPayment.findMany({
+      where: dateFilter,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Buscar reservas com filtro de data
+    const bookings = await prisma.booking.findMany({
+      where: dateFilter,
+      include: {
+        user: {
+          select: {
+            id: true,
+            name: true,
+            email: true
+          }
+        },
+        aircraft: {
+          select: {
+            name: true,
+            registration: true
+          }
+        }
+      },
+      orderBy: { createdAt: 'desc' }
+    });
+
+    // Calcular estatísticas financeiras
+    const totalRevenue = transactions
+      .reduce((sum, t) => sum + (t.amount || 0), 0);
+
+    const pendingRevenue = 0; // Transações não possuem status, considerando 0 para pendentes
+
+    const membershipRevenue = memberships
+      .filter(m => m.status === 'confirmada' || m.status === 'paga')
+      .reduce((sum, m) => sum + (m.value || 0), 0);
+
+    const pendingMemberships = memberships
+      .filter(m => m.status === 'pendente')
+      .reduce((sum, m) => sum + (m.value || 0), 0);
+
+    const bookingRevenue = bookings
+      .filter(b => b.status === 'confirmada')
+      .reduce((sum, b) => sum + (b.value || 0), 0);
+
+    const pendingBookings = bookings
+      .filter(b => b.status === 'pendente')
+      .reduce((sum, b) => sum + (b.value || 0), 0);
+
+    // Estatísticas por período (adaptável baseado no filtro)
+    let periodStats = [];
+    
+    if (!period || period === 'year') {
+      // Estatísticas mensais para o ano (padrão)
+      for (let i = 11; i >= 0; i--) {
+        const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+        const nextMonth = new Date(now.getFullYear(), now.getMonth() - i + 1, 1);
+        
+        // Buscar dados para este mês específico (sem filtro de data global)
+         const monthTransactions = await prisma.transaction.findMany({
+           where: {
+             createdAt: { gte: date, lt: nextMonth }
+           }
+         });
+         
+         const monthMemberships = await prisma.membershipPayment.findMany({
+           where: {
+             createdAt: { gte: date, lt: nextMonth },
+             status: { in: ['confirmada', 'paga'] }
+           }
+         });
+         
+         const monthBookings = await prisma.booking.findMany({
+           where: {
+             createdAt: { gte: date, lt: nextMonth },
+             status: { in: ['confirmada'] }
+           }
+         });
+
+        periodStats.push({
+          period: date.toISOString().substring(0, 7), // YYYY-MM
+          label: date.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' }),
+          transactions: monthTransactions.reduce((sum, t) => sum + (t.amount || 0), 0),
+          memberships: monthMemberships.reduce((sum, m) => sum + (m.value || 0), 0),
+          bookings: monthBookings.reduce((sum, b) => sum + (b.value || 0), 0),
+          total: monthTransactions.reduce((sum, t) => sum + (t.amount || 0), 0) +
+                 monthMemberships.reduce((sum, m) => sum + (m.value || 0), 0) +
+                 monthBookings.reduce((sum, b) => sum + (b.value || 0), 0)
+        });
+      }
+    } else if (period === 'month') {
+      // Estatísticas diárias para o mês atual
+      const daysInMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0).getDate();
+      
+      for (let day = 1; day <= daysInMonth; day++) {
+        const date = new Date(now.getFullYear(), now.getMonth(), day);
+        const nextDay = new Date(date);
+        nextDay.setDate(nextDay.getDate() + 1);
+        
+        const dayTransactions = await prisma.transaction.findMany({
+           where: {
+             createdAt: { gte: date, lt: nextDay }
+           }
+         });
+         
+         const dayMemberships = await prisma.membershipPayment.findMany({
+           where: {
+             createdAt: { gte: date, lt: nextDay },
+             status: { in: ['confirmada', 'paga'] }
+           }
+         });
+         
+         const dayBookings = await prisma.booking.findMany({
+           where: {
+             createdAt: { gte: date, lt: nextDay },
+             status: { in: ['confirmada'] }
+           }
+         });
+
+        periodStats.push({
+          period: date.toISOString().substring(0, 10), // YYYY-MM-DD
+          label: date.toLocaleDateString('pt-BR'),
+          transactions: dayTransactions.reduce((sum, t) => sum + (t.amount || 0), 0),
+          memberships: dayMemberships.reduce((sum, m) => sum + (m.value || 0), 0),
+          bookings: dayBookings.reduce((sum, b) => sum + (b.value || 0), 0),
+          total: dayTransactions.reduce((sum, t) => sum + (t.amount || 0), 0) +
+                 dayMemberships.reduce((sum, m) => sum + (m.value || 0), 0) +
+                 dayBookings.reduce((sum, b) => sum + (b.value || 0), 0)
+        });
+      }
+    } else if (period === 'week') {
+      // Estatísticas diárias para a semana atual
+      const startOfWeek = new Date(now);
+      startOfWeek.setDate(now.getDate() - now.getDay());
+      startOfWeek.setHours(0, 0, 0, 0);
+      
+      for (let i = 0; i < 7; i++) {
+        const date = new Date(startOfWeek);
+        date.setDate(startOfWeek.getDate() + i);
+        const nextDay = new Date(date);
+        nextDay.setDate(nextDay.getDate() + 1);
+        
+        const dayTransactions = await prisma.transaction.findMany({
+          where: {
+            createdAt: { gte: date, lt: nextDay }
+          }
+        });
+        
+        const dayMemberships = await prisma.membershipPayment.findMany({
+          where: {
+            createdAt: { gte: date, lt: nextDay },
+            status: { in: ['confirmada', 'paga'] }
+          }
+        });
+        
+        const dayBookings = await prisma.booking.findMany({
+          where: {
+            createdAt: { gte: date, lt: nextDay },
+            status: { in: ['confirmada'] }
+          }
+        });
+
+        periodStats.push({
+          period: date.toISOString().substring(0, 10), // YYYY-MM-DD
+          label: date.toLocaleDateString('pt-BR', { weekday: 'long', day: 'numeric', month: 'short' }),
+          transactions: dayTransactions.reduce((sum, t) => sum + (t.amount || 0), 0),
+          memberships: dayMemberships.reduce((sum, m) => sum + (m.value || 0), 0),
+          bookings: dayBookings.reduce((sum, b) => sum + (b.value || 0), 0),
+          total: dayTransactions.reduce((sum, t) => sum + (t.amount || 0), 0) +
+                 dayMemberships.reduce((sum, m) => sum + (m.value || 0), 0) +
+                 dayBookings.reduce((sum, b) => sum + (b.value || 0), 0)
+        });
+      }
+    }
+
+    res.json({
+      filter: {
+        period: period || 'all',
+        startDate: startDate || null,
+        endDate: endDate || null
+      },
+      summary: {
+        totalRevenue: totalRevenue + membershipRevenue + bookingRevenue,
+        pendingRevenue: pendingRevenue + pendingMemberships + pendingBookings,
+        transactionRevenue: totalRevenue,
+        membershipRevenue,
+        bookingRevenue,
+        pendingTransactions: pendingRevenue,
+        pendingMemberships,
+        pendingBookings
+      },
+      counts: {
+        totalTransactions: transactions.length,
+        totalMemberships: memberships.length,
+        confirmedMemberships: memberships.filter(m => m.status === 'confirmada' || m.status === 'paga').length,
+        pendingMemberships: memberships.filter(m => m.status === 'pendente').length,
+        totalBookings: bookings.length,
+        confirmedBookings: bookings.filter(b => b.status === 'confirmada').length,
+        pendingBookings: bookings.filter(b => b.status === 'pendente').length
+      },
+      periodStats,
+      recentTransactions: transactions.slice(0, 10),
+      recentMemberships: memberships.slice(0, 10),
+      recentBookings: bookings.slice(0, 10)
+    });
+  } catch (error) {
+    console.error('❌ Erro ao buscar dados financeiros:', error);
+    res.status(500).json({ error: 'Erro interno do servidor' });
+  }
+});
+
 export default router;
 
 

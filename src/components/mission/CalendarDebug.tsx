@@ -43,7 +43,7 @@ const CalendarDebug: React.FC = () => {
           getBookings(),
           (async () => {
             const token = localStorage.getItem('token');
-            const res = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://72.60.62.143:4000'}/api/calendar`, {
+            const res = await fetch(`${import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000'}/api/calendar`, {
               headers: {
                 'Authorization': `Bearer ${token}`,
                 'Content-Type': 'application/json',

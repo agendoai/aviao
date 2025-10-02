@@ -6,7 +6,8 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plane, Mail, Lock, User, CreditCard, Phone } from 'lucide-react';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Plane, Mail, Lock, User, CreditCard, Phone, KeyRound } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
@@ -133,11 +134,14 @@ const LoginForm: React.FC = () => {
     confirmPassword: ''
   });
 
+  const [forgotPasswordEmail, setForgotPasswordEmail] = useState('');
+  const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [forgotPasswordLoading, setForgotPasswordLoading] = useState(false);
+
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!loginData.email || !loginData.password) {
-      toast.error("Por favor, preencha todos os campos.");
       return;
     }
 
@@ -147,6 +151,48 @@ const LoginForm: React.FC = () => {
       toast.error(error.message || "Erro no login");
     } else {
       toast.success("Login realizado com sucesso!");
+    }
+  };
+
+  const handleForgotPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!forgotPasswordEmail.trim()) {
+      toast.error("Por favor, digite seu email.");
+      return;
+    }
+
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(forgotPasswordEmail.trim())) {
+      toast.error("Por favor, digite um email válido.");
+      return;
+    }
+
+    setForgotPasswordLoading(true);
+
+    try {
+      const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:4000';
+      const response = await fetch(`${backendUrl}/api/auth/forgot-password`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ email: forgotPasswordEmail.trim() }),
+      });
+
+      const data = await response.json();
+
+      if (response.ok) {
+        toast.success(data.message || "Email enviado! Verifique seu email para continuar os passos de recuperação.");
+        setIsDialogOpen(false);
+        setForgotPasswordEmail('');
+      } else {
+        toast.error(data.error || "Erro ao enviar email de recuperação. Tente novamente.");
+      }
+    } catch (error) {
+      console.error('Erro ao solicitar recuperação de senha:', error);
+      toast.error("Erro ao enviar email de recuperação. Tente novamente.");
+    } finally {
+      setForgotPasswordLoading(false);
     }
   };
 
@@ -297,7 +343,6 @@ const LoginForm: React.FC = () => {
                       className="pl-10"
                       value={loginData.email}
                       onChange={(e) => setLoginData({...loginData, email: e.target.value})}
-                      required
                     />
                   </div>
                 </div>
@@ -313,7 +358,6 @@ const LoginForm: React.FC = () => {
                       className="pl-10"
                       value={loginData.password}
                       onChange={(e) => setLoginData({...loginData, password: e.target.value})}
-                      required
                     />
                   </div>
                 </div>
@@ -323,8 +367,79 @@ const LoginForm: React.FC = () => {
                   className="w-full bg-aviation-gradient hover:opacity-90 text-white"
                   disabled={loading}
                 >
-                  {loading ? 'Entrando...' : 'Entrar'}
+                  {loading ? (
+                    <div className="flex items-center gap-2">
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                      Carregando...
+                    </div>
+                  ) : (
+                    'Entrar'
+                  )}
                 </Button>
+                
+                <div className="text-center">
+                  <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button variant="link" className="text-sm text-blue-600 hover:text-blue-800">
+                        Esqueceu a senha?
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent className="sm:max-w-md">
+                      <DialogHeader>
+                        <DialogTitle className="flex items-center gap-2">
+                          <KeyRound className="h-5 w-5" />
+                          Recuperar Senha
+                        </DialogTitle>
+                        <DialogDescription>
+                          Digite seu email para receber instruções de recuperação de senha.
+                        </DialogDescription>
+                      </DialogHeader>
+                      <form onSubmit={handleForgotPassword} className="space-y-4">
+                        <div className="space-y-2">
+                          <Label htmlFor="forgot-email">Email</Label>
+                          <div className="relative">
+                            <Mail className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
+                            <Input
+                              id="forgot-email"
+                              type="email"
+                              placeholder="seu@email.com"
+                              className="pl-10"
+                              value={forgotPasswordEmail}
+                              onChange={(e) => setForgotPasswordEmail(e.target.value)}
+                            />
+                          </div>
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            type="button"
+                            variant="outline"
+                            className="flex-1"
+                            onClick={() => {
+                              setIsDialogOpen(false);
+                              setForgotPasswordEmail('');
+                            }}
+                          >
+                            Cancelar
+                          </Button>
+                          <Button
+                            type="submit"
+                            className="flex-1 bg-aviation-gradient hover:opacity-90 text-white"
+                            disabled={forgotPasswordLoading}
+                          >
+                            {forgotPasswordLoading ? (
+                              <div className="flex items-center gap-2">
+                                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></div>
+                                Carregando...
+                              </div>
+                            ) : (
+                              'Enviar'
+                            )}
+                          </Button>
+                        </div>
+                      </form>
+                    </DialogContent>
+                  </Dialog>
+                </div>
               </form>
             </TabsContent>
             
