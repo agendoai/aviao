@@ -7,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Plane, Mail, Lock, User, CreditCard, Phone, KeyRound } from 'lucide-react';
+import { Plane, Mail, Lock, User, CreditCard, Phone, KeyRound, Eye, EyeClosed } from 'lucide-react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router-dom';
 
@@ -15,7 +15,7 @@ import { useNavigate } from 'react-router-dom';
 const formatCPF = (value: string): string => {
   // Remove tudo que não é dígito
   const numbers = value.replace(/\D/g, '');
-  
+
   // Aplica a máscara
   if (numbers.length <= 3) return numbers;
   if (numbers.length <= 6) return `${numbers.slice(0, 3)}.${numbers.slice(3)}`;
@@ -26,7 +26,7 @@ const formatCPF = (value: string): string => {
 const formatPhone = (value: string): string => {
   // Remove tudo que não é dígito
   const numbers = value.replace(/\D/g, '');
-  
+
   // Aplica a máscara
   if (numbers.length <= 2) return `(${numbers}`;
   if (numbers.length <= 6) return `(${numbers.slice(0, 2)}) ${numbers.slice(2)}`;
@@ -37,13 +37,13 @@ const formatPhone = (value: string): string => {
 const validateCPF = (cpf: string): boolean => {
   // Remove caracteres não numéricos
   const cleanCPF = cpf.replace(/\D/g, '');
-  
+
   // Verifica se tem 11 dígitos
   if (cleanCPF.length !== 11) return false;
-  
+
   // Verifica se todos os dígitos são iguais
   if (/^(\d)\1{10}$/.test(cleanCPF)) return false;
-  
+
   // Validação do primeiro dígito verificador
   let sum = 0;
   for (let i = 0; i < 9; i++) {
@@ -52,7 +52,7 @@ const validateCPF = (cpf: string): boolean => {
   let remainder = (sum * 10) % 11;
   if (remainder === 10 || remainder === 11) remainder = 0;
   if (remainder !== parseInt(cleanCPF.charAt(9))) return false;
-  
+
   // Validação do segundo dígito verificador
   sum = 0;
   for (let i = 0; i < 10; i++) {
@@ -61,45 +61,46 @@ const validateCPF = (cpf: string): boolean => {
   remainder = (sum * 10) % 11;
   if (remainder === 10 || remainder === 11) remainder = 0;
   if (remainder !== parseInt(cleanCPF.charAt(10))) return false;
-  
+
   return true;
 };
 
 const validatePhone = (phone: string): boolean => {
   // Remove caracteres não numéricos
   const cleanPhone = phone.replace(/\D/g, '');
-  
+
   // Verifica se tem 10 ou 11 dígitos (com DDD)
   if (cleanPhone.length < 10 || cleanPhone.length > 11) return false;
-  
+
   // Verifica se o DDD é válido (11-99)
   const ddd = parseInt(cleanPhone.slice(0, 2));
   if (ddd < 11 || ddd > 99) return false;
-  
+
   // Verifica se não são todos os mesmos números
   if (/^(\d)\1{9,10}$/.test(cleanPhone)) return false;
-  
+
   // Verifica se não começa com 000, 111, 222, etc.
   if (/^(\d)\1{2}/.test(cleanPhone)) return false;
-  
+
   // Verifica se não é uma sequência (1234567890, 9876543210, etc.)
   if (/^(0123456789|1234567890|9876543210|0987654321)$/.test(cleanPhone)) return false;
-  
+
   // DDDs válidos no Brasil (excluindo alguns que não existem)
   const validDDDs = [
     11, 12, 13, 14, 15, 16, 17, 18, 19, 21, 22, 24, 27, 28, 31, 32, 33, 34, 35, 37, 38,
     41, 42, 43, 44, 45, 46, 47, 48, 49, 51, 53, 54, 55, 61, 62, 63, 64, 65, 66, 67, 68, 69,
     71, 73, 74, 75, 77, 79, 81, 82, 83, 84, 85, 86, 87, 88, 89, 91, 92, 93, 94, 95, 96, 97, 98, 99
   ];
-  
+
   if (!validDDDs.includes(ddd)) return false;
-  
+
   return true;
 };
 
 const LoginForm: React.FC = () => {
   const { signIn, signUp, loading, user } = useAuth();
   const navigate = useNavigate();
+  const [show, setShow] = useState(false);
 
   useEffect(() => {
     if (user) {
@@ -115,7 +116,7 @@ const LoginForm: React.FC = () => {
     email: '',
     password: ''
   });
-  
+
   const [signupData, setSignupData] = useState({
     name: '',
     email: '',
@@ -140,13 +141,13 @@ const LoginForm: React.FC = () => {
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!loginData.email || !loginData.password) {
       return;
     }
 
     const { error } = await signIn(loginData.email, loginData.password);
-    
+
     if (error) {
       toast.error(error.message || "Erro no login");
     } else {
@@ -156,7 +157,7 @@ const LoginForm: React.FC = () => {
 
   const handleForgotPassword = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!forgotPasswordEmail.trim()) {
       toast.error("Por favor, digite seu email.");
       return;
@@ -268,19 +269,19 @@ const LoginForm: React.FC = () => {
 
   const handleSignup = async (e: React.FormEvent) => {
     e.preventDefault();
-    
+
     if (!validateSignupForm()) {
       toast.error("Por favor, corrija os erros no formulário.");
       return;
     }
 
     const { error, membership } = await signUp(signupData.name, signupData.email, signupData.cpfCnpj, signupData.phone, signupData.password);
-    
+
     if (error) {
       toast.error(error.message || "Erro no cadastro");
     } else {
       toast.success("Cadastro realizado com sucesso!");
-      
+
       // Mostrar informações da mensalidade criada
       if (membership) {
         const dueDate = new Date(membership.dueDate).toLocaleDateString('pt-BR');
@@ -291,23 +292,27 @@ const LoginForm: React.FC = () => {
 
   const handleCPFChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatCPF(e.target.value);
-    setSignupData({...signupData, cpfCnpj: formatted});
-    
+    setSignupData({ ...signupData, cpfCnpj: formatted });
+
     // Limpa erro quando usuário começa a digitar
     if (signupErrors.cpfCnpj) {
-      setSignupErrors({...signupErrors, cpfCnpj: ''});
+      setSignupErrors({ ...signupErrors, cpfCnpj: '' });
     }
   };
 
   const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const formatted = formatPhone(e.target.value);
-    setSignupData({...signupData, phone: formatted});
-    
+    setSignupData({ ...signupData, phone: formatted });
+
     // Limpa erro quando usuário começa a digitar
     if (signupErrors.phone) {
-      setSignupErrors({...signupErrors, phone: ''});
+      setSignupErrors({ ...signupErrors, phone: '' });
     }
   };
+
+  const handleShowButton = () => {
+    setShow(prev => !prev)
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
@@ -329,7 +334,7 @@ const LoginForm: React.FC = () => {
               <TabsTrigger value="login">Entrar</TabsTrigger>
               <TabsTrigger value="signup">Cadastrar</TabsTrigger>
             </TabsList>
-            
+
             <TabsContent value="login">
               <form onSubmit={handleLogin} className="space-y-4">
                 <div className="space-y-2">
@@ -342,28 +347,33 @@ const LoginForm: React.FC = () => {
                       placeholder="seu@email.com"
                       className="pl-10"
                       value={loginData.email}
-                      onChange={(e) => setLoginData({...loginData, email: e.target.value})}
+                      onChange={(e) => setLoginData({ ...loginData, email: e.target.value })}
                     />
                   </div>
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="login-password">Senha</Label>
                   <div className="relative">
                     <Lock className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
                     <Input
                       id="login-password"
-                      type="password"
+                      type={show ? "text" : "password"}
                       placeholder="Sua senha"
                       className="pl-10"
                       value={loginData.password}
-                      onChange={(e) => setLoginData({...loginData, password: e.target.value})}
+                      onChange={(e) => setLoginData({ ...loginData, password: e.target.value })}
                     />
+                    <Button type='button' onClick={handleShowButton} className="absolute right-0 top-0  text-gray-400 bg-transparent hover:bg-transparent">
+                      {show ? <Eye />
+                        : <EyeClosed />}
+                    </Button>
+
                   </div>
                 </div>
-                
-                <Button 
-                  type="submit" 
+
+                <Button
+                  type="submit"
                   className="w-full bg-aviation-gradient hover:opacity-90 text-white"
                   disabled={loading}
                 >
@@ -376,7 +386,7 @@ const LoginForm: React.FC = () => {
                     'Entrar'
                   )}
                 </Button>
-                
+
                 <div className="text-center">
                   <Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
                     <DialogTrigger asChild>
@@ -442,7 +452,7 @@ const LoginForm: React.FC = () => {
                 </div>
               </form>
             </TabsContent>
-            
+
             <TabsContent value="signup">
               <form onSubmit={handleSignup} className="space-y-4">
                 <div className="space-y-2">
@@ -456,9 +466,9 @@ const LoginForm: React.FC = () => {
                       className={`pl-10 ${signupErrors.name ? 'border-red-500' : ''}`}
                       value={signupData.name}
                       onChange={(e) => {
-                        setSignupData({...signupData, name: e.target.value});
+                        setSignupData({ ...signupData, name: e.target.value });
                         if (signupErrors.name) {
-                          setSignupErrors({...signupErrors, name: ''});
+                          setSignupErrors({ ...signupErrors, name: '' });
                         }
                       }}
                       required
@@ -468,7 +478,7 @@ const LoginForm: React.FC = () => {
                     <p className="text-sm text-red-500">{signupErrors.name}</p>
                   )}
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="signup-email">Email</Label>
                   <div className="relative">
@@ -480,9 +490,9 @@ const LoginForm: React.FC = () => {
                       className={`pl-10 ${signupErrors.email ? 'border-red-500' : ''}`}
                       value={signupData.email}
                       onChange={(e) => {
-                        setSignupData({...signupData, email: e.target.value});
+                        setSignupData({ ...signupData, email: e.target.value });
                         if (signupErrors.email) {
-                          setSignupErrors({...signupErrors, email: ''});
+                          setSignupErrors({ ...signupErrors, email: '' });
                         }
                       }}
                       required
@@ -492,7 +502,7 @@ const LoginForm: React.FC = () => {
                     <p className="text-sm text-red-500">{signupErrors.email}</p>
                   )}
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="signup-cpf">CPF</Label>
                   <div className="relative">
@@ -512,7 +522,7 @@ const LoginForm: React.FC = () => {
                     <p className="text-sm text-red-500">{signupErrors.cpfCnpj}</p>
                   )}
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="signup-phone">Telefone</Label>
                   <div className="relative">
@@ -532,7 +542,7 @@ const LoginForm: React.FC = () => {
                     <p className="text-sm text-red-500">{signupErrors.phone}</p>
                   )}
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="signup-password">Senha</Label>
                   <div className="relative">
@@ -544,9 +554,9 @@ const LoginForm: React.FC = () => {
                       className={`pl-10 ${signupErrors.password ? 'border-red-500' : ''}`}
                       value={signupData.password}
                       onChange={(e) => {
-                        setSignupData({...signupData, password: e.target.value});
+                        setSignupData({ ...signupData, password: e.target.value });
                         if (signupErrors.password) {
-                          setSignupErrors({...signupErrors, password: ''});
+                          setSignupErrors({ ...signupErrors, password: '' });
                         }
                       }}
                       required
@@ -556,7 +566,7 @@ const LoginForm: React.FC = () => {
                     <p className="text-sm text-red-500">{signupErrors.password}</p>
                   )}
                 </div>
-                
+
                 <div className="space-y-2">
                   <Label htmlFor="signup-confirm-password">Confirmar Senha</Label>
                   <div className="relative">
@@ -568,9 +578,9 @@ const LoginForm: React.FC = () => {
                       className={`pl-10 ${signupErrors.confirmPassword ? 'border-red-500' : ''}`}
                       value={signupData.confirmPassword}
                       onChange={(e) => {
-                        setSignupData({...signupData, confirmPassword: e.target.value});
+                        setSignupData({ ...signupData, confirmPassword: e.target.value });
                         if (signupErrors.confirmPassword) {
-                          setSignupErrors({...signupErrors, confirmPassword: ''});
+                          setSignupErrors({ ...signupErrors, confirmPassword: '' });
                         }
                       }}
                       required
@@ -580,9 +590,9 @@ const LoginForm: React.FC = () => {
                     <p className="text-sm text-red-500">{signupErrors.confirmPassword}</p>
                   )}
                 </div>
-                
-                <Button 
-                  type="submit" 
+
+                <Button
+                  type="submit"
                   className="w-full bg-aviation-gradient hover:opacity-90 text-white"
                   disabled={loading}
                 >
