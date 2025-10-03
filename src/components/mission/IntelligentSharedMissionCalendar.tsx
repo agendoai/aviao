@@ -16,6 +16,7 @@ import {
 import { format, addDays, startOfDay, endOfDay, eachHourOfInterval, parseISO, isBefore, isAfter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { cn } from '@/lib/utils';
+import { convertUTCToBrazilianTime } from '@/utils/dateUtils';
 import { getCalendar } from '@/utils/api';
 import { toast } from 'sonner';
 
@@ -109,8 +110,8 @@ export default function IntelligentSharedMissionCalendar({
     return slots.map(slot => {
       // Verificar se há conflitos com reservas existentes
       const conflictingBooking = bookings.find(booking => {
-        const bookingStart = new Date(booking.departure_date);
-        const bookingEnd = new Date(booking.return_date);
+        const bookingStart = convertUTCToBrazilianTime(booking.departure_date);
+        const bookingEnd = convertUTCToBrazilianTime(booking.return_date);
         
         // Verificar sobreposição
         return (

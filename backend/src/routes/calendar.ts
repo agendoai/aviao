@@ -46,18 +46,26 @@ router.post('/block', authMiddleware, async (req: any, res) => {
     
     // console.log('🔒 Criando bloqueio:', { aircraftId, start, end, reason });
     
-    // Criar booking com status 'blocked' e blocked_until
+    // Normalizar datas recebidas (assumimos ISO com timezone válido)
+    const startDate = new Date(start);
+    const endDate = new Date(end);
+
+    // Aplicar buffers consistentes: pré-voo (-3h) e pós-voo (+3h)
+    const preFlightStart = new Date(startDate.getTime() - (3 * 60 * 60 * 1000));
+    const postFlightEnd = new Date(endDate.getTime() + (3 * 60 * 60 * 1000));
+
+    // Criar booking com status 'blocked' e blocked_until até o fim lógico (inclui pós-voo)
     const block = await prisma.booking.create({
       data: {
         userId: 1, // sistema/admin; em produção, usar req.user.userId
         aircraftId,
         origin: reason || 'BLOQUEIO',
         destination: reason || 'BLOQUEIO',
-        departure_date: new Date(new Date(start + 'Z').getTime() - (3 * 60 * 60 * 1000) - (3 * 60 * 60 * 1000)), // 07:00 (início pré-voo) - ajustar timezone
-        return_date: new Date(new Date(end + 'Z').getTime() + (3 * 60 * 60 * 1000)), // 21:00 (fim lógico + 3h timezone)
-        actual_departure_date: new Date(new Date(start + 'Z').getTime() + (3 * 60 * 60 * 1000)), // 10:00 (partida real + 3h timezone)
-        actual_return_date: new Date(new Date(end + 'Z').getTime() + (3 * 60 * 60 * 1000)), // 17:00 (retorno real + 3h timezone)
-        blocked_until: new Date(end + 'Z'), // Bloqueado até o fim
+        departure_date: preFlightStart, // início do pré-voo
+        return_date: postFlightEnd, // fim do pós-voo
+        actual_departure_date: startDate, // horário real selecionado
+        actual_return_date: endDate, // horário real selecionado
+        blocked_until: postFlightEnd, // bloqueado até incluir pós-voo
         passengers: 0,
         flight_hours: 0,
         overnight_stays: 0,

@@ -1,5 +1,5 @@
 import express from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../db';
 import { validateMission, generateTimeSlots, suggestAvailableSlots, calculateNextAvailableTimeForAircraft } from '../services/intelligentValidation';
 import { authMiddleware } from '../auth';
 
@@ -16,7 +16,21 @@ declare global {
 }
 
 const router = express.Router();
-const prisma = new PrismaClient();
+
+// Helpers globais para formatar datas em strings locais sem timezone (sem Z)
+const formatLocalNoTZ = (d: Date): string => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  const mm = pad(d.getMonth() + 1);
+  const dd = pad(d.getDate());
+  const HH = pad(d.getHours());
+  const MI = pad(d.getMinutes());
+  const SS = pad(d.getSeconds());
+  return `${yyyy}-${mm}-${dd}T${HH}:${MI}:${SS}`;
+};
+const normalizeIncomingLocalString = (s: string): string => {
+  return /Z|[+-]\d{2}:\d{2}$/.test(s) ? formatLocalNoTZ(new Date(s)) : s;
+};
 
 // Middleware para verificar se é admin
 const requireAdmin = async (req: any, res: any, next: any) => {
@@ -85,7 +99,15 @@ router.get('/time-slots/:aircraftId', authMiddleware, async (req, res) => {
       // })));
     }
 
-    res.json(slots);
+    // Converter datas dos slots para strings locais sem timezone (sem Z)
+    const serializedSlots = slots.map(s => ({
+      ...s,
+      start: formatLocalNoTZ(s.start),
+      end: formatLocalNoTZ(s.end),
+      nextAvailable: s.nextAvailable ? formatLocalNoTZ(s.nextAvailable) : undefined
+    }));
+
+    res.json(serializedSlots);
   } catch (error) {
     console.error('Erro ao buscar slots de tempo:', error);
     res.status(500).json({ error: 'Erro interno do servidor' });
@@ -145,9 +167,18 @@ router.post('/', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
     }
 
-    // Converter datas UTC para objetos Date (agora o frontend envia UTC correto)
-    const departureDateTime = new Date(departure_date);
-    const returnDateTime = new Date(return_date);
+    // Interpretar datas locais sem timezone pelos componentes (salvar exatamente o que veio)
+    const parseLocalDateTime = (s: string): Date => {
+      if (/Z|[+-]\d{2}:\d{2}$/.test(s)) return new Date(s);
+      const m = s.match(/^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2})(?::([0-9]{2}))?$/);
+      if (!m) return new Date(s);
+      const [_, yy, mm, dd, hh, mi, ss] = m;
+      return new Date(Number(yy), Number(mm) - 1, Number(dd), Number(hh), Number(mi), ss ? Number(ss) : 0, 0);
+    };
+    const departureDateTime = parseLocalDateTime(departure_date);
+    const returnDateTime = parseLocalDateTime(return_date);
+
+    // Helpers são declarados no topo do arquivo (formatLocalNoTZ, normalizeIncomingLocalString)
 
     // Validar missão com inteligência avançada
     const validation = await validateMission(
@@ -185,10 +216,11 @@ router.post('/', authMiddleware, async (req, res) => {
         origin,
         destination,
         secondaryDestination: secondaryDestination || null,
-        departure_date: calculatedDepartureDate, // Horário calculado (real - 3h)
-        return_date: calculatedReturnDate, // Horário calculado (real + voo volta + 3h)
-        actual_departure_date: departureDateTime, // Horário real de partida
-        actual_return_date: returnDateTime, // Horário real de retorno
+        // Salvar datas como strings locais sem timezone (sem Z)
+        departure_date: formatLocalNoTZ(calculatedDepartureDate),
+        return_date: formatLocalNoTZ(calculatedReturnDate),
+        actual_departure_date: normalizeIncomingLocalString(departure_date),
+        actual_return_date: normalizeIncomingLocalString(return_date),
         passengers,
         flight_hours,
         overnight_stays: overnight_stays || 0,
@@ -508,8 +540,8 @@ router.patch('/:id', authMiddleware, async (req, res) => {
     if (value !== undefined) updateData.value = value;
     if (origin) updateData.origin = origin;
     if (destination) updateData.destination = destination;
-    if (departure_date) updateData.departure_date = new Date(departure_date);
-    if (return_date) updateData.return_date = new Date(return_date);
+    if (departure_date) updateData.departure_date = /Z|[+-]\d{2}:\d{2}$/.test(departure_date) ? formatLocalNoTZ(new Date(departure_date)) : departure_date;
+    if (return_date) updateData.return_date = /Z|[+-]\d{2}:\d{2}$/.test(return_date) ? formatLocalNoTZ(new Date(return_date)) : return_date;
     if (passengers !== undefined) updateData.passengers = passengers;
     if (flight_hours !== undefined) updateData.flight_hours = flight_hours;
     if (overnight_stays !== undefined) updateData.overnight_stays = overnight_stays;
@@ -782,9 +814,16 @@ router.post('/pix-payment', authMiddleware, async (req, res) => {
 
 
 
-    // Converter datas para objetos Date
-    const departureDateTime = new Date(departure_date);
-    const returnDateTime = new Date(return_date);
+    // Interpretar datas locais sem timezone pelos componentes (salvar exatamente o que veio)
+    const parseLocalDateTime = (s: string): Date => {
+      if (/Z|[+-]\d{2}:\d{2}$/.test(s)) return new Date(s);
+      const m = s.match(/^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2})(?::([0-9]{2}))?$/);
+      if (!m) return new Date(s);
+      const [_, yy, mm, dd, hh, mi, ss] = m;
+      return new Date(Number(yy), Number(mm) - 1, Number(dd), Number(hh), Number(mi), ss ? Number(ss) : 0, 0);
+    };
+    const departureDateTime = parseLocalDateTime(departure_date);
+    const returnDateTime = parseLocalDateTime(return_date);
 
 
 
@@ -827,10 +866,10 @@ router.post('/pix-payment', authMiddleware, async (req, res) => {
         origin,
         destination,
         secondaryDestination: secondaryDestination || null,
-        departure_date: calculatedDepartureDate, // Horário calculado (real - 3h)
-        return_date: calculatedReturnDate, // Horário calculado (real + voo volta + 3h)
-        actual_departure_date: departureDateTime, // Horário real de partida
-        actual_return_date: returnDateTime, // Horário real de retorno
+        departure_date: formatLocalNoTZ(calculatedDepartureDate),
+        return_date: formatLocalNoTZ(calculatedReturnDate),
+        actual_departure_date: normalizeIncomingLocalString(departure_date),
+        actual_return_date: normalizeIncomingLocalString(return_date),
         passengers,
         flight_hours,
         overnight_stays,

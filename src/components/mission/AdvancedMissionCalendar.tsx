@@ -8,7 +8,7 @@ import { format, addWeeks, subWeeks, startOfWeek, addDays, isSameDay, isSameWeek
 import { ptBR } from 'date-fns/locale';
 import { getTimeSlots } from '@/utils/api';
 import { buildApiUrl } from '@/config/api';
-import { convertWeekStartToBrazilianTimezone } from '@/utils/dateUtils';
+import { convertWeekStartToBrazilianTimezone, convertUTCToBrazilianTime } from '@/utils/dateUtils';
 import { toast } from '@/hooks/use-toast';
 
 interface TimeSlot {
@@ -129,8 +129,8 @@ const AdvancedMissionCalendar: React.FC<AdvancedMissionCalendarProps> = ({
         // Converter strings para Date objects
         const convertedSlots = slots.map((slot: any) => ({
           ...slot,
-          start: new Date(slot.start),
-          end: new Date(slot.end),
+            start: convertUTCToBrazilianTime(slot.start),
+            end: convertUTCToBrazilianTime(slot.end),
           nextAvailable: slot.nextAvailable ? new Date(slot.nextAvailable) : undefined
         }));
         

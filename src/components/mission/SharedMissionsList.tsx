@@ -1318,8 +1318,9 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
         description: 'Missão compartilhada criada via wizard',
         origin: 'SBAU',
         destination: selectedDestination.icao,
-        departure_date: departureDateTime.toISOString(),
-        return_date: returnDateTime.toISOString(),
+        // Enviar datas locais sem timezone (BRT), exatamente como selecionadas
+        departure_date: `${format(departureDateTime, 'yyyy-MM-dd')}T${format(departureDateTime, 'HH:mm')}:00`,
+        return_date: `${format(returnDateTime, 'yyyy-MM-dd')}T${format(returnDateTime, 'HH:mm')}:00`,
         aircraftId: selectedAircraft.id,
         totalSeats: selectedAircraft.seats,
         availableSeats: parseInt(availableSeats) || 1,
@@ -1700,13 +1701,16 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
       
 
       
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const toLocalNoTZ = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+
       await createSharedMission({
         title: `Missão compartilhada de ${getAirportNameByICAO('SBAU')} para ${getAirportNameByICAO(selectedDestination.icao)}`,
         description: 'Missão compartilhada criada via wizard',
         origin: 'SBAU',
         destination: selectedDestination.icao,
-        departure_date: departureDateTime.toISOString(),
-        return_date: returnDateTime.toISOString(),
+        departure_date: toLocalNoTZ(departureDateTime),
+        return_date: toLocalNoTZ(returnDateTime),
         aircraftId: selectedAircraft.id,
         totalSeats: selectedAircraft.seats,
         availableSeats: parseInt(availableSeats) || 1,
@@ -3141,4 +3145,4 @@ export default function SharedMissionsList({ onBookMission, pendingNavigation }:
       </div>
     );
   }
-}; 
+};

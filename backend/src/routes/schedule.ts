@@ -1,5 +1,17 @@
 import { Router } from 'express';
 import { prisma } from '../db';
+
+// Helpers para formatar datas como strings locais sem timezone (sem Z)
+const formatLocalNoTZ = (d: Date): string => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  const mm = pad(d.getMonth() + 1);
+  const dd = pad(d.getDate());
+  const HH = pad(d.getHours());
+  const MI = pad(d.getMinutes());
+  const SS = pad(d.getSeconds());
+  return `${yyyy}-${mm}-${dd}T${HH}:${MI}:${SS}`;
+};
 import { authMiddleware } from '../auth';
 import { ScheduleService } from '../services/scheduleService';
 import { MissionCalculator } from '../services/missionCalculator';
@@ -192,17 +204,20 @@ router.post('/book', async (req, res) => {
       });
     }
 
-    // Criar reserva
+    // Criar reserva com buffers corretos (pré-voo e pós-voo)
+    const preFlightStart = new Date(departureTime.getTime() - (3 * 60 * 60 * 1000));
+    const logicalEnd = result.mission.maintenanceEndTime; // retorno real + pós-voo (3h)
+
     const booking = await prisma.booking.create({
       data: {
         userId,
         aircraftId,
         origin,
         destination: destinations.join(', '),
-        departure_date: new Date(departureTime.getTime() - (3 * 60 * 60 * 1000)), // 04:00 (início pré-voo - 3h antes)
-        return_date: result.mission.estimatedReturnTime, // 21:00 (fim lógico)
-        actual_departure_date: departureTime, // 07:00 (hora real que o usuário escolheu)
-        actual_return_date: result.mission.estimatedReturnTime, // 18:00 (hora real que o usuário escolheu)
+        departure_date: formatLocalNoTZ(preFlightStart), // início do pré-voo
+        return_date: formatLocalNoTZ(logicalEnd), // fim do pós-voo
+        actual_departure_date: formatLocalNoTZ(departureTime), // decolagem real selecionada
+        actual_return_date: formatLocalNoTZ(result.mission.estimatedReturnTime), // retorno real calculado
         passengers,
         flight_hours: Math.ceil(result.mission.totalFlightTime),
         overnight_stays: 0, // Por enquanto sem pernoite
@@ -215,8 +230,8 @@ router.post('/book', async (req, res) => {
     await ScheduleService.blockAircraftSchedule(
       aircraftId,
       booking.id,
-      new Date(departureTime),
-      result.mission.maintenanceEndTime,
+      preFlightStart,
+      logicalEnd,
       `Reserva #${booking.id} - ${(req as any).user.name}`
     );
 

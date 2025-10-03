@@ -62,7 +62,23 @@ export function calcularTempoVolta(flightHoursTotal: number): number {
 export function janelaBloqueada(m: Missao): JanelaBloqueada[] {
   // Voltar para lógica original - usar partida/retorno que já incluem buffers
   // O problema está no frontend, não no backend
-  
+  // Ajuste: alinhar o fim para o próximo slot de 30 minutos quando houver minutos residuais
+  const ceilToNextHalfHour = (d: Date): Date => {
+    const result = new Date(d.getTime());
+    const minutes = result.getMinutes();
+    const seconds = result.getSeconds();
+    const ms = result.getMilliseconds();
+    // Se já está exatamente em 00 ou 30, manter
+    const mod = minutes % 30;
+    if (mod === 0 && seconds === 0 && ms === 0) {
+      return result;
+    }
+    // Arredondar para próxima meia hora
+    const addMinutes = 30 - mod;
+    result.setMinutes(minutes + addMinutes, 0, 0);
+    return result;
+  };
+
   return [
     {
       inicio: new Date(m.partida.getTime()), // início do pré-voo
@@ -78,7 +94,7 @@ export function janelaBloqueada(m: Missao): JanelaBloqueada[] {
     },
     {
       inicio: new Date(m.retorno.getTime() - H(POS_VOO_HORAS)), // início pós-voo
-      fim: new Date(m.retorno.getTime()), // fim pós-voo
+      fim: ceilToNextHalfHour(new Date(m.retorno.getTime())), // fim pós-voo alinhado ao próximo slot
       tipo: 'pos-voo',
       missao: m
     }
@@ -92,7 +108,17 @@ export function janelaBloqueada(m: Missao): JanelaBloqueada[] {
 export function proximaDecolagemPossivel(m: Missao): Date {
   // m.retorno já é o fim do pós-voo (includes maintenance), então aeronave fica disponível imediatamente
   // NÃO somar 3h extras pois o return_date já calculou tudo
-  return new Date(m.retorno.getTime());
+  // Ajustar para a próxima meia hora para alinhar com os slots do calendário
+  const d = new Date(m.retorno.getTime());
+  const minutes = d.getMinutes();
+  const seconds = d.getSeconds();
+  const ms = d.getMilliseconds();
+  const mod = minutes % 30;
+  if (mod === 0 && seconds === 0 && ms === 0) {
+    return d;
+  }
+  d.setMinutes(minutes + (30 - mod), 0, 0);
+  return d;
 }
 
 /**

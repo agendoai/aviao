@@ -18,7 +18,7 @@ import {
 } from 'lucide-react';
 import { format, addDays, startOfDay, endOfDay, eachHourOfInterval, parseISO, isBefore, isAfter } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
-import { convertBrazilianTimeToUTC, convertBrazilianDateToUTCString } from '@/utils/dateUtils';
+import { convertBrazilianTimeToUTC, convertBrazilianDateToUTCString, convertUTCToBrazilianTime, formatBrazilTime } from '@/utils/dateUtils';
 import WeeklySchedule from './WeeklySchedule';
 import MissionCreation from './MissionCreation';
 import TripTypeSelection from './TripTypeSelection';
@@ -45,6 +45,7 @@ import { toast } from 'sonner';
 import AirportStats from './AirportStats';
 import OvernightExample from './OvernightExample';
 import IntelligentTimeSelectionStep from '../booking-flow/IntelligentTimeSelectionStep';
+// merged into the main dateUtils import above
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
 import { getAirportCoordinatesWithFallback, testAISWEBConnection, calculateDistance, verifyDistances, getAircraftSpeed, verifySBAUtoSBSV } from '@/utils/airport-search';
@@ -268,19 +269,14 @@ const MissionSystem: React.FC = () => {
         return (s < slotEnd && r > slotStart);
       });
 
-      // verificar conflito com reservas e bloqueios de manutenção
+      // verificar conflito com reservas
       const conflictingBooking = bookingsForAircraft.find(b => {
-        const departureDate = new Date(b.departure_date);
-        const returnDate = new Date(b.return_date);
-        const blockedUntil = b.blocked_until ? new Date(b.blocked_until) : null;
+        const departureDate = convertUTCToBrazilianTime(b.departure_date);
+        const returnDate = convertUTCToBrazilianTime(b.return_date);
         
         // Conflito direto de horário
         const directConflict = departureDate < slotEnd && returnDate > slotStart;
-        
-        // Conflito com período de bloqueio (manutenção)
-        const maintenanceConflict = blockedUntil && blockedUntil > slotStart;
-        
-        return directConflict || maintenanceConflict;
+        return directConflict;
       });
 
       const conflicting = conflictingCalendar || conflictingBooking;
@@ -487,7 +483,8 @@ const MissionSystem: React.FC = () => {
     setSelectedTimeSlot(slot);
     setSelectedAircraft(selectedAircraftForSchedule);
     // Debug removido para produção
-    setDepartureTime(format(slot.start, 'HH:mm'));
+    // Exibir horário de partida em fuso do Brasil
+    setDepartureTime(formatBrazilTime(slot.start));
     setSelectedDate(slot.start);
     // Ir para o novo fluxo base-destino
     setCurrentView('base-destination-flow');
@@ -640,11 +637,8 @@ const MissionSystem: React.FC = () => {
                     // Debug removido para produção
                     
                     if (typeof timeSlot === 'object' && timeSlot.start) {
-                      const timeString = timeSlot.start.toLocaleTimeString('pt-BR', {
-                        hour: '2-digit',
-                        minute: '2-digit',
-                        hour12: false
-                      });
+                      // Exibir horário em fuso do Brasil
+                      const timeString = formatBrazilTime(timeSlot.start);
                       setDepartureTime(timeString);
                       handleTimeSlotSelection(timeSlot);
                     } else {

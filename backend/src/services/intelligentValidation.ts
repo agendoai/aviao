@@ -1,4 +1,15 @@
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../db';
+// Helper para formatar datas em string local sem timezone (sem Z)
+const formatLocalNoTZ = (d: Date): string => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  const mm = pad(d.getMonth() + 1);
+  const dd = pad(d.getDate());
+  const HH = pad(d.getHours());
+  const MI = pad(d.getMinutes());
+  const SS = pad(d.getSeconds());
+  return `${yyyy}-${mm}-${dd}T${HH}:${MI}:${SS}`;
+};
 import { addHours, isWithinInterval, isBefore, isAfter, isEqual } from 'date-fns';
 import { 
   Missao, 
@@ -12,7 +23,6 @@ import {
   sugerirHorarios
 } from './missionValidator';
 
-const prisma = new PrismaClient();
 
 export interface TimeSlot {
   start: Date;
@@ -358,7 +368,7 @@ export const calculateNextAvailableTimeForAircraft = async (
         in: ['pendente', 'confirmada', 'paga', 'blocked']
       },
       return_date: {
-        gt: afterTime
+        gt: formatLocalNoTZ(afterTime)
       }
     },
     orderBy: {

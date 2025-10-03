@@ -85,13 +85,16 @@ const CreateSharedMissionForm: React.FC<CreateSharedMissionFormProps> = ({ onSuc
       const selectedAircraft = aircrafts.find(a => a.id === formData.aircraftId);
       const totalCost = selectedAircraft ? (selectedAircraft.hourly_rate * 2) + (formData.overnightFee * formData.totalSeats) : 0;
       
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const toLocalNoTZ = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
+
       await createSharedMission({
         title: formData.title,
         description: formData.description,
         origin: formData.origin,
         destination: formData.destination,
-        departure_date: formData.departure_date.toISOString(),
-        return_date: formData.return_date.toISOString(),
+        departure_date: toLocalNoTZ(formData.departure_date),
+        return_date: toLocalNoTZ(formData.return_date),
         aircraftId: formData.aircraftId,
         totalSeats: formData.totalSeats,
         pricePerSeat: Math.ceil(totalCost / formData.totalSeats),
@@ -338,4 +341,4 @@ const CreateSharedMissionForm: React.FC<CreateSharedMissionFormProps> = ({ onSuc
   );
 };
 
-export default CreateSharedMissionForm; 
+export default CreateSharedMissionForm;

@@ -12,6 +12,7 @@ import { ptBR } from 'date-fns/locale';
 import { searchAirports, getPopularAirports, calculateDistance, getAirportsByRegion, Airport, getAirportCoordinatesWithFallback, getAircraftSpeed, calculateTotalMissionCost, AirportFees, getAirportNameByICAO } from '@/utils/airport-search';
 import IntelligentTimeSelectionStep from '../booking-flow/IntelligentTimeSelectionStep';
 import { getAircrafts } from '@/utils/api';
+import { formatBrazilTime } from '@/utils/dateUtils';
 import { useMemo } from 'react';
 
 interface BaseDestinationFlowProps {
@@ -89,11 +90,9 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
   const [currentWeek, setCurrentWeek] = useState(() => {
     // Usar departureDate se fornecido, senão data atual
     const baseDate = departureDate || new Date();
-    console.log('📅 BaseDestinationFlow - Data base:', baseDate.toLocaleDateString('pt-BR'));
     
     // INICIAR NA SEMANA da data base
     const currentWeekStart = startOfWeek(baseDate, { weekStartsOn: 1 });
-    console.log('📅 BaseDestinationFlow - Iniciando na semana:', currentWeekStart.toLocaleDateString('pt-BR'));
     
     return currentWeekStart;
   });
@@ -107,13 +106,6 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
   const currentMonth = useMemo(() => {
     // SEMPRE usar departureDate para evitar mudanças de timezone
     const month = new Date(departureDate);
-    console.log('🔍 BaseDestinationFlow - currentMonth memoizado (FIXADO):', {
-      returnDate,
-      departureDate: departureDate.toISOString(),
-      departureDateLocal: departureDate.toLocaleDateString('pt-BR'),
-      monthCalculado: month.toISOString(),
-      monthLocal: month.toLocaleDateString('pt-BR')
-    });
     return month;
   }, [departureDate]); // ✅ Removido returnDate das dependências
 
@@ -721,20 +713,10 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
                            primary: destinations.find(dest => dest.type === 'main')?.airport.icao,
                            secondary: destinations.find(dest => dest.type === 'secondary')?.airport.icao
                          }}
-                         // Debug: Log dos destinos selecionados
-                         {...(console.log('🔍 BaseDestinationFlow - Destinos selecionados:', {
-                           destinations,
-                           primary: destinations.find(dest => dest.type === 'main')?.airport.icao,
-                           secondary: destinations.find(dest => dest.type === 'secondary')?.airport.icao
-                         }) || {})}
                          onAutoAdvance={() => {
                            // Auto-avançar para próxima etapa após seleção
-                           console.log('🚀 Auto-avançando após seleção de horário');
                          }}
                          onTimeSelect={(timeSlot) => {
-                           console.log('🔍 BaseDestinationFlow - onTimeSelect chamado:', timeSlot);
-                           console.log('🔍 BaseDestinationFlow - timeSlot.start tipo:', typeof timeSlot.start);
-                           console.log('🔍 BaseDestinationFlow - timeSlot.start valor:', timeSlot.start);
                            
                            // Se timeSlot é um objeto com start/end (do IntelligentTimeSelectionStep)
                            if (typeof timeSlot === 'object' && timeSlot.start) {
@@ -745,11 +727,9 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
                              if (timeSlot.start instanceof Date) {
                                // Já é um Date object, usar diretamente
                                selectedDate = timeSlot.start;
-                               console.log('🔍 BaseDestinationFlow - Usando Date object diretamente:', selectedDate);
                              } else {
                                // É uma string, converter com cuidado
                                selectedDate = new Date(timeSlot.start);
-                               console.log('🔍 BaseDestinationFlow - Convertendo string para Date:', selectedDate);
                              }
                              
                              // CORREÇÃO: Usar getters locais para evitar mudança de dia por timezone
@@ -757,28 +737,14 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
                              const month = String(selectedDate.getMonth() + 1).padStart(2, '0');
                              const day = String(selectedDate.getDate()).padStart(2, '0');
                              const formattedDate = `${year}-${month}-${day}`;
-                             const formattedTime = selectedDate.toLocaleTimeString('pt-BR', {
-                               hour: '2-digit',
-                               minute: '2-digit',
-                               hour12: false
-                             });
+                             // Usar horário em fuso do Brasil
+                             const formattedTime = formatBrazilTime(selectedDate);
                              
-                             console.log('🔍 BaseDestinationFlow - Data processada:', {
-                               originalStart: timeSlot.start,
-                               selectedDate: selectedDate,
-                               year, month, day,
-                               formattedDate,
-                               formattedTime
-                             });
-                             
-                             console.log('🔍 BaseDestinationFlow - Antes de setReturnDate:', { formattedDate, formattedTime });
                              setReturnDate(formattedDate);
                              setReturnTime(formattedTime);
-                             console.log('🔍 BaseDestinationFlow - Depois de setReturnDate');
                              
                              // Mostrar toast imediatamente
                              toast.success(`Data/Hora de retorno selecionada: ${formattedDate} às ${formattedTime}`);
-                             console.log('🔍 BaseDestinationFlow - Toast exibido');
                            } else {
                              // Fallback para string (compatibilidade)
                              const time = timeSlot.toString();
@@ -795,7 +761,9 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
                              // console.log('🔍 Usando fallback - Horário formatado:', time);
                              
                              setReturnDate(formattedDate);
-                             setReturnTime(time);
+                             // CORREÇÃO: alinhar horário com exibição do calendário (UTC, quando aplicável)
+                             const asDate = new Date(`${formattedDate}T${time}:00Z`);
+                             setReturnTime(formatBrazilTime(asDate));
                              
                              // Mostrar toast imediatamente
                              toast.success(`Data/Hora de retorno selecionada: ${formattedDate} às ${time}`);
@@ -852,13 +820,21 @@ const BaseDestinationFlow: React.FC<BaseDestinationFlowProps> = ({
                   <div className="text-sm text-gray-600">
                    <div className="flex justify-between">
                      <span>Partida de {missionCalculation.origin}:</span>
-                     <span>{format(missionCalculation.departureDate, 'dd/MM/yyyy')} às {missionCalculation.departureTime}</span>
+                     <span>{format(departureDate, 'dd/MM/yyyy')} às {departureTime}</span>
                   </div>
                    <div className="flex justify-between">
                      <span>Retorno a {missionCalculation.origin}:</span>
-                     <span>{format(missionCalculation.returnDate, 'dd/MM/yyyy')} às {missionCalculation.returnTime}</span>
+                     <span>{(() => {
+                       try {
+                         const [y, m, d] = (returnDate || format(missionCalculation.returnDate, 'yyyy-MM-dd')).split('-').map(Number);
+                         const localReturnDate = new Date(y, (m || 1) - 1, d || 1, 0, 0, 0, 0);
+                         return `${format(localReturnDate, 'dd/MM/yyyy')} às ${returnTime || missionCalculation.returnTime}`;
+                       } catch {
+                         return `${format(missionCalculation.returnDate, 'dd/MM/yyyy')} às ${missionCalculation.returnTime}`;
+                       }
+                     })()}</span>
                   </div>
-
+                  
 
                   <div className="text-xs text-gray-500 mt-2 pt-2 border-t">
                     <div className="flex justify-between">

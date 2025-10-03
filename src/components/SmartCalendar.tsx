@@ -3,6 +3,7 @@ import { format, addDays, startOfMonth, endOfMonth, eachDayOfInterval, isSameDay
 import { ptBR } from 'date-fns/locale';
 import { toast } from 'sonner';
 import { Clock, Check } from 'lucide-react';
+// Remover conversões para horário brasileiro: trabalhar direto com UTC do backend
 
 interface Aircraft {
   id: number;
@@ -144,7 +145,7 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
             eventType = 'booking'; // Reservas reais
           }
 
-          // Criar datas corretas
+          // Usar diretamente as datas UTC vindas do backend
           const startDate = new Date(booking.departure_date);
           const endDate = new Date(booking.return_date);
 
@@ -202,21 +203,18 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
       }
 
       const dayEvents = scheduleEvents.filter(event => {
-        const eventStart = new Date(event.start);
-        
-        // Calcular o período total de bloqueio (usar return_date se blocked_until não existir)
-        let eventEnd: Date;
-        if (event.resource?.blocked_until) {
-          eventEnd = new Date(event.resource.blocked_until);
-        } else {
-          eventEnd = new Date(event.end); // return_date
-        }
-        
-        // Criar limites do dia em UTC para comparar corretamente (alinhado com BRT UTC-3)
-        const dayStartUTC = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate(), 3, 0, 0, 0)); // 00:00 BRT = 03:00 UTC
-        const dayEndUTC = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate() + 1, 3, 0, 0, 0)); // 00:00 BRT do próximo dia = 03:00 UTC
-        
-        return (eventStart < dayEndUTC && eventEnd > dayStartUTC);
+        const eventStart = convertUTCToBrazilianTime(event.start);
+        // FIM DA JANELA: usar SEMPRE return_date
+        const eventEnd = convertUTCToBrazilianTime(event.end);
+
+        // Limites do dia no horário local brasileiro
+        const dayStartLocal = new Date(date);
+        dayStartLocal.setHours(0, 0, 0, 0);
+        const dayEndLocal = new Date(date);
+        dayEndLocal.setDate(dayEndLocal.getDate() + 1);
+        dayEndLocal.setHours(0, 0, 0, 0);
+
+        return (eventStart < dayEndLocal && eventEnd > dayStartLocal);
       });
       
              // Se há menos de 5 eventos no dia (mais permissivo), o dia está disponível
@@ -258,39 +256,31 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
     // CORREÇÃO: Buscar TODOS os eventos que podem afetar este dia
     // Incluindo eventos que atravessam a meia-noite
     const relevantEvents = events.filter(event => {
-      const eventStart = new Date(event.start); // departure_date
-      const eventEnd = new Date(event.end);     // return_date
-      
-      // Se tem blocked_until, usar ele (mais preciso)
-      const finalEnd = event.resource?.blocked_until ? 
-        new Date(event.resource.blocked_until) : eventEnd;
-      
-      // Converter UTC para horário local brasileiro para comparação
-      const eventStartLocal = new Date(eventStart.getTime() - (3 * 60 * 60 * 1000));
-      const eventEndLocal = new Date(finalEnd.getTime() - (3 * 60 * 60 * 1000));
-      
-      // Verificar se o evento afeta este dia
-      const dayStart = new Date(date);
-      dayStart.setHours(0, 0, 0, 0);
-      const dayEnd = new Date(date);
-      dayEnd.setHours(23, 59, 59, 999);
-      
+      // Trabalhar em UTC: eventos e limites diários em UTC
+      const eventStartUTC = event.start instanceof Date ? event.start : new Date(event.start);
+      const eventEndUTC = event.end instanceof Date ? event.end : new Date(event.end);
+
+      const year = date.getFullYear();
+      const month = date.getMonth();
+      const day = date.getDate();
+      const dayStart = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+      const dayEnd = new Date(Date.UTC(year, month, day, 23, 59, 59, 999));
+
       // CORREÇÃO PREVENTIVA: Para slots noturnos (21h-23h), verificar se o evento
       // tem actual_departure_date no dia atual, independentemente do período total
-      let eventAffectsDay = (eventStartLocal < dayEnd && eventEndLocal > dayStart);
-      
+      let eventAffectsDay = (eventStartUTC < dayEnd && eventEndUTC > dayStart);
+
       // Se o evento tem actual_departure_date, usar essa data para slots noturnos
       if (event.resource?.actual_departure_date) {
-        const actualDepartureLocal = new Date(new Date(event.resource.actual_departure_date).getTime() - (3 * 60 * 60 * 1000));
-        const actualDepartureDay = new Date(actualDepartureLocal);
-        actualDepartureDay.setHours(0, 0, 0, 0);
-        
-        // Se a partida real é neste dia, considerar o evento relevante para slots noturnos
-        if (actualDepartureDay.getTime() === dayStart.getTime()) {
+        const ad = new Date(event.resource.actual_departure_date);
+        const actualDepartureDayStart = new Date(Date.UTC(ad.getUTCFullYear(), ad.getUTCMonth(), ad.getUTCDate(), 0, 0, 0, 0));
+        // Se a partida real (UTC) é neste dia, considerar
+        const thisDayStartUTC = new Date(Date.UTC(year, month, day, 0, 0, 0, 0));
+        if (actualDepartureDayStart.getTime() === thisDayStartUTC.getTime()) {
           eventAffectsDay = true;
         }
       }
-      
+
       // Evento afeta o dia se há sobreposição
       return eventAffectsDay;
     });
@@ -310,19 +300,23 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
       // Apenas bloquear se for realmente o mesmo dia E horário já passou
       if (isToday) {
         const [hours, minutes] = time.split(':').map(Number);
-        const timeSlot = new Date(date); // Usar a data do calendário, não 'now'
+        const year = date.getFullYear();
+        const month = date.getMonth();
+        const day = date.getDate();
+        let timeSlot = new Date(Date.UTC(year, month, day, hours, minutes, 0, 0));
         
         // Tratar 00:00 como 24:00 do dia atual
         if (hours === 0) {
-          timeSlot.setHours(24, minutes, 0, 0);
+          timeSlot = new Date(Date.UTC(year, month, day + 1, 0, minutes, 0, 0));
         } else {
-          timeSlot.setHours(hours, minutes, 0, 0);
+          // já definido acima
         }
         
         // CORREÇÃO: Só bloquear se for EXATAMENTE o mesmo dia E horário já passou
         // Se estamos vendo um calendário de retorno (dia futuro), não bloquear
         const isExactlySameDay = isSameDay(date, now);
-        const isTimeInPast = isExactlySameDay && timeSlot <= now;
+        const nowUTC = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate(), now.getUTCHours(), now.getUTCMinutes(), now.getUTCSeconds()));
+        const isTimeInPast = isExactlySameDay && timeSlot <= nowUTC;
         
         console.log(`   🕐 Slot ${time}: data=${date.toLocaleDateString()}, hoje=${now.toLocaleDateString()}, mesmodia=${isExactlySameDay}, passou=${isTimeInPast}`);
         
@@ -345,30 +339,20 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
 
          // LÓGICA CORRIGIDA: Criar slot no timezone local brasileiro
          const [hours, minutes] = time.split(':').map(Number);
-         
-         // Usar diretamente o objeto Date local (não converter para UTC)
-         const slotDateTimeBR = new Date(date);
-         // Para horários noturnos (21:00-23:30), manter no mesmo dia
-         // Para 00:00, colocar no próximo dia
-         if (hours === 0) {
-           // 00:00 = meia-noite do próximo dia
-           slotDateTimeBR.setDate(date.getDate() + 1);
-           slotDateTimeBR.setHours(0, minutes, 0, 0);
-         } else {
-           // Todos os outros horários (incluindo 21:00-23:30) ficam no mesmo dia
-           slotDateTimeBR.setHours(hours, minutes, 0, 0);
-         }
-         
-         // Usar diretamente o slotDateTimeBR (que já está correto em UTC)
-         const slotDateTime = slotDateTimeBR;
+         const y = date.getFullYear();
+         const m = date.getMonth();
+         const d = date.getDate();
+         // Construir slot em UTC
+         const slotDateTime = hours === 0
+           ? new Date(Date.UTC(y, m, d + 1, 0, minutes, 0, 0))
+           : new Date(Date.UTC(y, m, d, hours, minutes, 0, 0));
          const slotEndDateTime = new Date(slotDateTime.getTime() + (60 * 60 * 1000));
          
-         // Usar as datas UTC diretamente do backend (sem conversão)
-         const eventStart = new Date(event.start);  // departure_date em UTC
-         const finalEnd = event.resource?.blocked_until ? 
-           new Date(event.resource.blocked_until) : new Date(event.end); // return_date/blocked_until em UTC
+         // Trabalhar com eventos em UTC
+         const eventStart = event.start instanceof Date ? event.start : new Date(event.start);
+         const finalEnd = event.end instanceof Date ? event.end : new Date(event.end);
          
-         // Comparar diretamente em UTC (sem dupla conversão de timezone)
+         // Comparar em UTC
          let isBlocked = slotDateTime < finalEnd && slotEndDateTime > eventStart;
          
          return isBlocked;
@@ -379,10 +363,9 @@ const SmartCalendar: React.FC<SmartCalendarProps> = ({
       // Debug: log para slots bloqueados
       if (!isAvailable) {
         console.log(`❌ Slot ${time} BLOQUEADO por: ${conflictingEvent?.title}`);
-        const finalEnd = conflictingEvent?.resource?.blocked_until ? 
-          new Date(conflictingEvent.resource.blocked_until) : new Date(conflictingEvent?.end);
-        const eventStartLocal = new Date(new Date(conflictingEvent?.start).getTime() - (3 * 60 * 60 * 1000));
-        const eventEndLocal = new Date(finalEnd.getTime() - (3 * 60 * 60 * 1000));
+        const finalEnd = convertUTCToBrazilianTime(conflictingEvent?.end as any);
+        const eventStartLocal = convertUTCToBrazilianTime(conflictingEvent?.start as any);
+        const eventEndLocal = finalEnd;
         console.log(`   Missão: ${eventStartLocal.toLocaleString('pt-BR')} → ${eventEndLocal.toLocaleString('pt-BR')}`);
       } else {
         console.log(`✅ Slot ${time} DISPONÍVEL`);

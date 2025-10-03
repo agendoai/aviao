@@ -173,8 +173,19 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
       // console.log('🔍 returnDate:', returnDate);
       // console.log('🔍 returnTime:', returnTime);
       
-      const departureDateTime = new Date(`${departureDate}T${departureTime}:00`);
-      const returnDateTime = new Date(`${returnDate}T${returnTime}:00`);
+      // Criar datas no horário local brasileiro (sem depender de parsing ISO)
+      const [depY, depM, depD] = departureDate.split('-').map(Number);
+      const [depH, depMin] = departureTime.split(':').map(Number);
+      const departureDateTime = new Date(depY, depM - 1, depD, depH, depMin, 0, 0);
+
+      const [retY, retM, retD] = returnDate.split('-').map(Number);
+      const [retH, retMin] = returnTime.split(':').map(Number);
+      const returnDateTime = new Date(retY, retM - 1, retD, retH, retMin, 0, 0);
+
+      // Formatar para string local sem timezone (BRT) exatamente como selecionado
+      const pad = (n: number) => n.toString().padStart(2, '0');
+      const toLocalNoTZ = (d: Date) =>
+        `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}:${pad(d.getSeconds())}`;
       
       // console.log('🔍 Datas criadas:');
       // console.log('🔍 departureDateTime:', departureDateTime);
@@ -187,8 +198,8 @@ const MissionCreation: React.FC<MissionCreationProps> = ({
         origin,
         destination,
         secondaryDestination: secondaryDestination || null,
-        departure_date: convertBrazilianDateToUTCString(departureDateTime),
-        return_date: convertBrazilianDateToUTCString(returnDateTime),
+        departure_date: toLocalNoTZ(departureDateTime),
+        return_date: toLocalNoTZ(returnDateTime),
         passengers,
         flight_hours: flightHours,
         overnight_stays: overnightStays,

@@ -55,11 +55,11 @@ model Booking {
   origin         String
   destination    String
   secondaryDestination String? // Destino secundário (opcional)
-  departure_date DateTime
-  return_date    DateTime
-  actual_departure_date DateTime? // Data real de ida (para exibição)
-  actual_return_date DateTime? // Data real de volta (para exibição)
-  secondary_departure_time DateTime? // Horário de saída do destino secundário
+  departure_date String
+  return_date    String
+  actual_departure_date String? // Data real de ida (para exibição)
+  actual_return_date String? // Data real de volta (para exibição)
+  secondary_departure_time String? // Horário de saída do destino secundário
   passengers     Int      @default(1)
   flight_hours   Float    @default(2.0)
   overnight_stays Int     @default(0)
@@ -82,11 +82,11 @@ model SharedMission {
   origin          String
   destination     String
   secondaryDestination String? // Destino secundário (opcional) - igual ao Booking
-  departure_date  DateTime
-  return_date     DateTime
-  actual_departure_date DateTime? // Data real de ida (para exibição)
-  actual_return_date DateTime? // Data real de volta (para exibição)
-  secondary_departure_time DateTime? // Horário de saída do destino secundário - igual ao Booking
+  departure_date  String
+  return_date     String
+  actual_departure_date String? // Data real de ida (para exibição)
+  actual_return_date String? // Data real de volta (para exibição)
+  secondary_departure_time String? // Horário de saída do destino secundário - igual ao Booking
   aircraftId      Int
   totalSeats      Int
   availableSeats  Int

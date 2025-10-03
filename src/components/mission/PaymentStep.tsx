@@ -102,8 +102,9 @@ const PaymentStep: React.FC<PaymentStepProps> = ({
         origin,
         destination,
         secondaryDestination: null, // Missões solo não têm destino secundário
-        departure_date: convertBrazilianDateToUTCString(departureDateTime),
-        return_date: convertBrazilianDateToUTCString(returnDateTime),
+        // Enviar datas locais sem timezone (BRT), exatamente como selecionadas
+        departure_date: `${format(departureDateTime, 'yyyy-MM-dd')}T${format(departureDateTime, 'HH:mm')}:00`,
+        return_date: `${format(returnDateTime, 'yyyy-MM-dd')}T${format(returnDateTime, 'HH:mm')}:00`,
         passengers: passengers.length,
         flight_hours: flightHours,
         overnight_stays: overnightStays,
@@ -471,4 +472,4 @@ const PaymentStep: React.FC<PaymentStepProps> = ({
   );
 };
 
-export default PaymentStep; 
+export default PaymentStep;

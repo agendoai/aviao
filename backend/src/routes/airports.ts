@@ -1,9 +1,8 @@
 import express from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../db';
 import { API_KEYS, isAPIKeyConfigured, getAPIKey, getAISWEBCredentials } from '../config/api-keys';
 
 const router = express.Router();
-const prisma = new PrismaClient();
 
 // GET /airports - Listar aeroportos populares
 router.get('/', async (req, res) => {
