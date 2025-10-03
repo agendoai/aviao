@@ -5,7 +5,9 @@
   "scripts": {
     "dev": "ts-node-dev --respawn --transpile-only src/index.ts",
     "build": "tsc",
-    "start": "node dist/index.js"
+    "start": "node dist/index.js",
+    "fix:block-windows": "node scripts/fix-block-windows.js",
+    "fix:dates-and-slots": "node scripts/fix-dates-and-slots.js"
   },
   "dependencies": {
     "@prisma/client": "^5.0.0",

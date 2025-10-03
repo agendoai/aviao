@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { getAircrafts, getBookings } from '@/utils/api';
+import { convertUTCToBrazilianTime } from '@/utils/dateUtils';
 
 interface Booking {
   id: number;
@@ -93,9 +94,9 @@ const CalendarDebug: React.FC = () => {
 
       // Verificar conflito com reservas
       const conflictingBooking = bookingsForAircraft.find(b => {
-        const departureDate = new Date(b.departure_date);
-        const returnDate = new Date(b.return_date);
-        const blockedUntil = b.blocked_until ? new Date(b.blocked_until) : null;
+        const departureDate = convertUTCToBrazilianTime(b.departure_date);
+        const returnDate = convertUTCToBrazilianTime(b.return_date);
+        const blockedUntil = b.blocked_until ? convertUTCToBrazilianTime(b.blocked_until) : null;
         
         // Conflito direto de horário
         const directConflict = departureDate < slotEnd && returnDate > slotStart;

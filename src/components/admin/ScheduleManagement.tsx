@@ -15,6 +15,7 @@ import { Popover, PopoverTrigger, PopoverContent } from '@/components/ui/popover
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { convertUTCToBrazilianTime } from '@/utils/dateUtils';
 
 interface Aircraft {
   id: number;
@@ -124,10 +125,11 @@ const ScheduleManagement: React.FC = () => {
     return calendar.find(entry => {
       if (entry.aircraftId !== selectedAircraftId) return false;
       
-      const entryStart = new Date(entry.departure_date);
-      const entryEnd = new Date(entry.return_date);
-    const slotStart = new Date(day);
-    slotStart.setHours(hour, 0, 0, 0);
+      // Preservar a hora exatamente como salva no backend
+      const entryStart = convertUTCToBrazilianTime(entry.departure_date);
+      const entryEnd = convertUTCToBrazilianTime(entry.return_date);
+      const slotStart = new Date(day);
+      slotStart.setHours(hour, 0, 0, 0);
       const slotEnd = new Date(day);
       slotEnd.setHours(hour + 1, 0, 0, 0);
       

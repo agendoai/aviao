@@ -1,5 +1,5 @@
 /**
- * Utilitários para manipulação de datas e fuso horário brasileiro
+ * Utilitários para manipulação de datas e exibição em UTC
  */
 
 /**
@@ -8,8 +8,9 @@
  * @returns String ISO em UTC
  */
 export const convertBrazilianDateToUTCString = (brazilianDate: Date): string => {
-  // Converter para UTC subtraindo 3 horas (horário de Brasília é UTC-3)
-  const utcDate = new Date(brazilianDate.getTime() - (3 * 60 * 60 * 1000));
+  // Converter para UTC SOMANDO 3 horas (horário de Brasília é UTC-3)
+  // UTC = horário local (BRT) + 3h
+  const utcDate = new Date(brazilianDate.getTime() + (3 * 60 * 60 * 1000));
   
   // Retornar no formato ISO UTC
   return utcDate.toISOString();
@@ -21,27 +22,44 @@ export const convertBrazilianDateToUTCString = (brazilianDate: Date): string => 
  * @returns Date no horário brasileiro
  */
 export const convertUTCToBrazilianTime = (utcDate: string | Date): Date => {
-  const date = typeof utcDate === 'string' ? new Date(utcDate) : utcDate;
-  
-  // CORRIGIDO: As datas já estão em horário brasileiro, não precisam de conversão
-  // O backend salva as datas já no horário brasileiro correto
-  return date;
+  // Objetivo: exibir exatamente a MESMA HORA salva no backend (UTC),
+  // sem deslocar para o fuso do cliente.
+  // Estratégia: se for string ISO, construir Date usando componentes locais,
+  // preservando o “relógio” recebido (HH:mm) — isto mantém a exibição em UTC.
+  if (utcDate instanceof Date) {
+    return utcDate;
+  }
+
+  const str = utcDate;
+  if (!str) return new Date(NaN);
+
+  const m = str.match(
+    /^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})(?::(\d{2})(?:\.(\d{3}))?)?(Z|[+-]\d{2}:\d{2})?$/
+  );
+
+  if (m) {
+    const year = parseInt(m[1], 10);
+    const month = parseInt(m[2], 10) - 1;
+    const day = parseInt(m[3], 10);
+    const hour = parseInt(m[4], 10);
+    const minute = parseInt(m[5], 10);
+    const second = m[6] ? parseInt(m[6], 10) : 0;
+    const ms = m[7] ? parseInt(m[7], 10) : 0;
+
+    return new Date(year, month, day, hour, minute, second, ms);
+  }
+
+  return new Date(str);
 };
 
 // Função específica para partida (não adiciona horas)
 export const convertUTCToBrazilianTimeDeparture = (utcDate: string | Date): Date => {
-  const date = typeof utcDate === 'string' ? new Date(utcDate) : utcDate;
-  
-  // CORRIGIDO: As datas já estão em horário brasileiro correto
-  return date;
+  return convertUTCToBrazilianTime(utcDate);
 };
 
 // Função específica para retorno (não adiciona horas)
 export const convertUTCToBrazilianTimeReturn = (utcDate: string | Date): Date => {
-  const date = typeof utcDate === 'string' ? new Date(utcDate) : utcDate;
-  
-  // CORRIGIDO: As datas já estão em horário brasileiro correto
-  return date;
+  return convertUTCToBrazilianTime(utcDate);
 };
 
 /**
@@ -61,8 +79,9 @@ export const convertBrazilianTimeToUTC = (brazilianDate: Date): Date => {
  * @returns String formatada no horário brasileiro
  */
 export const formatUTCToBrazilian = (utcDate: string | Date, formatString: string = 'dd/MM/yyyy'): string => {
-  const brazilianDate = convertUTCToBrazilianTime(utcDate);
-  return brazilianDate.toLocaleDateString('pt-BR');
+  // Exibir a data em UTC exatamente como salva
+  const date = typeof utcDate === 'string' ? new Date(utcDate) : utcDate;
+  return date.toLocaleDateString('pt-BR', { timeZone: 'UTC' });
 };
 
 /**
@@ -71,10 +90,9 @@ export const formatUTCToBrazilian = (utcDate: string | Date, formatString: strin
  * @returns String formatada no horário brasileiro
  */
 export const formatUTCToBrazilianDateTime = (utcDate: string | Date): string => {
-  const brazilianDate = convertUTCToBrazilianTime(utcDate);
-  return brazilianDate.toLocaleString('pt-BR', {
-    timeZone: 'America/Sao_Paulo'
-  });
+  // Exibir data e hora em UTC
+  const date = typeof utcDate === 'string' ? new Date(utcDate) : utcDate;
+  return date.toLocaleString('pt-BR', { timeZone: 'UTC' });
 };
 
 /**
@@ -83,10 +101,41 @@ export const formatUTCToBrazilianDateTime = (utcDate: string | Date): string => 
  * @returns String formatada da hora no horário brasileiro
  */
 export const formatUTCToBrazilianTime = (utcDate: string | Date): string => {
-  const brazilianDate = convertUTCToBrazilianTime(utcDate);
-  return brazilianDate.toLocaleTimeString('pt-BR', {
+  // Exibir apenas a hora em UTC
+  const date = typeof utcDate === 'string' ? new Date(utcDate) : utcDate;
+  return date.toLocaleTimeString('pt-BR', {
     hour: '2-digit',
     minute: '2-digit',
+    timeZone: 'UTC'
+  });
+};
+
+// ===== Formatação em fuso horário do Brasil (America/Sao_Paulo) =====
+export const formatBrazilTime = (date: string | Date): string => {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleTimeString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+    timeZone: 'America/Sao_Paulo'
+  });
+};
+
+export const formatBrazilDate = (date: string | Date): string => {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleDateString('pt-BR', {
+    timeZone: 'America/Sao_Paulo'
+  });
+};
+
+export const formatBrazilDateTime = (date: string | Date): string => {
+  const d = typeof date === 'string' ? new Date(date) : date;
+  return d.toLocaleString('pt-BR', {
+    hour: '2-digit',
+    minute: '2-digit',
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
     timeZone: 'America/Sao_Paulo'
   });
 };

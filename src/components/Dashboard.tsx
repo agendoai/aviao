@@ -644,7 +644,7 @@ const Dashboard: React.FC = () => {
               </Badge>
                         </div>
                         <div className="text-sm text-green-700 space-y-1">
-                          <p><strong>Valor:</strong> R$ {membership.value.toFixed(2)}</p>
+                          <p><strong>Valor:</strong> {(membership.value ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                           <p><strong>Vencimento:</strong> {new Date(membership.dueDate).toLocaleDateString('pt-BR')}</p>
                           <p><strong>Status:</strong> Pagamento confirmado</p>
                         </div>
@@ -664,7 +664,7 @@ const Dashboard: React.FC = () => {
                             </Badge>
                 </div>
                           <div className="text-sm text-orange-700 space-y-1">
-                            <p><strong>Valor:</strong> R$ {nextMembership.value.toFixed(2)}</p>
+                            <p><strong>Valor:</strong> {(nextMembership.value ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                             <p><strong>Vencimento:</strong> {new Date(nextMembership.dueDate).toLocaleDateString('pt-BR')}</p>
                             <p><strong>Dias restantes:</strong> {Math.ceil((new Date(nextMembership.dueDate).getTime() - now.getTime()) / (1000 * 60 * 60 * 24))} dias</p>
                           </div>
@@ -695,7 +695,7 @@ const Dashboard: React.FC = () => {
                         </Badge>
                       </div>
                       <div className="text-sm text-red-700 space-y-1">
-                        <p><strong>Valor:</strong> R$ {membership.value.toFixed(2)}</p>
+                        <p><strong>Valor:</strong> {(membership.value ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                         <p><strong>Vencimento:</strong> {new Date(membership.dueDate).toLocaleDateString('pt-BR')}</p>
                         <p><strong>Dias em atraso:</strong> {Math.abs(daysUntilDue)} dias</p>
                       </div>
@@ -716,7 +716,7 @@ const Dashboard: React.FC = () => {
                           </Badge>
                         </div>
                         <div className="text-sm text-blue-700 space-y-1">
-                          <p><strong>Valor:</strong> R$ {membership.value.toFixed(2)}</p>
+                          <p><strong>Valor:</strong> {(membership.value ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                           <p><strong>Vencimento:</strong> {new Date(membership.dueDate).toLocaleDateString('pt-BR')}</p>
                           <p><strong>Dias restantes:</strong> {daysUntilDue} dias</p>
                         </div>
@@ -736,7 +736,7 @@ const Dashboard: React.FC = () => {
                           </Badge>
                         </div>
                         <div className="text-sm text-orange-700 space-y-1">
-                          <p><strong>Valor:</strong> R$ {membership.value.toFixed(2)}</p>
+                          <p><strong>Valor:</strong> {(membership.value ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                           <p><strong>Vencimento:</strong> {new Date(membership.dueDate).toLocaleDateString('pt-BR')}</p>
                           <p><strong>Dias restantes:</strong> {daysUntilDue} dias</p>
                         </div>
@@ -756,7 +756,7 @@ const Dashboard: React.FC = () => {
                           </Badge>
                         </div>
                         <div className="text-sm text-red-700 space-y-1">
-                          <p><strong>Valor:</strong> R$ {membership.value.toFixed(2)}</p>
+                          <p><strong>Valor:</strong> {(membership.value ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</p>
                           <p><strong>Vencimento:</strong> {new Date(membership.dueDate).toLocaleDateString('pt-BR')}</p>
                           <p><strong>Status:</strong> Aguardando pagamento</p>
                         </div>
@@ -978,7 +978,7 @@ const Dashboard: React.FC = () => {
                               </span>
                             </div>
                             <div className="text-sm md:text-lg font-bold text-green-600">
-                              R$ {booking.value?.toFixed(2) || '0,00'}
+                              {(booking.value ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                             </div>
                           </div>
                         </div>
@@ -1076,7 +1076,7 @@ const Dashboard: React.FC = () => {
                               </span>
                             </div>
                             <div className="text-sm md:text-lg font-bold text-purple-600">
-                              R$ {request.sharedMission.totalCost?.toFixed(2) || '0,00'}
+                              {(request.sharedMission.totalCost ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                             </div>
                             <div className="text-xs md:text-sm text-gray-500 truncate">
                               Organizador: {request.sharedMission.creator?.name || 'N/A'}
@@ -1157,7 +1157,7 @@ const Dashboard: React.FC = () => {
                     transaction.type === 'credit' ? 'text-green-600' : 'text-red-600'
                   }`}>
                     <p className="font-bold text-sm md:text-lg">
-                      {transaction.type === 'credit' ? '+' : '-'}R$ {transaction.amount.toFixed(2)}
+                      {transaction.type === 'credit' ? '+' : '-'}{(transaction.amount ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                     </p>
                     <p className="text-xs text-gray-500">
                       {transaction.type === 'credit' ? 'Crédito' : 'Débito'}
@@ -1399,7 +1399,7 @@ const Dashboard: React.FC = () => {
                       </div>
                       <div className="text-right">
                         <p className="font-bold text-sm md:text-lg text-green-600">
-                          R$ {booking.value?.toFixed(2) || '0,00'}
+                              {(booking.value ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                         </p>
                       </div>
                     </div>
@@ -1764,7 +1764,7 @@ const Dashboard: React.FC = () => {
                 </Badge>
                 <div className="text-right">
                   <div className="text-lg font-bold text-green-600">
-                    R$ {selectedBookingDetails.value?.toFixed(2) || '0,00'}
+                    {(selectedBookingDetails.value ?? 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}
                   </div>
                 </div>
               </div>

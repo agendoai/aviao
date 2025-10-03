@@ -64,7 +64,6 @@ export const validateTimeSlot = (
 
     const bookingStart = convertUTCToBrazilianTime(booking.departure_date);
     const bookingEnd = convertUTCToBrazilianTime(booking.return_date);
-    const blockedUntil = booking.blocked_until ? convertUTCToBrazilianTime(booking.blocked_until) : null;
 
     // Verificar se há sobreposição direta com o voo
     const hasDirectConflict = isWithinInterval(startTime, { start: bookingStart, end: bookingEnd }) ||
@@ -75,30 +74,9 @@ export const validateTimeSlot = (
       return {
         isValid: false,
         reason: `Conflito com missão existente: ${booking.origin} → ${booking.destination}`,
-        nextAvailable: blockedUntil,
+        nextAvailable: bookingEnd,
         conflictingBooking: booking
       };
-    }
-
-    // Verificar se está no período de bloqueio (3h antes + voo + 3h depois)
-    if (blockedUntil && isBefore(startTime, blockedUntil)) {
-      const preparationStart = addHours(bookingStart, -3);
-      
-      if (isBefore(startTime, preparationStart)) {
-        return {
-          isValid: false,
-          reason: 'Tempo de preparação (3h antes da missão)',
-          nextAvailable: blockedUntil,
-          conflictingBooking: booking
-        };
-      } else {
-        return {
-          isValid: false,
-          reason: 'Tempo de encerramento (3h após retorno + manutenção)',
-          nextAvailable: blockedUntil,
-          conflictingBooking: booking
-        };
-      }
     }
   }
 
@@ -146,13 +124,7 @@ export const calculateNextAvailableTime = (
 
   // Encontrar o primeiro horário disponível após o bloqueio da próxima missão
   const nextBooking = relevantBookings[0];
-  const blockedUntil = nextBooking.blocked_until ? convertUTCToBrazilianTime(nextBooking.blocked_until) : null;
-  
-  if (blockedUntil) {
-    return blockedUntil;
-  }
-
-  // Se não há blocked_until, usar o horário de partida da próxima missão
+  // Usar o horário de partida da próxima missão como próximo disponível
   return convertUTCToBrazilianTime(nextBooking.departure_date);
 };
 
@@ -184,15 +156,10 @@ export const generateTimeSlots = (
         
         const bookingStart = convertUTCToBrazilianTime(booking.departure_date);
         const bookingEnd = convertUTCToBrazilianTime(booking.return_date);
-        const blockedUntil = booking.blocked_until ? convertUTCToBrazilianTime(booking.blocked_until) : null;
 
         // Verificar se o slot está dentro do período de voo
         const isDuringFlight = isWithinInterval(slotStart, { start: bookingStart, end: bookingEnd });
-        
-        // Verificar se o slot está no período de bloqueio
-        const isDuringBlock = blockedUntil ? isBefore(slotStart, blockedUntil) : false;
-
-        return isDuringFlight || isDuringBlock;
+        return isDuringFlight;
       });
 
       let status: TimeSlot['status'] = 'available';
@@ -202,22 +169,11 @@ export const generateTimeSlots = (
       if (conflictingBooking) {
         const bookingStart = convertUTCToBrazilianTime(conflictingBooking.departure_date);
         const bookingEnd = convertUTCToBrazilianTime(conflictingBooking.return_date);
-        const blockedUntil = conflictingBooking.blocked_until ? convertUTCToBrazilianTime(conflictingBooking.blocked_until) : null;
 
         if (isWithinInterval(slotStart, { start: bookingStart, end: bookingEnd })) {
           status = 'booked';
           reason = `Missão em andamento: ${conflictingBooking.origin} → ${conflictingBooking.destination}`;
-          nextAvailable = blockedUntil;
-        } else if (blockedUntil && isBefore(slotStart, blockedUntil)) {
-          status = 'blocked';
-          const preparationStart = addHours(bookingStart, -3);
-          
-          if (isBefore(slotStart, preparationStart)) {
-            reason = 'Tempo de preparação (3h antes da missão)';
-          } else {
-            reason = 'Tempo de encerramento (3h após retorno + manutenção)';
-          }
-          nextAvailable = blockedUntil;
+          nextAvailable = bookingEnd;
         }
       }
 
@@ -283,7 +239,6 @@ export const validateMission = (
 
     const bookingStart = convertUTCToBrazilianTime(booking.departure_date);
     const bookingEnd = convertUTCToBrazilianTime(booking.return_date);
-    const blockedUntil = booking.blocked_until ? convertUTCToBrazilianTime(booking.blocked_until) : null;
 
     // Verificar sobreposição com o voo
     const hasFlightConflict = isWithinInterval(departureTime, { start: bookingStart, end: bookingEnd }) ||
@@ -294,17 +249,7 @@ export const validateMission = (
       return {
         isValid: false,
         reason: `Conflito com missão existente: ${booking.origin} → ${booking.destination}`,
-        nextAvailable: blockedUntil,
-        conflictingBooking: booking
-      };
-    }
-
-    // Verificar conflito com período de bloqueio
-    if (blockedUntil && isBefore(returnTime, blockedUntil)) {
-      return {
-        isValid: false,
-        reason: 'Missão termina durante período de bloqueio de outra missão',
-        nextAvailable: blockedUntil,
+        nextAvailable: bookingEnd,
         conflictingBooking: booking
       };
     }

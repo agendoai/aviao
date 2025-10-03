@@ -1,4 +1,16 @@
 import { prisma } from '../db';
+
+// Helpers para formatar datas como strings locais sem timezone (sem Z)
+const formatLocalNoTZ = (d: Date): string => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  const mm = pad(d.getMonth() + 1);
+  const dd = pad(d.getDate());
+  const HH = pad(d.getHours());
+  const MI = pad(d.getMinutes());
+  const SS = pad(d.getSeconds());
+  return `${yyyy}-${mm}-${dd}T${HH}:${MI}:${SS}`;
+};
 import { MissionCalculator, MissionCalculation } from './missionCalculator';
 
 export interface ScheduleConflict {
@@ -302,7 +314,7 @@ export class ScheduleService {
     const endDate = new Date(validTargetDate);
     endDate.setDate(endDate.getDate() + 30); // Garantir 30 dias à frente
     
-    // Verificar se já existem slots para este período
+    // Verificar se já existem slots para este período (comparando strings locais)
     const existingSlots = await prisma.booking.count({
       where: {
         aircraftId,
@@ -310,8 +322,8 @@ export class ScheduleService {
         origin: 'AGENDA',
         destination: 'AGENDA',
         departure_date: {
-          gte: startDate,
-          lte: endDate
+          gte: formatLocalNoTZ(startDate),
+          lte: formatLocalNoTZ(endDate)
         }
       }
     });
@@ -344,30 +356,31 @@ export class ScheduleService {
           const slotEnd = new Date(d);
           slotEnd.setHours(hour + 1, 0, 0, 0);
           
-          // Verificar se já existe slot para este horário
+          // Verificar se já existe slot que cobre este horário (pré-voo e pós-voo incluídos)
           const existingSlot = await prisma.booking.findFirst({
             where: {
               aircraftId,
               status: 'available',
               origin: 'AGENDA',
               destination: 'AGENDA',
-              departure_date: {
-                gte: slotStart,
-                lt: slotEnd
-              }
+              departure_date: { lte: formatLocalNoTZ(slotStart) },
+              return_date: { gte: formatLocalNoTZ(slotEnd) }
             }
           });
 
           if (!existingSlot) {
+            const preFlightStart = new Date(slotStart.getTime() - (3 * 60 * 60 * 1000));
+            const postFlightEnd = new Date(slotEnd.getTime() + (3 * 60 * 60 * 1000));
+
             slots.push({
               userId: 1, // sistema
               aircraftId,
               origin: 'AGENDA',
               destination: 'AGENDA',
-              departure_date: new Date(slotStart.getTime() - (3 * 60 * 60 * 1000) - (3 * 60 * 60 * 1000)), // 07:00 (início pré-voo) - ajustar timezone
-              return_date: new Date(slotEnd.getTime() + (3 * 60 * 60 * 1000)), // 21:00 (fim lógico + 3h timezone)
-              actual_departure_date: new Date(slotStart.getTime() + (3 * 60 * 60 * 1000)), // 10:00 (partida real + 3h timezone)
-              actual_return_date: new Date(slotEnd.getTime() + (3 * 60 * 60 * 1000)), // 17:00 (retorno real + 3h timezone)
+              departure_date: formatLocalNoTZ(preFlightStart), // início pré-voo
+              return_date: formatLocalNoTZ(postFlightEnd), // fim pós-voo
+              actual_departure_date: formatLocalNoTZ(slotStart), // partida real do slot
+              actual_return_date: formatLocalNoTZ(slotEnd), // retorno real do slot
               passengers: 0,
               flight_hours: 0,
               overnight_stays: 0,
@@ -401,7 +414,7 @@ export class ScheduleService {
         origin: 'AGENDA',
         destination: 'AGENDA',
         departure_date: {
-          lt: cutoffDate
+          lt: formatLocalNoTZ(cutoffDate)
         }
       }
     });
@@ -424,8 +437,8 @@ export class ScheduleService {
         status: 'available',
         origin: 'AGENDA',
         destination: 'AGENDA',
-        departure_date: { lte: startTime },
-        return_date: { gte: endTime }
+        departure_date: { lte: formatLocalNoTZ(startTime) },
+        return_date: { gte: formatLocalNoTZ(endTime) }
       }
     });
 
@@ -440,8 +453,8 @@ export class ScheduleService {
         status: { in: ['pendente', 'confirmada', 'paga', 'blocked'] },
         OR: [
           {
-            departure_date: { lte: endTime },
-            return_date: { gte: startTime }
+            departure_date: { lte: formatLocalNoTZ(endTime) },
+            return_date: { gte: formatLocalNoTZ(startTime) }
           },
           {
             blocked_until: { gte: startTime }

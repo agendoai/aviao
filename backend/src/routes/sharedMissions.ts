@@ -6,6 +6,21 @@ import { createPixChargeForBooking, getPixQrCode, getPaymentStatus, createAsaasC
 
 const router = Router();
 
+// Helpers globais para formatar datas em strings locais sem timezone (sem Z)
+const formatLocalNoTZ = (d: Date): string => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  const yyyy = d.getFullYear();
+  const mm = pad(d.getMonth() + 1);
+  const dd = pad(d.getDate());
+  const HH = pad(d.getHours());
+  const MI = pad(d.getMinutes());
+  const SS = pad(d.getSeconds());
+  return `${yyyy}-${mm}-${dd}T${HH}:${MI}:${SS}`;
+};
+const normalizeIncomingLocalString = (s: string): string => {
+  return /Z|[+-]\d{2}:\d{2}$/.test(s) ? formatLocalNoTZ(new Date(s)) : s;
+};
+
 // Validar missão compartilhada
 router.post('/validate', authMiddleware, async (req, res) => {
   try {
@@ -22,8 +37,10 @@ router.post('/validate', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Todos os campos são obrigatórios' });
     }
 
-    const departureDateTime = new Date(departure_date);
-    const returnDateTime = new Date(return_date);
+    // Interpretar datas recebidas como horário brasileiro local (sem timezone)
+    const ensureISO = (s: string) => /Z|[+-]\d{2}:\d{2}$/.test(s) ? s : `${s}Z`;
+    const departureDateTime = new Date(ensureISO(departure_date));
+    const returnDateTime = new Date(ensureISO(return_date));
 
     const validation = await validateMission(
       aircraftId,
@@ -109,9 +126,16 @@ router.post('/', authMiddleware, async (req, res) => {
       return res.status(400).json({ error: 'Número de assentos excede a capacidade da aeronave' });
     }
 
-    // Validar missão com o sistema inteligente
-    const departureDate = new Date(departure_date);
-    const returnDate = new Date(return_date);
+    // Validar missão interpretando datas locais sem timezone
+    const parseLocalDateTime = (s: string): Date => {
+      if (/Z|[+-]\d{2}:\d{2}$/.test(s)) return new Date(s);
+      const m = s.match(/^([0-9]{4})-([0-9]{2})-([0-9]{2})T([0-9]{2}):([0-9]{2})(?::([0-9]{2}))?$/);
+      if (!m) return new Date(s);
+      const [_, yy, mm, dd, hh, mi, ss] = m;
+      return new Date(Number(yy), Number(mm) - 1, Number(dd), Number(hh), Number(mi), ss ? Number(ss) : 0, 0);
+    };
+    const departureDate = parseLocalDateTime(departure_date);
+    const returnDate = parseLocalDateTime(return_date);
     
     // Usar flight_hours do frontend (mesma lógica da missão solo)
     const flightHours = flight_hours !== undefined && flight_hours !== null ? flight_hours : 2.0; // Fallback apenas se realmente não enviado
@@ -144,23 +168,21 @@ router.post('/', authMiddleware, async (req, res) => {
     }
 
     // Calcular horários usando a mesma lógica das missões solo
-    // Agora o frontend envia datas UTC corretas, então podemos usar diretamente
-    const actualDepartureDate = new Date(departure_date);
-    const actualReturnDate = new Date(return_date);
+    const actualDepartureDate = parseLocalDateTime(departure_date);
+    const actualReturnDate = parseLocalDateTime(return_date);
     
     // Para departure_date e return_date, usamos os horários calculados (com -3h e +voo+3h)
-    const departureDateUTC = new Date(departure_date);
-    const returnDateUTC = new Date(return_date);
+    const departureDateUTC = parseLocalDateTime(departure_date);
+    const returnDateUTC = parseLocalDateTime(return_date);
     
-    // departure_date: horário real - 3h (início do pré-voo) - salvar em UTC
+    // departure_date: horário real - 3h (início do pré-voo) - salvar como string local
     const calculatedDepartureDate = new Date(departureDateUTC.getTime() - (3 * 60 * 60 * 1000));
     
-    // return_date: Data exata selecionada pelo usuário no calendário de retorno
-    // Esta é a data que o usuário escolheu para voltar, sem nenhum cálculo adicional
-    const calculatedReturnDate = new Date(return_date); // Data exata do calendário
+    // return_date: horário real de retorno + tempo de voo de volta + 3h (fim do pós-voo)
+    const calculatedReturnDate = new Date(returnDateUTC.getTime() + (returnFlightTime * 60 * 60 * 1000) + (3 * 60 * 60 * 1000));
     
-    // Calcular janela bloqueada - próximo voo só pode iniciar após retorno + tempo_voo_volta + 3h
-    const blockedUntil = new Date(returnDateUTC.getTime() + (returnFlightTime + 3) * 60 * 60 * 1000);
+    // Calcular janela bloqueada - deve ser igual ao return_date calculado
+    const blockedUntil = calculatedReturnDate;
 
     // Calcular número de pernoites baseado nas datas reais
     const calculatedOvernightStays = Math.max(0, Math.floor((returnDate.getTime() - departureDate.getTime()) / (1000 * 60 * 60 * 24)));
@@ -176,11 +198,11 @@ router.post('/', authMiddleware, async (req, res) => {
         origin,
         destination,
         secondaryDestination: secondaryDestination || null,
-        secondary_departure_time: secondary_departure_time ? new Date(secondary_departure_time) : null,
-        departure_date: calculatedDepartureDate, // Horário calculado (real - 3h)
-        return_date: calculatedReturnDate, // Horário calculado (real + voo volta + 3h)
-        actual_departure_date: actualDepartureDate, // Horário real de partida (exatamente o que usuário selecionou)
-        actual_return_date: actualReturnDate, // Horário real de retorno (exatamente o que usuário selecionou)
+        secondary_departure_time: secondary_departure_time ? normalizeIncomingLocalString(secondary_departure_time) : null,
+        departure_date: formatLocalNoTZ(calculatedDepartureDate), // Horário calculado (real - 3h)
+        return_date: formatLocalNoTZ(calculatedReturnDate), // Horário calculado (real + voo volta + 3h)
+        actual_departure_date: normalizeIncomingLocalString(departure_date), // Horário real de partida (exatamente o que usuário selecionou)
+        actual_return_date: normalizeIncomingLocalString(return_date), // Horário real de retorno (exatamente o que usuário selecionou)
         aircraftId,
         totalSeats,
         availableSeats: totalSeats,
@@ -221,11 +243,11 @@ router.post('/', authMiddleware, async (req, res) => {
         origin: origin,
         destination: destination,
         secondaryDestination: secondaryDestination || null,
-        secondary_departure_time: secondary_departure_time ? new Date(secondary_departure_time) : null,
-        departure_date: calculatedDepartureDate, // Horário calculado (real - 3h)
-        return_date: calculatedReturnDate, // Horário calculado (real + voo volta + 3h)
-        actual_departure_date: actualDepartureDate, // Horário real de partida (exatamente o que usuário selecionou)
-        actual_return_date: actualReturnDate, // Horário real de retorno (exatamente o que usuário selecionou)
+        secondary_departure_time: secondary_departure_time ? normalizeIncomingLocalString(secondary_departure_time) : null,
+        departure_date: formatLocalNoTZ(calculatedDepartureDate), // Horário calculado (real - 3h)
+        return_date: formatLocalNoTZ(calculatedReturnDate), // Horário calculado (real + voo volta + 3h)
+        actual_departure_date: normalizeIncomingLocalString(departure_date), // Horário real de partida (exatamente o que usuário selecionou)
+        actual_return_date: normalizeIncomingLocalString(return_date), // Horário real de retorno (exatamente o que usuário selecionou)
         passengers: totalSeats,
         flight_hours: flightHours, // Tempo total de voo
         overnight_stays: calculatedOvernightStays,

@@ -6,6 +6,7 @@ import { toast } from 'sonner';
 import { Clock, Check, X } from 'lucide-react';
 import { Button } from './ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog';
+import { convertUTCToBrazilianTime } from '@/utils/dateUtils';
 
 // Configurar localização
 const locales = {
@@ -139,23 +140,15 @@ const ProfessionalCalendar: React.FC<ProfessionalCalendarProps> = ({
   // Converter bookings para eventos do calendário
   const events = useMemo(() => {
     return bookings.map(booking => {
-      const start = new Date(booking.departure_date);
-      const end = new Date(booking.return_date);
-      
-      // Calcular o período total bloqueado
-      let blockedUntil: Date;
-      if (booking.blocked_until) {
-        blockedUntil = new Date(booking.blocked_until);
-      } else {
-        // CORRIGIDO: return_date já inclui tempo de voo de volta + 3h de manutenção
-        blockedUntil = new Date(booking.return_date);
-      }
+      // Converter para horário brasileiro preservando os componentes exatos
+      const start = convertUTCToBrazilianTime(booking.departure_date);
+      const end = convertUTCToBrazilianTime(booking.return_date);
 
       return {
         id: booking.id,
         title: `${booking.origin} → ${booking.destination}`,
-        start: start,
-        end: blockedUntil, // Usar blocked_until como fim do evento
+        start,
+        end,
         resource: booking,
         status: booking.status
       };
@@ -173,13 +166,13 @@ const ProfessionalCalendar: React.FC<ProfessionalCalendarProps> = ({
 
     // Verificar se conflita com algum booking
     return !events.some(event => {
-      const eventStart = new Date(event.start);
-      const eventEnd = new Date(event.end);
-      
+      const eventStart = event.start as Date;
+      const eventEnd = event.end as Date;
+
       // Um slot está bloqueado se qualquer parte dele está dentro do período bloqueado
       const slotEnd = new Date(date);
       slotEnd.setHours(date.getHours() + 1, 0, 0, 0);
-      
+
       return date < eventEnd && slotEnd > eventStart;
     });
   };

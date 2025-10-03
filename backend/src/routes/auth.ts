@@ -1,5 +1,5 @@
 import { Router } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../db';
 import { generateToken, AuthPayload } from '../auth';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
@@ -7,7 +7,6 @@ import { createAsaasCustomer, createSubscription } from '../services/asaas';
 import { generateResetToken, sendPasswordResetEmail, isEmailConfigured } from '../services/email';
 
 const router = Router();
-const prisma = new PrismaClient();
 
 // Registro de usuário
 router.post('/register', async (req, res) => {

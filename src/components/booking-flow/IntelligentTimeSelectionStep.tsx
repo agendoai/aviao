@@ -21,7 +21,7 @@ import { format, addDays, startOfWeek, endOfWeek, addHours } from 'date-fns';
 import { ptBR } from 'date-fns/locale';
 import { getTimeSlots, getAircrafts } from '@/utils/api';
 import { buildApiUrl } from '@/config/api';
-import { convertWeekStartToBrazilianTimezone } from '@/utils/dateUtils';
+import { formatBrazilTime } from '@/utils/dateUtils';
 import { toast } from 'sonner';
 // Removido: não precisamos mais validar no frontend
 // O backend já faz toda a validação corretamente
@@ -87,11 +87,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
 
   // DEBUG: Apenas logs essenciais para o problema dos slots cinza
   if (isReturnSelection) {
-    console.log('🔍 DEBUG RETORNO - Props essenciais:', {
-      isReturnSelection,
-      departureDateTime: departureDateTime?.toLocaleString(),
-      hasValidDepartureDateTime: !!departureDateTime
-    });
   }
 
   const [aircrafts, setAircrafts] = useState<Aircraft[]>([]);
@@ -107,6 +102,19 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
       setCurrentWeek(currentMonth);
     }
   }, [currentMonth]);
+
+  // Utilitário: extrair HH:mm no fuso de São Paulo a partir de uma Date
+  const getBrazilHoursMinutes = (date: Date): { hour: number; minute: number } => {
+    const parts = new Intl.DateTimeFormat('pt-BR', {
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: false,
+      timeZone: 'America/Sao_Paulo',
+    }).formatToParts(date);
+    const hourStr = parts.find(p => p.type === 'hour')?.value || '00';
+    const minuteStr = parts.find(p => p.type === 'minute')?.value || '00';
+    return { hour: parseInt(hourStr, 10), minute: parseInt(minuteStr, 10) };
+  };
   const [loading, setLoading] = useState(true);
   const [loadingSlots, setLoadingSlots] = useState(false);
   const [timeSlots, setTimeSlots] = useState<TimeSlot[]>([]);
@@ -255,15 +263,15 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
         const dayStart = new Date(currentWeek);
         dayStart.setHours(0, 0, 0, 0); // Início do dia atual
         
-        // Converter para timezone brasileiro antes de enviar para o backend
-        const dayStartBrazilian = convertWeekStartToBrazilianTimezone(dayStart);
+        // Enviar início do dia em UTC puro para o backend
+        const dayStartUtc = dayStart.toISOString();
         
         // Estimar duração da missão (padrão 2 horas se não especificado)
         const estimatedMissionDuration = 2; // horas
         
         const slots = await getTimeSlots(
           selectedAircraft.id, 
-          dayStartBrazilian,
+          dayStartUtc,
           undefined,
           undefined,
           estimatedMissionDuration,
@@ -286,14 +294,20 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
             return null;
           }
 
-          // Extrair HH:mm do slot devolvido pela API
-          const hours = originalStart.getHours();
-          const minutes = originalStart.getMinutes();
+          // Extrair HH:mm no fuso de São Paulo para exibição e alinhamento
+          const { hour: hours, minute: minutes } = getBrazilHoursMinutes(originalStart);
 
           // Fixar a data para currentWeek (dia exibido no calendário)
           const baseDate = new Date(currentWeek);
-          const start = new Date(baseDate);
-          start.setHours(hours, minutes, 0, 0);
+          const start = new Date(
+            baseDate.getFullYear(),
+            baseDate.getMonth(),
+            baseDate.getDate(),
+            hours,
+            minutes,
+            0,
+            0
+          );
 
           // Fim do slot: +29 minutos
           const end = new Date(start.getTime() + 29 * 60 * 1000);
@@ -303,8 +317,16 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
           if (slot.nextAvailable) {
             const na = new Date(slot.nextAvailable);
             if (!isNaN(na.getTime())) {
-              const naNorm = new Date(baseDate);
-              naNorm.setHours(na.getHours(), na.getMinutes(), 0, 0);
+              const { hour: naHour, minute: naMinute } = getBrazilHoursMinutes(na);
+              const naNorm = new Date(
+                baseDate.getFullYear(),
+                baseDate.getMonth(),
+                baseDate.getDate(),
+                naHour,
+                naMinute,
+                0,
+                0
+              );
               nextAvailable = naNorm;
             }
           }
@@ -407,14 +429,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
 
   // Lidar com clique em slot
   const handleSlotClick = (slot: TimeSlot) => {
-    console.log('🎯 CLIQUE NO SLOT:', {
-      time: slot.start.toLocaleTimeString(),
-      status: slot.status,
-      isReturnSelection,
-      hasSecondaryDestinationActive,
-      canSelectReturn,
-      departureDateTime: departureDateTime?.toLocaleTimeString()
-    });
     
     // Verificar se o slot tem datas válidas
     if (!(slot.start instanceof Date) || isNaN(slot.start.getTime())) {
@@ -437,7 +451,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
 
     // VALIDAÇÃO OBRIGATÓRIA: Se é seleção de retorno com destino secundário, precisa preencher horário secundário primeiro
     if (isReturnSelection && hasSecondaryDestinationActive && !canSelectReturn) {
-      console.log('🚫 BLOQUEADO: Horário secundário não preenchido');
       toast.error('⚠️ Preencha primeiro o horário de ida para o destino secundário antes de selecionar o retorno!');
       return;
     }
@@ -473,7 +486,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
 
     // BLOQUEAR SLOTS COM STATUS "blocked" - PÓS-VOO, PRÉ-VOO, ETC
     if (slot.status === 'blocked') {
-      console.log('🚫 BLOQUEADO: Slot com status blocked', slot.blockType);
       let message = 'Horário indisponível';
       
       if (slot.blockType === 'pos-voo') {
@@ -490,7 +502,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
 
     // BLOQUEAR SLOTS COM STATUS "booked"
     if (slot.status === 'booked') {
-      console.log('🚫 BLOQUEADO: Slot já reservado');
       // Buscar próximos horários disponíveis (respeitando 3 horas)
       const slotsDisponiveis = timeSlots.filter(s => s.status === 'available');
       const proximosHorarios = [];
@@ -516,22 +527,15 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
       return; // BLOQUEAR COMPLETAMENTE
     }
 
-    // Validar se o horário de retorno é posterior ao horário de partida (APENAS NO MESMO DIA)
-    if (departureDateTime && slot.start <= departureDateTime) {
-      // Verificar se é o mesmo dia
-      const slotDate = slot.start.toDateString();
-      const departureDate = departureDateTime.toDateString();
-      
-      // Só bloquear se for o MESMO DIA e horário anterior
-      if (slotDate === departureDate) {
-        const departureTimeStr = departureDateTime.toLocaleTimeString('pt-BR', {
-          hour: '2-digit',
-          minute: '2-digit',
-          hour12: false
-        });
-        toast.error(`❌ Horário inválido! Você partiu às ${departureTimeStr} e está tentando voltar às ${slot.start.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })} no mesmo dia. Selecione um horário após a partida.`);
-        return;
-      }
+    // Validar se o horário de retorno é posterior ao horário de partida
+    if (departureDateTime && slot.start < departureDateTime) {
+      const departureTimeStr = departureDateTime.toLocaleTimeString('pt-BR', {
+        hour: '2-digit',
+        minute: '2-digit',
+        hour12: false
+      });
+      toast.error(`❌ Horário inválido! Você partiu às ${departureTimeStr} e está tentando voltar às ${slot.start.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}. Selecione um horário após a partida.`);
+      return;
     }
 
     // VALIDAÇÃO DE ATROPELAMENTO: Verificar se há missões no caminho entre partida e retorno
@@ -709,7 +713,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
     }
 
     // Se chegou até aqui, o slot é válido
-    console.log('✅ SLOT SELECIONADO COM SUCESSO:', slot.start.toLocaleTimeString());
     setSelectedSlot(slot);
     setValidationMessage(null);
     setSuggestedTimes([]);
@@ -784,7 +787,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
       
       // Se o slot está dentro de 15 minutos do pouso secundário, marcar como pouso
       if (timeDiff <= 15 * 60 * 1000) { // 15 minutos em milissegundos
-        console.log('🎯 Marcando slot de pouso secundário:', slot.start.toLocaleTimeString(), 'Pouso real:', secondaryLandingTime.toLocaleTimeString());
         return 'bg-orange-300 border-orange-500 cursor-not-allowed';
       }
     }
@@ -806,7 +808,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
 
     // MARCAR SLOTS DE PREVIEW: Mostrar visualmente os horários que serão ocupados pelo voo de ida
     if (isSlotInPreviewPeriod(slot)) {
-      console.log('🎯 Marcando slot de preview:', slot.start.toLocaleTimeString());
       // Se for seleção de retorno, marcar como missão completa
       if (isReturnSelection) {
         return 'bg-gray-300 border-gray-500 cursor-not-allowed';
@@ -820,15 +821,9 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
     }
     
     // VALIDAÇÃO CRÍTICA: Verificar se o horário é anterior à partida (para retorno)
-    // Só marcar vermelho se for o MESMO DIA e horário anterior
-    if (isReturnSelection && departureDateTime && slot.start <= departureDateTime) {
-      // Verificar se é o mesmo dia
-      const slotDate = slot.start.toDateString();
-      const departureDate = departureDateTime.toDateString();
-      
-      if (slotDate === departureDate) {
-        return 'bg-red-200 border-red-400 cursor-not-allowed';
-      }
+    // Marcar vermelho para qualquer horário anterior, incluindo dias anteriores
+    if (isReturnSelection && departureDateTime && slot.start < departureDateTime) {
+      return 'bg-red-200 border-red-400 cursor-not-allowed';
     }
 
     // NÃO BLOQUEAR VISUALMENTE - O pré-voo vai ocupar as 3h antes
@@ -900,7 +895,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
       
       // Verificar se este slot corresponde ao horário digitado
       if (slot.start.getHours() === hours && slot.start.getMinutes() === minutes) {
-        console.log('🎯 Ícone de decolagem secundária:', slot.start.toLocaleTimeString());
         return <Plane className="h-4 w-4 text-purple-600" />;
       }
     }
@@ -926,7 +920,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
       
       // Se o slot está dentro de 15 minutos do pouso secundário, marcar como pouso
       if (timeDiff <= 15 * 60 * 1000) { // 15 minutos em milissegundos
-        console.log('🎯 Ícone de pouso secundário:', slot.start.toLocaleTimeString(), 'Pouso real:', secondaryLandingTime.toLocaleTimeString());
         return <Plane className="h-4 w-4 text-orange-600" />;
       }
     }
@@ -942,7 +935,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
       
       // Se o slot está dentro de 15 minutos do pouso, marcar como pouso
       if (timeDiff <= 15 * 60 * 1000) { // 15 minutos em milissegundos
-        console.log('🎯 Ícone de pouso principal:', slot.start.toLocaleTimeString(), 'Pouso real:', landingTime.toLocaleTimeString());
         return <Plane className="h-4 w-4 text-cyan-600" />;
       }
     }
@@ -957,15 +949,9 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
     }
     
     // VALIDAÇÃO CRÍTICA: Verificar se o horário é anterior à partida (para retorno)
-    // Só marcar vermelho se for o MESMO DIA e horário anterior
-    if (slot && isReturnSelection && departureDateTime && slot.start <= departureDateTime) {
-      // Verificar se é o mesmo dia
-      const slotDate = slot.start.toDateString();
-      const departureDate = departureDateTime.toDateString();
-      
-      if (slotDate === departureDate) {
-        return <XCircle className="h-4 w-4 text-red-700" />;
-      }
+    // Mostrar ícone vermelho para qualquer horário anterior, incluindo dias anteriores
+    if (slot && isReturnSelection && departureDateTime && slot.start < departureDateTime) {
+      return <XCircle className="h-4 w-4 text-red-700" />;
     }
     
     switch (status) {
@@ -1094,7 +1080,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
     if (fromAirport && toAirport) {
       // Usar distância real entre aeroportos
       distance = getDistanceBetweenAirports(fromAirport, toAirport);
-      console.log(`🛫 Cálculo de voo: ${fromAirport} → ${toAirport} = ${distance}km`);
     } else {
       // Usar distâncias padrão
       const distances = {
@@ -1103,14 +1088,12 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
         'secondary-to-base': 400
       };
       distance = distances[route];
-      console.log(`🛫 Cálculo padrão: ${route} = ${distance}km`);
     }
     
     // Velocidade da aeronave selecionada
     const aircraftSpeed = getAircraftSpeed(selectedAircraft);
     const flightTimeMinutes = (distance / aircraftSpeed) * 60; // Converter para minutos
     
-    console.log(`✈️ Voo calculado: ${distance}km ÷ ${aircraftSpeed}km/h = ${flightTimeMinutes}min (${Math.round(flightTimeMinutes/60)}h${flightTimeMinutes%60}min)`);
     
     return {
       distance,
@@ -1190,7 +1173,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
     };
     
     // Debug para verificar se está sendo calculado
-    console.log('🛫 Mission Preview calculado:', preview);
     
     return preview;
   };
@@ -1199,9 +1181,6 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
 
   // Debug para verificar mudanças no selectedDestinations
   useEffect(() => {
-    console.log('🔄 selectedDestinations mudou:', selectedDestinations);
-    console.log('🔄 selectedAirport:', selectedAirport);
-    console.log('🔄 missionPreview recalculado:', missionPreview);
   }, [selectedDestinations, selectedAirport, missionPreview]);
 
   // Função para verificar se um slot está no período de preview da missão
@@ -1777,10 +1756,10 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
                                          {getSlotIcon(slot.status, slot)}
                                        </div>
                                        <div className="text-xs font-semibold leading-tight">
-                                         {format(slot.start, 'HH:mm')}
+                                         {formatBrazilTime(slot.start)}
                                        </div>
                                        <div className="text-xs text-gray-500 leading-tight hidden sm:block">
-                                         {format(slot.start, 'HH:mm')} - {format(slot.end, 'HH:mm')}
+                                         {formatBrazilTime(slot.start)} - {formatBrazilTime(slot.end)}
                                        </div>
                                      </div>
                                    </div>
@@ -1789,7 +1768,7 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
                                    <div className="space-y-1">
                                      {/* Intervalo de tempo - Padrão 04:00 - 04:29 */}
                                      <div className="text-xs text-gray-500 border-b pb-1 mb-1">
-                                       <strong>Horário:</strong> {format(slot.start, 'HH:mm')} - {format(slot.end, 'HH:mm')}
+                                     <strong>Horário:</strong> {formatBrazilTime(slot.start)} - {formatBrazilTime(slot.end)}
                                      </div>
                                      
                                      <div className="text-sm">
@@ -1837,7 +1816,7 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
                                          )
                                        ) : isReturnSelection && hasSecondaryDestinationActive && !canSelectReturn && slot.status === 'available' ? (
                                          <span className="text-red-600">🚫 Preencha horário secundário primeiro</span>
-                                       ) : isReturnSelection && departureDateTime && slot.start <= departureDateTime && slot.start.toDateString() === departureDateTime.toDateString() ? (
+                                       ) : isReturnSelection && departureDateTime && slot.start < departureDateTime ? (
                                          <span className="text-red-600">❌ Antes da partida</span>
                                        ) : slot.status === 'available' ? (
                                          <span className="text-green-600">✅ Disponível</span>
@@ -1869,7 +1848,7 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
                                          ⚠️ Preencha o horário de ida para o destino secundário primeiro
                                        </div>
                                      )}
-                                     {isReturnSelection && departureDateTime && slot.start <= departureDateTime && slot.start.toDateString() === departureDateTime.toDateString() && slot.start.getTime() !== departureDateTime.getTime() && (
+                                     {isReturnSelection && departureDateTime && slot.start < departureDateTime && slot.start.getTime() !== departureDateTime.getTime() && (
                                        <div className="text-xs text-blue-600">
                                          ⏰ Partida: {format(departureDateTime, 'dd/MM HH:mm', { locale: ptBR })}
                                        </div>
@@ -1887,7 +1866,7 @@ const IntelligentTimeSelectionStep: React.FC<IntelligentTimeSelectionStepProps> 
 
                                      {slot.nextAvailable && slot.nextAvailable instanceof Date && !isNaN(slot.nextAvailable.getTime()) && (
                                        <div className="text-xs text-blue-600">
-                                         ✅ Próxima disponibilidade: {format(slot.nextAvailable, 'dd/MM às HH:mm', { locale: ptBR })}
+                                     ✅ Próxima disponibilidade: {slot.nextAvailable.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })} às {formatBrazilTime(slot.nextAvailable)}
                                        </div>
                                      )}
                                    </div>
